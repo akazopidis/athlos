@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v7, building (2026-09-27)
+**Status:** v8, building (2026-09-27)
+
+**Changes in v8:** one shared Container Apps environment for all three stages. The student subscription allows only one Container Apps environment per region (quota `ManagedEnvironmentCount` = 1), so `cae-athlos-shared` and its VNet live in `rg-athlos-shared`, and each stage deploys its apps into it (§10, §11).
 
 **Changes in v7:** services accept only gateway-signed requests, and each Container Apps environment runs in its own VNet. The first dev deploy showed that an app with *internal* ingress was reachable from the internet in an environment without a VNet, so network isolation alone could not carry layer 1 (§3.2, §11).
 
@@ -444,7 +446,7 @@ Other prices are from the Azure Retail Prices API, West Europe, EUR (Italy North
 |---|---|---|
 | PostgreSQL Flexible Server | 1 × B1ms, 32 GB storage, 7-day backups, HA off, geo-backup off, storage auto-grow **off**. Holds all 12 databases (4 services × dev, staging, prod) | **0** (free service) |
 | Container Registry | Standard, shared by all environments | **0** (free service) |
-| Container Apps | Three Consumption environments (dev, staging, prod), 6 apps each, `minReplicas: 0`. Free grant per subscription per month: 180,000 vCPU-s, 360,000 GiB-s, 2M requests | 0–2 |
+| Container Apps | One environment (Consumption workload profile) shared by dev, staging and prod, 6 apps per stage, `minReplicas: 0`. Free grant per subscription per month: 180,000 vCPU-s, 360,000 GiB-s, 2M requests | 0–2 |
 | Container Apps Jobs | db-migrator, runs for seconds per deploy | ~0 |
 | Service Bus | Basic, one namespace per environment, €0.0429 per million operations | ~0.01 |
 | Storage accounts | Blob, LRS, a few GB, one per environment | <0.50 |
@@ -476,7 +478,7 @@ That leaves most of the €100 unused, which is a comfortable buffer for load te
 
 ## 11. Infrastructure as Code (Bicep)
 
-- **Four resource groups:** `rg-athlos-shared` (registry, PostgreSQL server, Log Analytics), and `rg-athlos-dev`, `rg-athlos-staging`, `rg-athlos-prod` (everything else, one copy per environment). `shared.bicep` deploys the first; `env.bicep` with `dev.bicepparam`, `staging.bicepparam` or `prod.bicepparam` deploys the other three from the same code, which is the IaC point the thesis should make.
+- **Four resource groups:** `rg-athlos-shared` (registry, PostgreSQL server, Log Analytics, the VNet and the Container Apps environment), and `rg-athlos-dev`, `rg-athlos-staging`, `rg-athlos-prod` (everything else, one copy per stage). `shared.bicep` deploys the first; `env.bicep` with `dev.bicepparam`, `staging.bicepparam` or `prod.bicepparam` deploys the other three from the same code, which is the IaC point the thesis should make.
 - The resource groups and the GitHub OIDC app registration are created once by hand (or a tiny bootstrap script), documented in `infra/README.md`.
 - **Hand-written, small modules** instead of Azure Verified Modules. AVM is good, but for a thesis readable 40-line modules explain more than a 500-parameter one.
 - **Identity model:**
@@ -484,7 +486,8 @@ That leaves most of the €100 unused, which is a comfortable buffer for load te
   - Role assignments in Bicep: `AcrPull` on the registry, `Key Vault Secrets User`, `Azure Service Bus Data Sender` (ordering) and `Data Receiver` (enrollment), `Storage Blob Data Contributor` (catalog), and a role on the Communication Services resource for the notifications-worker so it sends email with its managed identity.
   - PostgreSQL uses **Microsoft Entra authentication** (password auth disabled). The db-migrator identity is an Entra admin on the server; on deploy it creates the databases, maps each service's managed identity to its own PostgreSQL role (`pgaadauth_create_principal`), grants that role DML rights on its own database only, and applies the RLS policies.
 - **PostgreSQL server settings in Bicep:** `sku: { name: 'Standard_B1ms', tier: 'Burstable' }`, `version: '17'`, `storage: { storageSizeGB: 32, autoGrow: 'Disabled' }`, `backup: { backupRetentionDays: 7, geoRedundantBackup: 'Disabled' }`, `highAvailability: { mode: 'Disabled' }`, `authConfig: { activeDirectoryAuth: 'Enabled', passwordAuth: 'Disabled' }`.
-- **Networking:** each Container Apps environment runs in its own VNet (`vnet-athlos-{env}`, a delegated subnet, Consumption workload profile only). VNets and VNet-integrated Consumption environments cost nothing. The environment stays public (`internal: false`) so the gateway can have external ingress. PostgreSQL keeps public access with Entra-only auth and the "Allow public access from Azure services" firewall rule, ACR admin user is disabled, HTTPS only. Private endpoints (which do cost) remain a production hardening step for the thesis.
+- **One environment, three stages.** The subscription allows one Container Apps environment per region, so `cae-athlos-shared` hosts the apps of dev, staging and prod (`ca-athlos-gateway-dev`, `ca-athlos-gateway-staging`, ...). What stays separate per stage: resource group, managed identities, Key Vault, **gateway signing key**, App Insights and (later) databases and PostgreSQL roles. Because each stage has its own signing key, a dev gateway cannot call a prod service even though they share a network. The trade-off for the thesis: stages share one platform, so a load test on staging runs next to prod, and a platform-level problem hits all three. With more quota, the environment moves back into `env.bicep` unchanged.
+- **Networking:** the environment runs in a VNet (`vnet-athlos-shared`, a delegated subnet, Consumption workload profile only). VNets and VNet-integrated Consumption environments cost nothing. The environment stays public (`internal: false`) so the gateway can have external ingress. PostgreSQL keeps public access with Entra-only auth and the "Allow public access from Azure services" firewall rule, ACR admin user is disabled, HTTPS only. Private endpoints (which do cost) remain a production hardening step for the thesis.
 - **Secrets:** only the Stripe secret key and webhook signing secret are real secrets, one pair per environment. They go into that environment's Key Vault once, and container apps reference them as Key Vault secret references.
 - **PR check:** `az deployment group what-if` on every PR touching `infra/`, output posted to the job summary.
 

@@ -1,4 +1,8 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
@@ -13,6 +17,18 @@ public static class TestTokens
 
     public static SymmetricSecurityKey SigningKey { get; } =
         new("athlos-test-signing-key-0123456789abcdef-0123456789abcdef"u8.ToArray());
+
+    // Makes the app under test (gateway or service) accept these tokens instead of Entra's.
+    public static void TrustTestTokens(this IWebHostBuilder builder)
+    {
+        builder.UseSetting("Auth:Audience", Audience);
+        builder.ConfigureTestServices(services =>
+            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+            {
+                options.TokenValidationParameters.ValidIssuer = Issuer;
+                options.TokenValidationParameters.IssuerSigningKey = SigningKey;
+            }));
+    }
 
     public static string For(Guid userId, string? email = null, string? name = null)
     {

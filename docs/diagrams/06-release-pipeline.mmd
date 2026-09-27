@@ -1,0 +1,12 @@
+flowchart LR
+  subgraph DEV["1. Push to dev"]
+    A["Build and test"] --> B["Publish images<br/>tag: sha"] --> C["Deploy dev"]
+  end
+  subgraph STG["2. Merge dev into main"]
+    D["Same images"] --> E["Deploy staging"] --> F["Smoke + end-to-end tests"]
+  end
+  subgraph PRD["3. GitHub Release vX.Y.Z"]
+    G["Add version tag<br/>to staging's images"] --> H["Your approval"] --> I["Deploy prod"] --> J["Smoke test"]
+  end
+  C -.-> D
+  F -.-> G

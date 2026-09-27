@@ -1,0 +1,6 @@
+flowchart LR
+  subgraph LAYERS[" "]
+    A["1. Gateway: resolve tenant, check membership"] --> B["2. Tenant context: scoped ITenantContext"]
+    B --> C["3. EF Core: global query filter + SaveChanges guard"]
+    C --> D["4. PostgreSQL Row-Level Security"]
+  end

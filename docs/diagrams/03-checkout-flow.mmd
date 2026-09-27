@@ -1,0 +1,20 @@
+sequenceDiagram
+  participant C as Customer (SPA)
+  participant G as gateway
+  participant O as ordering-api
+  participant S as Stripe
+  participant Q as Service Bus
+  participant E as enrollment-api
+  C->>G: POST /orders/checkout {programId}
+  G->>O: forward (+ user id)
+  O->>O: create Order (Pending, TenantId, CustomerId)
+  O->>S: Checkout Session (destination charge, application fee)
+  O-->>C: redirect URL
+  C->>S: pays on Stripe-hosted page
+  S->>G: webhook checkout.session.completed
+  G->>O: forward
+  O->>O: verify signature, dedupe, Order = Paid + outbox row (one transaction)
+  O->>Q: outbox publisher sends OrderPaid
+  Q->>E: OrderPaid (scales enrollment-api up from zero)
+  E->>E: create Enrollment (idempotent on OrderId)
+  C->>G: GET /me/programs

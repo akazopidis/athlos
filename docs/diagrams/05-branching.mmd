@@ -1,0 +1,21 @@
+gitGraph
+  commit id: "init"
+  commit id: "skeleton" tag: "v0.1.0"
+  branch dev
+  checkout dev
+  commit id: "dev setup"
+  branch feature/catalog
+  checkout feature/catalog
+  commit id: "programs CRUD"
+  commit id: "RLS policies"
+  checkout dev
+  merge feature/catalog id: "deploy dev"
+  checkout main
+  merge dev id: "deploy staging" tag: "v0.2.0"
+  branch hotfix/webhook
+  checkout hotfix/webhook
+  commit id: "fix webhook"
+  checkout main
+  merge hotfix/webhook id: "staging again" tag: "v0.2.1"
+  checkout dev
+  merge main id: "sync dev"

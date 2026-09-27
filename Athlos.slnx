@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/AppHost/Athlos.AppHost.csproj" />
+  <Project Path="src/ServiceDefaults/Athlos.ServiceDefaults.csproj" />
+</Solution>

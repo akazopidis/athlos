@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # main only receives PRs from dev or hotfix/* (design §12.1). Skipped on PRs into dev, which counts as passing.
+  source-branch:
+    if: github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check source branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [[ "$HEAD_REF" != "dev" && "$HEAD_REF" != hotfix/* ]]; then
+            echo "::error::PRs into main must come from dev or hotfix/*, not '$HEAD_REF'."
+            exit 1
+          fi
+
+  # Branch protection requires jobs by name ("backend", "source-branch"). Frontend and Bicep jobs are added as those parts exist.
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - run: dotnet restore Athlos.slnx
+      - run: dotnet build Athlos.slnx --no-restore --configuration Release
+      - run: dotnet test Athlos.slnx --no-build --configuration Release

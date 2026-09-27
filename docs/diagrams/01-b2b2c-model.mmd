@@ -1,0 +1,10 @@
+flowchart LR
+  subgraph B2B2C[" "]
+    P["Platform operator (Athlos)"]
+    C["Coaches = tenants (B2B)"]
+    U["Customers (B2C)"]
+    P -->|provides SaaS to| C
+    C -->|sell programs to| U
+    U -->|pay via Stripe| P
+    P -->|payout minus fee| C
+  end

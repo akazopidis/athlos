@@ -1,0 +1,37 @@
+flowchart LR
+  subgraph CLIENTS["Callers"]
+    SPA["React SPA<br/>(Static Web Apps)"]
+    STRIPE["Stripe webhooks"]
+  end
+
+  subgraph ACA["Container Apps environment"]
+    GW["gateway (YARP)<br/>only public entry"]
+    TEN["tenancy-api"]
+    CAT["catalog-api"]
+    ORD["ordering-api"]
+    ENR["enrollment-api"]
+    NOT["notifications-worker"]
+  end
+
+  subgraph DATA["Data, messaging and email"]
+    PG[("PostgreSQL<br/>Flexible Server")]
+    BLOB[("Blob Storage")]
+    SB[("Service Bus<br/>order-paid, notifications")]
+    ACS["Communication Services<br/>Email"]
+  end
+
+  SPA --> GW
+  STRIPE --> GW
+  GW --> TEN
+  GW --> CAT
+  GW --> ORD
+  GW --> ENR
+  TEN --> PG
+  CAT --> PG
+  CAT --> BLOB
+  ORD --> PG
+  ORD -->|events and emails| SB
+  ENR --> PG
+  ENR -.->|consumes| SB
+  NOT -.->|consumes| SB
+  NOT --> ACS

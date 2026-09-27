@@ -15,11 +15,22 @@ param appVersion string = imageTag
 @description('Set to 1 on prod during demos to avoid a cold start; costs about €5/month (design §10).')
 param gatewayMinReplicas int = 0
 
+@secure()
+@description('Gateway signing key (GatewaySignature). The deploy workflow passes the stored value, or a new one on the first deploy.')
+param gatewaySigningKey string
+
 param sharedResourceGroup string = 'rg-athlos-shared'
 param registryName string = 'acrathlosshared'
 param workspaceName string = 'log-athlos-shared'
 
 var registryServer = '${registryName}.azurecr.io'
+
+// Each environment gets its own address space.
+var addressSpaces = {
+  dev: '10.10'
+  staging: '10.20'
+  prod: '10.30'
+}
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' existing = {
   name: workspaceName
@@ -36,11 +47,22 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
+module network 'modules/network.bicep' = {
+  name: 'network'
+  params: {
+    name: 'vnet-athlos-${environmentName}'
+    location: location
+    addressPrefix: '${addressSpaces[environmentName]}.0.0/16'
+    acaSubnetPrefix: '${addressSpaces[environmentName]}.0.0/23'
+  }
+}
+
 module acaEnvironment 'modules/aca-env.bicep' = {
   name: 'aca-env'
   params: {
     name: 'cae-athlos-${environmentName}'
     location: location
+    subnetId: network.outputs.acaSubnetId
   }
 }
 
@@ -66,7 +88,21 @@ module gatewayAcrPull 'modules/acr-pull.bicep' = {
   params: { registryName: registryName, principalId: gatewayIdentity.outputs.principalId }
 }
 
+module keyVault 'modules/keyvault.bicep' = {
+  name: 'keyvault'
+  params: {
+    name: 'kv-athlos-${environmentName}'
+    location: location
+    gatewaySigningKey: gatewaySigningKey
+    readerPrincipalIds: [tenancyIdentity.outputs.principalId, gatewayIdentity.outputs.principalId]
+    deployerPrincipalId: deployer().objectId
+  }
+}
+
+var signingKeySecret = [{ name: 'gateway-signing-key', keyVaultUrl: keyVault.outputs.signingKeyUri }]
+
 var commonEnv = [
+  { name: 'GatewaySignature__Key', secretRef: 'gateway-signing-key' }
   { name: 'APP_VERSION', value: appVersion }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
 ]
@@ -82,6 +118,7 @@ module tenancyApi 'modules/container-app.bicep' = {
     registryServer: registryServer
     image: '${registryServer}/athlos/tenancy-api:${imageTag}'
     maxReplicas: 3
+    keyVaultSecrets: signingKeySecret
     env: concat(commonEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'tenancy-api' }
     ])
@@ -102,6 +139,7 @@ module gateway 'modules/container-app.bicep' = {
     minReplicas: gatewayMinReplicas
     // The in-memory rate limiter multiplies with replicas, so the gateway stays at 2 (design §4).
     maxReplicas: 2
+    keyVaultSecrets: signingKeySecret
     env: concat(commonEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'gateway' }
       // Container Apps terminates TLS; trust its X-Forwarded-* headers so HSTS sees https.
@@ -113,3 +151,4 @@ module gateway 'modules/container-app.bicep' = {
 }
 
 output gatewayUrl string = 'https://${gateway.outputs.fqdn}'
+output tenancyApiFqdn string = tenancyApi.outputs.fqdn

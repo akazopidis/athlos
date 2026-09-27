@@ -27,6 +27,7 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
   - Every tenant-owned entity implements `ITenantOwned` and gets the EF global query filter.
   - Every tenant-owned table has an RLS policy with `ENABLE` and `FORCE ROW LEVEL SECURITY`.
   - Tenant id comes only from `ITenantContext`, never from a request body or query string.
+  - Every service calls `AddGatewaySignature` + `UseGatewayOnly` (`Athlos.Tenancy`): it accepts only gateway-signed requests. Service-to-service calls sign with the same `GatewaySignature`. Never exempt a route beyond `/health/*` and `/version`.
   - `IgnoreQueryFilters()` only in slices explicitly listed as cross-tenant in the design (§3.2).
   - Another tenant's resource returns `404`, never `403`.
   - Every new endpoint gets a case in `tests/Athlos.IsolationTests`.

@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v6, building (2026-09-27)
+**Status:** v7, building (2026-09-27)
+
+**Changes in v7:** services accept only gateway-signed requests, and each Container Apps environment runs in its own VNet. The first dev deploy showed that an app with *internal* ingress was reachable from the internet in an environment without a VNet, so network isolation alone could not carry layer 1 (§3.2, §11).
 
 **Changes in v6:** region is **Italy North**, and the SPA is served by the gateway instead of Azure Static Web Apps. The University of Thessaly subscription only allows `italynorth`, `polandcentral`, `denmarkeast`, `belgiumcentral` and `switzerlandnorth`, and Static Web Apps is offered in none of them (§8.1, §10).
 
@@ -155,7 +157,10 @@ Pool is what a marketplace with many small coaches would use in practice, and it
 1. **Gateway: tenant resolution and membership.**
    - Tenant comes from the route for coach APIs: `/api/v1/studio/{tenantSlug}/...`. Public marketplace routes carry no tenant.
    - The gateway validates the JWT, maps slug → `TenantId` (cached with `HybridCache`), and checks the caller's membership and role via `tenancy-api` (cached about 60 s).
-   - The gateway **strips** any incoming `X-Tenant-Id` / `X-User-Role` headers, then sets them itself. Services are internal-only, so these headers can only come from the gateway.
+   - The gateway **strips** any incoming `X-Tenant-Id` / `X-User-Role` headers, then sets them itself.
+   - The gateway **signs** every request it forwards: an HMAC-SHA256 over a timestamp, the method, path and query, and both trusted headers (`X-Gateway-Timestamp`, `X-Gateway-Signature`). Services reject anything without a valid signature younger than 60 s with `401`, except `/health/*` and `/version` (the platform's probes call those directly). The key is `gateway-signing-key` in each environment's Key Vault, read by the apps' managed identities; locally Aspire generates it.
+   - **Why the signature and not only internal ingress:** the first deploy to dev showed that a Container Apps app with internal ingress, in an environment without a VNet, answered requests from the internet on its generated hostname. Each environment now runs in a VNet (§11) *and* services verify the signature, so a networking mistake alone no longer breaks tenant isolation. Every deploy smoke-tests this by calling tenancy-api directly and expecting anything but a 2xx.
+   - Limits worth writing down: a captured signed request can be replayed for up to 60 s (all traffic is TLS, and capturing it means being inside the platform already), and the key is shared by the gateway and every service, so a compromised service could sign requests. Per-service keys or workload identity tokens (the gateway's managed identity requesting an Entra token per service) are the next step and good future work.
    - Services still validate the JWT themselves (audience and issuer). Belt and braces.
 2. **Tenant context in each service.** A small shared library `Athlos.Tenancy` with a scoped `ITenantContext { TenantId?, UserId, Role }` populated by middleware. Endpoints never take `tenantId` from the request body.
 3. **EF Core.**
@@ -479,7 +484,7 @@ That leaves most of the €100 unused, which is a comfortable buffer for load te
   - Role assignments in Bicep: `AcrPull` on the registry, `Key Vault Secrets User`, `Azure Service Bus Data Sender` (ordering) and `Data Receiver` (enrollment), `Storage Blob Data Contributor` (catalog), and a role on the Communication Services resource for the notifications-worker so it sends email with its managed identity.
   - PostgreSQL uses **Microsoft Entra authentication** (password auth disabled). The db-migrator identity is an Entra admin on the server; on deploy it creates the databases, maps each service's managed identity to its own PostgreSQL role (`pgaadauth_create_principal`), grants that role DML rights on its own database only, and applies the RLS policies.
 - **PostgreSQL server settings in Bicep:** `sku: { name: 'Standard_B1ms', tier: 'Burstable' }`, `version: '17'`, `storage: { storageSizeGB: 32, autoGrow: 'Disabled' }`, `backup: { backupRetentionDays: 7, geoRedundantBackup: 'Disabled' }`, `highAvailability: { mode: 'Disabled' }`, `authConfig: { activeDirectoryAuth: 'Enabled', passwordAuth: 'Disabled' }`.
-- **Networking:** public access with Entra-only auth and the "Allow public access from Azure services" firewall rule, ACR admin user disabled, HTTPS only. Private endpoints and VNets cost extra; name them as a production hardening step in the thesis rather than building them.
+- **Networking:** each Container Apps environment runs in its own VNet (`vnet-athlos-{env}`, a delegated subnet, Consumption workload profile only). VNets and VNet-integrated Consumption environments cost nothing. The environment stays public (`internal: false`) so the gateway can have external ingress. PostgreSQL keeps public access with Entra-only auth and the "Allow public access from Azure services" firewall rule, ACR admin user is disabled, HTTPS only. Private endpoints (which do cost) remain a production hardening step for the thesis.
 - **Secrets:** only the Stripe secret key and webhook signing secret are real secrets, one pair per environment. They go into that environment's Key Vault once, and container apps reference them as Key Vault secret references.
 - **PR check:** `az deployment group what-if` on every PR touching `infra/`, output posted to the job summary.
 
@@ -582,7 +587,7 @@ To keep it modern without bloat, these are named in the thesis as options, not b
 | MassTransit / NServiceBus | Commercial licensing on recent versions; a 100-line outbox + SDK is enough |
 | Service Bus Standard (topics) | €8.59/month. One queue with one consumer is all the flow needs |
 | Cosmos DB, event sourcing, CQRS | Not needed for the problem |
-| Front Door, WAF, private endpoints | Production hardening, discussed but not built |
+| Front Door, WAF, private endpoints | Production hardening, discussed but not built (VNets themselves are built, §11) |
 | A second PostgreSQL server | Only one B1ms is free; all environments share it with separate databases and roles |
 | A branch per environment | Environments are promoted by tags, not by merging between branches (§12.1) |
 | Video hosting and streaming | Bandwidth and transcoding cost; workouts link to an external video host |

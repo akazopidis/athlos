@@ -13,6 +13,9 @@ param minReplicas int = 0
 param maxReplicas int = 3
 param env array = []
 
+@description('Key Vault secrets as { name, keyVaultUrl }, read with the app identity; reference them from env with secretRef.')
+param keyVaultSecrets array = []
+
 resource app 'Microsoft.App/containerApps@2025-01-01' = {
   name: name
   location: location
@@ -22,6 +25,7 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
   }
   properties: {
     managedEnvironmentId: environmentId
+    workloadProfileName: 'Consumption'
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
@@ -33,6 +37,11 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
       registries: [
         { server: registryServer, identity: identityId }
       ]
+      secrets: [for secret in keyVaultSecrets: {
+        name: secret.name
+        keyVaultUrl: secret.keyVaultUrl
+        identity: identityId
+      }]
     }
     template: {
       containers: [

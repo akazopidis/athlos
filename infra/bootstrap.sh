@@ -105,12 +105,19 @@ gh api --silent -X PUT "repos/$GITHUB_REPO/environments/staging" --input - <<EOF
 EOF
 add_deployment_policy staging main branch
 
-gh api --silent -X PUT "repos/$GITHUB_REPO/environments/prod" --input - <<EOF
+# Required reviewers on a private repo need GitHub Pro; without it, prod still only deploys from v* tags.
+if ! gh api --silent -X PUT "repos/$GITHUB_REPO/environments/prod" --input - <<EOF
 {
   "reviewers": [{ "type": "User", "id": $reviewer_id }],
   "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true }
 }
 EOF
+then
+  echo "  WARNING: no approval gate on prod (needs GitHub Pro for private repos). Re-run once Pro is active."
+  gh api --silent -X PUT "repos/$GITHUB_REPO/environments/prod" --input - <<EOF
+{ "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true } }
+EOF
+fi
 add_deployment_policy prod 'v*' tag
 
 for env in "${ENVIRONMENTS[@]}"; do
@@ -130,8 +137,9 @@ protect() { # branch, required checks (JSON array)
 }
 EOF
 }
-protect dev '["backend"]'
-protect main '["backend", "source-branch"]'
+if ! protect dev '["backend", "frontend", "infra"]' || ! protect main '["backend", "frontend", "infra", "source-branch"]'; then
+  echo "  WARNING: branch protection needs GitHub Pro for private repos. Re-run once Pro is active."
+fi
 
 echo "== Secret scanning and push protection"
 gh api --silent -X PATCH "repos/$GITHUB_REPO" --input - <<EOF || echo "  (not available for this repo; enable it in Settings > Code security if you make the repo public)"

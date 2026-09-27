@@ -1,6 +1,20 @@
 # Infrastructure
 
-Bicep for Athlos (design §11). `shared.bicep` deploys `rg-athlos-shared` (registry, PostgreSQL server, Log Analytics); `env.bicep` with a `.bicepparam` file deploys one environment. Both are added in phase 1.
+Bicep for Athlos (design §11), all in `italynorth`.
+
+| File | Deploys | Deployed by |
+|---|---|---|
+| `shared.bicep` | `rg-athlos-shared`: registry `acrathlosshared` (Standard), Log Analytics `log-athlos-shared` (0.15 GB/day cap). PostgreSQL comes with the first database | `deploy-dev.yml`, before images are pushed |
+| `env.bicep` + `{dev,staging,prod}.bicepparam` | `rg-athlos-{env}`: App Insights, Container Apps environment, one identity per service with `AcrPull`, the container apps | `_deploy.yml`, called by the dev, staging and prod workflows |
+| `modules/budget.bicep` | Subscription budget | `bootstrap.sh`, once |
+
+The parameter files read `IMAGE_TAG` (and optionally `APP_VERSION`) from the environment:
+
+```bash
+IMAGE_TAG=sha-3f2a1c9 az deployment group create -g rg-athlos-dev --parameters infra/dev.bicepparam
+```
+
+**GitHub Free:** branch protection and the prod approval gate need GitHub Pro on a private repo (the Student Developer Pack includes it). Until then `bootstrap.sh` stops at those steps; everything else is in place. Re-run it once Pro is active.
 
 ## One-time setup
 
@@ -42,7 +56,7 @@ What it creates:
 | Budget | `budget-athlos` on the subscription: 5 per month (billing currency), alert at 100% actual and 80% forecast |
 | GitHub variables | `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_CLIENT_ID` (repo level = dev identity; overridden per environment) |
 | GitHub Environments | `dev`; `staging` (deploys only from `main`); `prod` (deploys only from `v*` tags, requires your approval) |
-| Branch protection | `dev` and `main`: PR required, no force pushes, applies to admins too. Required checks: `backend` on both, plus `source-branch` on `main` |
+| Branch protection | `dev` and `main`: PR required, no force pushes, applies to admins too. Required checks: `backend`, `frontend`, `infra` on both, plus `source-branch` on `main` |
 | Secret scanning | Secret scanning and push protection, where the plan allows it |
 
 ### Notes for the thesis

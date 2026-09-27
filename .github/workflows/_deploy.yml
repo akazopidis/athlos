@@ -1,0 +1,88 @@
+# Deploys env.bicep for one environment with a given image tag, then smoke tests it.
+# With promote-from, it first copies existing images to the new tag inside the registry
+# (az acr import), so nothing is rebuilt (design §12.2).
+name: deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      image-tag:
+        description: Tag the environment runs
+        type: string
+        required: true
+      promote-from:
+        description: Existing tag to copy to image-tag first (empty = images already exist)
+        type: string
+        default: ""
+      app-version:
+        description: Version shown on /version (defaults to image-tag)
+        type: string
+        default: ""
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  REGISTRY: acrathlosshared
+  IMAGES: gateway tenancy-api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.bicep.outputs.gateway-url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Promote images
+        if: inputs.promote-from != ''
+        env:
+          FROM: ${{ inputs.promote-from }}
+          TO: ${{ inputs.image-tag }}
+        run: |
+          for image in $IMAGES; do
+            az acr import --name "$REGISTRY" --force \
+              --source "$REGISTRY.azurecr.io/athlos/$image:$FROM" --image "athlos/$image:$TO"
+          done
+
+      - name: Deploy env.bicep
+        id: bicep
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          IMAGE_TAG: ${{ inputs.image-tag }}
+          APP_VERSION: ${{ inputs.app-version || inputs.image-tag }}
+        run: |
+          url=$(az deployment group create \
+            --resource-group "rg-athlos-$ENVIRONMENT" \
+            --name "env-${{ github.run_id }}" \
+            --parameters "infra/$ENVIRONMENT.bicepparam" \
+            --query properties.outputs.gatewayUrl.value --output tsv)
+          echo "gateway-url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        env:
+          URL: ${{ steps.bicep.outputs.gateway-url }}
+          EXPECTED_VERSION: ${{ inputs.app-version || inputs.image-tag }}
+        run: |
+          # Apps scale to zero, so the first request may wait for a cold start.
+          for attempt in $(seq 1 30); do
+            curl --fail --silent "$URL/health/ready" && break
+            echo "not ready yet ($attempt)"; sleep 10
+          done
+          curl --fail --silent --show-error "$URL/health/ready"
+          version=$(curl --fail --silent --show-error "$URL/version" | jq -r .version)
+          [[ "$version" == "$EXPECTED_VERSION" ]] || { echo "::error::/version is '$version', expected '$EXPECTED_VERSION'"; exit 1; }
+          curl --fail --silent --show-error "$URL/api/v1/plans" | jq -e 'length > 0'
+          curl --fail --silent --show-error "$URL/" | grep -q '<div id="root">'
+          echo "### $URL is running $version" >> "$GITHUB_STEP_SUMMARY"

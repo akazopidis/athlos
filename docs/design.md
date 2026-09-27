@@ -511,7 +511,7 @@ That leaves most of the €100 unused, which is a comfortable buffer for load te
 
 Each merge into `main` deploys to staging; the version tag is added once staging checks pass, and that tag deploys to prod.
 
-Merge style: squash-merge feature branches into `dev` (one clean commit per feature), and a merge commit from `dev` into `main` so release history is easy to follow.
+Merge style: squash-merge feature branches into `dev` (one clean commit per feature), and a merge commit from `dev` into `main` so release history is easy to follow. The merge commit is also how staging finds dev's images: its second parent is the dev commit they were built from. A squash into `main` would make staging rebuild.
 
 **Commit messages:** Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`), so release notes can be generated and the next version number is obvious.
 
@@ -531,8 +531,8 @@ Authentication to Azure is **OIDC federated credentials** (`azure/login` with `c
 |---|---|---|
 | `ci.yml` | PR to `dev` or `main` | `dotnet build` + `dotnet test` (unit, integration, isolation; Testcontainers on the hosted runner); frontend lint, type-check, `vitest`, `vite build`; `az bicep lint` + `what-if` when `infra/**` changed |
 | `deploy-dev.yml` | push to `dev` | build and test → publish images tagged `sha-<short>` to the registry → Bicep deploy `env.bicep` with `dev.bicepparam` → run db-migrator job → smoke test `/health` and the SPA (the SPA ships inside the gateway image) |
-| `deploy-staging.yml` | push to `main` | find the images for the merged `dev` commit (the merge commit's second parent); for a hotfix, build them → Bicep deploy with `staging.bicepparam` → run db-migrator job → smoke test → Playwright end-to-end tests |
-| `release-prod.yml` | tag `v*` pushed (from a GitHub Release), or manual with a tag input for rollback | read the image tags staging is running → add the version tag → **wait for approval** → Bicep deploy with `prod.bicepparam` → run db-migrator job → smoke test |
+| `deploy-staging.yml` | push to `main` | find the images for the merged `dev` commit (the merge commit's second parent) and add the tag `sha-<main commit>` to them with `az acr import`; for a hotfix, build them → Bicep deploy with `staging.bicepparam` → run db-migrator job → smoke test → Playwright end-to-end tests |
+| `release-prod.yml` | tag `v*` pushed (from a GitHub Release), or manual with a tag input for rollback | take the images tagged `sha-<tagged commit>` (the ones staging deployed) → add the version tag → **wait for approval** → Bicep deploy with `prod.bicepparam` → run db-migrator job → smoke test |
 
 ![Promotion from dev to staging to prod](diagrams/06-release-pipeline.png)
 

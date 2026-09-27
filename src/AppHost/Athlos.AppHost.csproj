@@ -6,4 +6,13 @@
     <UserSecretsId>e007bf39-a597-4f20-a1a8-f1e6079ddeca</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.JavaScript" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Gateway\Athlos.Gateway.csproj" />
+    <ProjectReference Include="..\Services\Athlos.Tenancy.Api\Athlos.Tenancy.Api.csproj" />
+  </ItemGroup>
+
 </Project>

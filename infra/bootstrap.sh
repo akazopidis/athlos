@@ -6,10 +6,12 @@
 #
 # Needs: az (signed in to the Azure for Students subscription), gh (signed in, repo admin).
 set -euo pipefail
+# Git Bash on Windows rewrites arguments like /subscriptions/... into C:/Program Files/Git/...
+export MSYS_NO_PATHCONV=1
 
 : "${GITHUB_REPO:?Set GITHUB_REPO=<owner>/<repo>}"
 : "${BUDGET_EMAIL:?Set BUDGET_EMAIL to the address that receives budget alerts}"
-LOCATION="${LOCATION:-westeurope}"
+LOCATION="${LOCATION:-italynorth}"
 ENVIRONMENTS=(dev staging prod)
 
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
@@ -23,7 +25,7 @@ read -r -p "Continue? [y/N] " answer
 echo "== Resource providers"
 for ns in Microsoft.App Microsoft.ContainerRegistry Microsoft.DBforPostgreSQL Microsoft.ServiceBus \
           Microsoft.Storage Microsoft.KeyVault Microsoft.OperationalInsights Microsoft.Insights \
-          Microsoft.ManagedIdentity Microsoft.Communication Microsoft.Web Microsoft.Consumption; do
+          Microsoft.ManagedIdentity Microsoft.Communication Microsoft.Network Microsoft.Consumption; do
   az provider register --namespace "$ns" --output none
 done
 
@@ -31,6 +33,10 @@ echo "== Resource groups"
 for rg in shared "${ENVIRONMENTS[@]}"; do
   az group create --name "rg-athlos-$rg" --location "$LOCATION" --tags app=athlos env="$rg" --output none
 done
+
+# GitHub's OIDC subject names the owner and repo with their immutable ids:
+# repo:<owner>@<owner id>/<repo>@<repo id>:environment:dev
+oidc_repo=$(gh api "repos/$GITHUB_REPO" --jq '"\(.owner.login)@\(.owner.id)/\(.name)@\(.id)"')
 
 echo "== GitHub OIDC: one app registration per environment"
 # Each environment's workflow signs in as its own identity, which has rights on its own
@@ -51,12 +57,12 @@ for env in "${ENVIRONMENTS[@]}"; do
   # PR checks (Bicep what-if) sign in as the dev identity.
   [[ "$env" == "dev" ]] && subjects+=("pull_request")
   for subject in "${subjects[@]}"; do
-    fic_name="github-${subject//:/-}"
+    fic_name="github-ids-${subject//:/-}"
     if [[ -z $(az ad app federated-credential list --id "$app_id" --query "[?name=='$fic_name'].name" -o tsv) ]]; then
       az ad app federated-credential create --id "$app_id" --output none --parameters "{
         \"name\": \"$fic_name\",
         \"issuer\": \"https://token.actions.githubusercontent.com\",
-        \"subject\": \"repo:$GITHUB_REPO:$subject\",
+        \"subject\": \"repo:$oidc_repo:$subject\",
         \"audiences\": [\"api://AzureADTokenExchange\"]
       }"
     fi
@@ -103,12 +109,19 @@ gh api --silent -X PUT "repos/$GITHUB_REPO/environments/staging" --input - <<EOF
 EOF
 add_deployment_policy staging main branch
 
-gh api --silent -X PUT "repos/$GITHUB_REPO/environments/prod" --input - <<EOF
+# Required reviewers on a private repo need GitHub Pro; without it, prod still only deploys from v* tags.
+if ! gh api --silent -X PUT "repos/$GITHUB_REPO/environments/prod" --input - <<EOF
 {
   "reviewers": [{ "type": "User", "id": $reviewer_id }],
   "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true }
 }
 EOF
+then
+  echo "  WARNING: no approval gate on prod (needs GitHub Enterprise for private repos). Re-run once Pro is active."
+  gh api --silent -X PUT "repos/$GITHUB_REPO/environments/prod" --input - <<EOF
+{ "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true } }
+EOF
+fi
 add_deployment_policy prod 'v*' tag
 
 for env in "${ENVIRONMENTS[@]}"; do
@@ -128,8 +141,9 @@ protect() { # branch, required checks (JSON array)
 }
 EOF
 }
-protect dev '["backend"]'
-protect main '["backend", "source-branch"]'
+if ! protect dev '["backend", "frontend", "infra"]' || ! protect main '["backend", "frontend", "infra", "source-branch"]'; then
+  echo "  WARNING: branch protection needs GitHub Pro for private repos. Re-run once Pro is active."
+fi
 
 echo "== Secret scanning and push protection"
 gh api --silent -X PATCH "repos/$GITHUB_REPO" --input - <<EOF || echo "  (not available for this repo; enable it in Settings > Code security if you make the repo public)"

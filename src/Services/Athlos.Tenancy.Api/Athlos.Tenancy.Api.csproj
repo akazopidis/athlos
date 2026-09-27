@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <ContainerRepository>athlos/tenancy-api</ContainerRepository>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\Athlos.Tenancy\Athlos.Tenancy.csproj" />
+    <ProjectReference Include="..\..\ServiceDefaults\Athlos.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>

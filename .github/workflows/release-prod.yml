@@ -1,0 +1,49 @@
+# A v* tag (from a GitHub Release): give the images staging runs the version tag, deploy to prod.
+# Rollback: run manually with an earlier tag (design §12.2).
+name: release-prod
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to deploy, for example v0.1.0
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: release-prod
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.find.outputs.tag }}
+      promote-from: ${{ steps.find.outputs.promote-from }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # deploy-staging tagged the images sha-<main commit>; the release tag points at that commit.
+      - id: find
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::'$TAG' is not vMAJOR.MINOR.PATCH"; exit 1; }
+          commit=$(git rev-list -n 1 "$TAG")
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "promote-from=sha-${commit::7}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: resolve
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: prod
+      image-tag: ${{ needs.resolve.outputs.tag }}
+      promote-from: ${{ needs.resolve.outputs.promote-from }}

@@ -16,6 +16,7 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
 - Backend tests: `dotnet test`
 - Frontend: `cd src/web && npm run lint && npm run typecheck && npm test && npm run build`
 - Bicep: `az bicep lint --file infra/env.bicep`
+- Container images: `dotnet publish <project> -c Release --os linux --arch x64 -t:PublishContainer` (use `-t:`, not `/t:`, in Git Bash)
 - Stripe webhooks locally: `stripe listen --forward-to https://localhost:<gateway-port>/webhooks/stripe`
 
 ## Rules that must not be broken
@@ -26,6 +27,7 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
   - Every tenant-owned entity implements `ITenantOwned` and gets the EF global query filter.
   - Every tenant-owned table has an RLS policy with `ENABLE` and `FORCE ROW LEVEL SECURITY`.
   - Tenant id comes only from `ITenantContext`, never from a request body or query string.
+  - Every service calls `AddGatewaySignature` + `UseGatewayOnly` (`Athlos.Tenancy`): it accepts only gateway-signed requests. Service-to-service calls sign with the same `GatewaySignature`. Never exempt a route beyond `/health/*` and `/version`.
   - `IgnoreQueryFilters()` only in slices explicitly listed as cross-tenant in the design (§3.2).
   - Another tenant's resource returns `404`, never `403`.
   - Every new endpoint gets a case in `tests/Athlos.IsolationTests`.
@@ -35,6 +37,7 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
 - Money is integer minor units plus a currency code.
 - Never store or handle passwords; Entra External ID owns sign-up, verification and password reset. App emails go only through the `notifications` queue and the notifications-worker; never log email addresses.
 - No secrets in the repo. Local: user secrets or Aspire parameters. Azure: Key Vault + managed identity.
+- Every Azure resource goes in `italynorth`; the subscription's policy blocks other regions (design §10). Static Web Apps is not available there, so the gateway serves the SPA and per-environment SPA settings come from `GET /config.json`, never from build-time variables (§8.1).
 - Budget is €100 for 12 months. Do not add Azure resources that are not in the design (no Redis, API Management, Front Door, a second PostgreSQL server, Service Bus Standard) without asking.
 
 ## Code style
@@ -56,4 +59,4 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
 
 ## Current phase
 
-Keep this line updated as you go: **Phase 0, setup** (see §15 of the design).
+Keep this line updated as you go: **Phase 1, walking skeleton** (see §15 of the design). Phase 0 is done except branch protection and the prod approval gate, which need GitHub Pro (see `infra/README.md`).

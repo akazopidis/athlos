@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v5, ready to build (2026-09-26)
+**Status:** v6, building (2026-09-27)
+
+**Changes in v6:** region is **Italy North**, and the SPA is served by the gateway instead of Azure Static Web Apps. The University of Thessaly subscription only allows `italynorth`, `polandcentral`, `denmarkeast`, `belgiumcentral` and `switzerlandnorth`, and Static Web Apps is offered in none of them (§8.1, §10).
 
 **Changes in v5:** user accounts (sign-up, email verification, password reset, profile, account deletion) and transactional email through a small notifications-worker and Azure Communication Services (§5.2, §5.3).
 
@@ -31,11 +33,12 @@
 | Identity | Microsoft Entra External ID | Free up to 50,000 monthly active users; sign-up, email verification and password reset built in |
 | Email | Azure Communication Services Email, Azure-managed sender domain | Fractions of a cent per email; order and enrollment emails, staff invites |
 | Payments | Stripe Connect (Express accounts) + Stripe Checkout, test mode | The B2B2C money flow: customer pays, coach gets paid, platform keeps a fee |
-| Frontend hosting | Azure Static Web Apps, Free | €0 |
+| Frontend hosting | Static files served by the gateway container | €0, same origin as the API (no CORS), headers set in code. Static Web Apps is not offered in the regions the subscription allows (§8.1) |
 | Files (program media) | Azure Blob Storage | Pennies per month |
 | Secrets | Azure Key Vault + managed identities | No connection strings or passwords in config |
 | Observability | OpenTelemetry → Application Insights / Log Analytics | Vendor-neutral instrumentation, Azure backend |
 | IaC | Bicep (hand-written small modules) | Native Azure, readable in a thesis |
+| Region | Italy North (`italynorth`) | Closest allowed region to Greece; the subscription's policy allows only five regions (§10) |
 | Environments | **dev, staging, prod** in Azure, plus local (Aspire) | Staging is a prod-like rehearsal of every release |
 | CI/CD | GitHub Actions with OIDC to Azure; `dev` and `main` branches; SemVer release tags | No stored cloud secrets; build once, promote the same image dev → staging → prod |
 | Tests | xUnit v3, Testcontainers, k6 for load | Real PostgreSQL in tests, tenant-isolation and noisy-neighbor experiments |
@@ -78,6 +81,7 @@ Read it left to right: callers, the gateway and services, then the data stores t
 <sub>Source: [diagrams/02-architecture-overview.mmd](diagrams/02-architecture-overview.mmd)</sub>
 
 - Only the gateway has external ingress. All four APIs use **internal ingress** and the notifications-worker has no ingress at all, so the internet cannot reach them directly.
+- The gateway also serves the SPA's static files (§8.1), so the browser talks to one origin.
 - Not drawn, to keep the picture readable: the SPA signs users in with **Entra External ID**; ordering-api creates Checkout sessions on **Stripe**; every container app pulls its image from **Container Registry**, reads secrets from **Key Vault** with a managed identity, and sends OpenTelemetry data to **App Insights**; a **db-migrator** Container Apps Job applies migrations and RLS policies on each deploy.
 
 ### 2.1 Services
@@ -236,8 +240,8 @@ The shared B1ms database is itself a noisy-neighbor story: without limits, tenan
 
 ### 5.1 Security checklist
 
-- HTTPS only; HSTS and basic security headers (`X-Content-Type-Options`, `Referrer-Policy`, a Content Security Policy on the SPA via `staticwebapp.config.json`).
-- CORS on the gateway allows only the Static Web App origin of that environment.
+- HTTPS only; HSTS and basic security headers (`X-Content-Type-Options`, `Referrer-Policy`, a Content Security Policy on the SPA, all set by the gateway, which serves the SPA).
+- No CORS: the SPA and the API share the gateway's origin. Local development uses the Vite dev-server proxy, so CORS stays off there too.
 - Stripe webhooks: verify the `Stripe-Signature` header with the signing secret, reject events older than 5 minutes, dedupe on event id.
 - No secrets in the repo, ever. Local secrets live in .NET user secrets or in Aspire parameters; Azure secrets in Key Vault. Enable GitHub secret scanning and push protection.
 - Upload limits: content-type allow-list and size cap for media; SAS URLs expire within 15 minutes.
@@ -313,7 +317,7 @@ athlos/
 │  ├─ prod.bicepparam
 │  └─ modules/ monitoring.bicep, registry.bicep, keyvault.bicep, postgres.bicep,
 │              servicebus.bicep, storage.bicep, email.bicep, aca-env.bicep, container-app.bicep,
-│              identity.bicep, static-web-app.bicep, budget.bicep
+│              identity.bicep, budget.bicep
 ├─ src/
 │  ├─ AppHost/                 # Aspire orchestration (local only)
 │  ├─ ServiceDefaults/         # OpenTelemetry, health, resilience, service discovery
@@ -358,7 +362,7 @@ athlos/
 
 **Code conventions:** nullable on, warnings (including analyzer warnings) as errors, EF Core with `UseSnakeCaseNamingConvention()` so tables and columns are idiomatic PostgreSQL, built-in `Microsoft.AspNetCore.OpenApi` for OpenAPI docs, Scalar for the API explorer UI, `ProblemDetails` for errors, built-in minimal API validation for input. Short ADRs (Architecture Decision Records) in `docs/adr/` double as thesis material.
 
-**Containers without Dockerfiles:** use the .NET SDK's built-in container publishing (`dotnet publish /t:PublishContainer`), which produces small, non-root, chiseled Ubuntu images. The React app is static and goes to Static Web Apps, so no container there either.
+**Containers without Dockerfiles:** use the .NET SDK's built-in container publishing (`dotnet publish /t:PublishContainer`), which produces small, non-root, chiseled Ubuntu images. The React app has no container of its own: its Vite build is copied into the gateway's `wwwroot` when the gateway image is published (§8.1).
 
 ### 7.1 API conventions
 
@@ -396,6 +400,14 @@ One SPA with four areas:
 
 The footer shows the running version (from the gateway's `/version` endpoint), which makes releases visible in demos.
 
+### 8.1 Hosting: served by the gateway
+
+The Vite build is part of the gateway image. The gateway serves it with ASP.NET Core static files (`MapStaticAssets`, which adds compression and fingerprinted caching), falls back to `index.html` for client-side routes, and sends the security headers from §5.1. API routes (`/api/...`, `/webhooks/...`, `/health/...`, `/version`) are matched first, so the fallback never hides an API 404.
+
+**Build once, promote still holds.** Anything that differs per environment (Entra client id and authority, API scopes) is not baked into the bundle. The gateway serves it at `GET /config.json` from its own environment variables, and the SPA fetches it before rendering. The same image runs in dev, staging and prod.
+
+**Why not Static Web Apps:** it is offered only in a few regions (West US 2, Central US, East US 2, West Europe, East Asia), and the student subscription's policy allows none of them. Blob Storage static websites were the other option, but they cannot set response headers (no CSP) and answer client-side routes with a 404 status. Serving from the gateway costs nothing extra, removes CORS entirely, and is one less resource per environment. The trade-off: the SPA has no global CDN, and a gateway cold start also delays the first page load. Both are acceptable for the thesis and are named as future work (Front Door or a CDN in front of the gateway).
+
 ---
 
 ## 9. Compute: Container Apps vs AKS
@@ -421,7 +433,7 @@ Azure for Students gives $100 of credit for 12 months **and** a set of free serv
 - **Azure Database for PostgreSQL Flexible Server:** 750 hours/month of Burstable B1ms, 32 GB storage, 32 GB backup storage.
 - **Azure Container Registry:** one Standard registry with 100 GB storage.
 
-Other prices are from the Azure Retail Prices API, West Europe, EUR, pay-as-you-go, checked the same day.
+Other prices are from the Azure Retail Prices API, West Europe, EUR (Italy North prices are within a few percent), pay-as-you-go, checked the same day.
 
 | Resource | SKU / setting | €/month |
 |---|---|---|
@@ -430,7 +442,6 @@ Other prices are from the Azure Retail Prices API, West Europe, EUR, pay-as-you-
 | Container Apps | Three Consumption environments (dev, staging, prod), 6 apps each, `minReplicas: 0`. Free grant per subscription per month: 180,000 vCPU-s, 360,000 GiB-s, 2M requests | 0–2 |
 | Container Apps Jobs | db-migrator, runs for seconds per deploy | ~0 |
 | Service Bus | Basic, one namespace per environment, €0.0429 per million operations | ~0.01 |
-| Static Web Apps | Free, one per environment | 0 |
 | Storage accounts | Blob, LRS, a few GB, one per environment | <0.50 |
 | Key Vault | Standard, one per environment | <0.10 |
 | Log Analytics + App Insights | One shared workspace, first 5 GB/month free, daily cap 0.15 GB | 0–1 |
@@ -453,7 +464,7 @@ That leaves most of the €100 unused, which is a comfortable buffer for load te
 **If the free services do not apply** (check once in the portal under *Free services*, where the B1ms hours and the registry should be listed): B1ms plus 32 GB storage would cost roughly €15/month and ACR Standard €17/month (€0.5724/day). That would break the budget, and the fallback would be one database server for prod only (dev runs locally with Aspire) plus GitHub Container Registry. The B1ms figure is an estimate; the price sheet did not return it today.
 
 **Also check once:**
-- Azure for Students subscriptions often restrict regions by policy. Pick an allowed EU region (West Europe, North Europe or Sweden Central) and use it for everything.
+- Azure for Students subscriptions often restrict regions by policy. **Checked 2026-09-27:** this subscription allows only `italynorth`, `polandcentral`, `denmarkeast`, `belgiumcentral` and `switzerlandnorth`. Athlos uses **Italy North** for everything; B1ms, PostgreSQL 17, Container Apps, Service Bus, ACR, Key Vault and Log Analytics are all available there.
 - Free services end after 12 months, together with the credit. Plan the thesis evaluation inside that window.
 
 ---
@@ -519,9 +530,9 @@ Authentication to Azure is **OIDC federated credentials** (`azure/login` with `c
 | Workflow | Trigger | Steps |
 |---|---|---|
 | `ci.yml` | PR to `dev` or `main` | `dotnet build` + `dotnet test` (unit, integration, isolation; Testcontainers on the hosted runner); frontend lint, type-check, `vitest`, `vite build`; `az bicep lint` + `what-if` when `infra/**` changed |
-| `deploy-dev.yml` | push to `dev` | build and test → publish images tagged `sha-<short>` to the registry → Bicep deploy `env.bicep` with `dev.bicepparam` → run db-migrator job → deploy SPA to the dev Static Web App → smoke test `/health` |
-| `deploy-staging.yml` | push to `main` | find the images for the merged `dev` commit (the merge commit's second parent); for a hotfix, build them → Bicep deploy with `staging.bicepparam` → run db-migrator job → deploy SPA to staging → smoke test → Playwright end-to-end tests |
-| `release-prod.yml` | tag `v*` pushed (from a GitHub Release), or manual with a tag input for rollback | read the image tags staging is running → add the version tag → **wait for approval** → Bicep deploy with `prod.bicepparam` → run db-migrator job → deploy SPA to prod → smoke test |
+| `deploy-dev.yml` | push to `dev` | build and test → publish images tagged `sha-<short>` to the registry → Bicep deploy `env.bicep` with `dev.bicepparam` → run db-migrator job → smoke test `/health` and the SPA (the SPA ships inside the gateway image) |
+| `deploy-staging.yml` | push to `main` | find the images for the merged `dev` commit (the merge commit's second parent); for a hotfix, build them → Bicep deploy with `staging.bicepparam` → run db-migrator job → smoke test → Playwright end-to-end tests |
+| `release-prod.yml` | tag `v*` pushed (from a GitHub Release), or manual with a tag input for rollback | read the image tags staging is running → add the version tag → **wait for approval** → Bicep deploy with `prod.bicepparam` → run db-migrator job → smoke test |
 
 ![Promotion from dev to staging to prod](diagrams/06-release-pipeline.png)
 
@@ -574,6 +585,7 @@ To keep it modern without bloat, these are named in the thesis as options, not b
 | A branch per environment | Environments are promoted by tags, not by merging between branches (§12.1) |
 | Video hosting and streaming | Bandwidth and transcoding cost; workouts link to an external video host |
 | Terraform | Bicep matches the Microsoft-first choice |
+| Static Web Apps | Not offered in the regions the subscription allows; the gateway serves the SPA (§8.1) |
 
 ---
 

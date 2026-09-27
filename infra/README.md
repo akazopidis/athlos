@@ -9,7 +9,7 @@ Everything Bicep and the workflows cannot create for themselves is done once by 
 ### 1. Check the subscription (portal, once)
 
 - **Free services:** Azure for Students > *Free services* must list *Azure Database for PostgreSQL Flexible Server* (750 h B1ms) and *Container Registry* (Standard). If they are missing, stop: the budget in design §10 no longer holds.
-- **Allowed regions:** Student subscriptions often restrict regions by policy. Check *Policy > Assignments* and pick one allowed EU region (West Europe, North Europe or Sweden Central). Use it for everything (`LOCATION`, default `westeurope`).
+- **Allowed regions:** Student subscriptions often restrict regions by policy. Check *Policy > Assignments* and pick one allowed EU region and use it for everything (`LOCATION`). The University of Thessaly subscription allows only `italynorth`, `polandcentral`, `denmarkeast`, `belgiumcentral` and `switzerlandnorth`; Athlos uses `italynorth` (closest to Greece; B1ms and PostgreSQL 17 available).
 - **App registrations:** the script creates three Entra app registrations. If the subscription belongs to a university directory that blocks app registrations for students, create the directory's apps by hand or ask IT. The rest of the script still applies.
 
 ### 2. Create the GitHub repository

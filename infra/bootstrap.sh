@@ -6,10 +6,12 @@
 #
 # Needs: az (signed in to the Azure for Students subscription), gh (signed in, repo admin).
 set -euo pipefail
+# Git Bash on Windows rewrites arguments like /subscriptions/... into C:/Program Files/Git/...
+export MSYS_NO_PATHCONV=1
 
 : "${GITHUB_REPO:?Set GITHUB_REPO=<owner>/<repo>}"
 : "${BUDGET_EMAIL:?Set BUDGET_EMAIL to the address that receives budget alerts}"
-LOCATION="${LOCATION:-westeurope}"
+LOCATION="${LOCATION:-italynorth}"
 ENVIRONMENTS=(dev staging prod)
 
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)

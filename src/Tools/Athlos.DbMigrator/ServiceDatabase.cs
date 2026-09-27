@@ -5,50 +5,74 @@ using Npgsql;
 namespace Athlos.DbMigrator;
 
 // Prepares one service's database (design §3.2 pitfalls, §11):
-// 1. the service's app role exists and can never bypass RLS;
-// 2. migrations (tables, indexes, RLS policies) run as the owner;
-// 3. the app role gets only DML on its own database, and a statement timeout (design §4).
+// 1. the database exists, owned by the migrator;
+// 2. the service's app role exists (a password role locally, the service's managed identity in
+//    Azure) and can never bypass RLS;
+// 3. migrations (tables, indexes, RLS policies) run as the owner;
+// 4. the app role gets only DML on its own database.
 public static partial class ServiceDatabase
 {
+    // Connected to the server's "postgres" database as the migrator (Entra admin in Azure).
+    public static async Task EnsureDatabaseAsync(NpgsqlDataSource admin, string database, CancellationToken cancellationToken)
+    {
+        RequireIdentifier(database);
+        var exists = await ScalarAsync<bool>(admin, $"SELECT EXISTS (SELECT FROM pg_database WHERE datname = '{database}')", cancellationToken);
+        if (!exists)
+        {
+            await ExecuteAsync(admin, $"CREATE DATABASE {database};", cancellationToken);
+        }
+    }
+
+    // Azure only: maps the service's managed identity to a PostgreSQL role with the Athlos name
+    // (athlos_{service}_{env}_app), so tokens for that identity sign in as that role.
+    public static async Task EnsureEntraPrincipalAsync(NpgsqlDataSource admin, string appRole, Guid principalObjectId, CancellationToken cancellationToken)
+    {
+        RequireIdentifier(appRole);
+        var exists = await ScalarAsync<bool>(admin, $"SELECT EXISTS (SELECT FROM pg_roles WHERE rolname = '{appRole}')", cancellationToken);
+        if (!exists)
+        {
+            await ExecuteAsync(admin,
+                $"SELECT * FROM pgaadauth_create_principal_with_oid('{appRole}', '{principalObjectId}', 'service', false, false);",
+                cancellationToken);
+        }
+    }
+
+    // Connected to the service's own database as its owner.
     public static async Task PrepareAsync<TContext>(
-        string ownerConnectionString,
+        NpgsqlDataSource owner,
         string appRole,
         string? appPassword,
         Func<DbContextOptions<TContext>, TContext> createContext,
         CancellationToken cancellationToken)
         where TContext : DbContext
     {
-        if (!RoleName().IsMatch(appRole))
-        {
-            throw new ArgumentException($"Invalid role name '{appRole}'.", nameof(appRole));
-        }
+        RequireIdentifier(appRole);
+        var database = new NpgsqlConnectionStringBuilder(owner.ConnectionString).Database
+            ?? throw new ArgumentException("The owner connection has no database.", nameof(owner));
 
-        var database = new NpgsqlConnectionStringBuilder(ownerConnectionString).Database
-            ?? throw new ArgumentException("The owner connection string has no database.", nameof(ownerConnectionString));
-
-        await using var connection = new NpgsqlConnection(ownerConnectionString);
-        await connection.OpenAsync(cancellationToken);
-
-        // Locally the role has a password. In Azure it is the service's managed identity, created
-        // with pgaadauth_create_principal before this runs (design §11), so there is no password.
+        // Local: a password role that this migrator creates and therefore controls.
         if (appPassword is not null)
         {
-            await ExecuteAsync(connection, $"""
+            await ExecuteAsync(owner, $"""
                 DO $$ BEGIN
                   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{appRole}') THEN
                     CREATE ROLE {appRole} LOGIN;
                   END IF;
                 END $$;
-                ALTER ROLE {appRole} WITH LOGIN PASSWORD '{appPassword.Replace("'", "''", StringComparison.Ordinal)}';
+                ALTER ROLE {appRole} WITH LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD '{appPassword.Replace("'", "''", StringComparison.Ordinal)}';
                 """, cancellationToken);
         }
 
-        // Whatever created the role, it must not skip RLS.
-        await ExecuteAsync(connection,
-            $"ALTER ROLE {appRole} WITH NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;", cancellationToken);
+        // However the role was created, refuse to continue if it could skip RLS.
+        var canBypass = await ScalarAsync<bool>(owner,
+            $"SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = '{appRole}'", cancellationToken);
+        if (canBypass)
+        {
+            throw new InvalidOperationException($"Role {appRole} is a superuser or has BYPASSRLS; RLS would not apply to it.");
+        }
 
         var options = new DbContextOptionsBuilder<TContext>()
-            .UseNpgsql(ownerConnectionString)
+            .UseNpgsql(owner)
             .UseSnakeCaseNamingConvention()
             .Options;
         await using (var db = createContext(options))
@@ -56,22 +80,35 @@ public static partial class ServiceDatabase
             await db.Database.MigrateAsync(cancellationToken);
         }
 
-        await ExecuteAsync(connection, $"""
+        await ExecuteAsync(owner, $"""
             REVOKE ALL ON DATABASE "{database}" FROM PUBLIC;
             GRANT CONNECT ON DATABASE "{database}" TO {appRole};
             GRANT USAGE ON SCHEMA public TO {appRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {appRole};
             REVOKE INSERT, UPDATE, DELETE ON "__EFMigrationsHistory" FROM {appRole};
-            ALTER ROLE {appRole} SET statement_timeout = '5s';
             """, cancellationToken);
     }
 
-    private static async Task ExecuteAsync(NpgsqlConnection connection, string sql, CancellationToken cancellationToken)
+    private static void RequireIdentifier(string name)
     {
-        await using var command = new NpgsqlCommand(sql, connection);
+        if (!Identifier().IsMatch(name))
+        {
+            throw new ArgumentException($"'{name}' is not a plain PostgreSQL identifier.", nameof(name));
+        }
+    }
+
+    private static async Task ExecuteAsync(NpgsqlDataSource dataSource, string sql, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(sql);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    private static async Task<T> ScalarAsync<T>(NpgsqlDataSource dataSource, string sql, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(sql);
+        return (T)(await command.ExecuteScalarAsync(cancellationToken))!;
+    }
+
     [GeneratedRegex("^[a-z_][a-z0-9_]{0,62}$")]
-    private static partial Regex RoleName();
+    private static partial Regex Identifier();
 }

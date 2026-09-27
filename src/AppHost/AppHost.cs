@@ -16,7 +16,7 @@ var postgres = builder.AddPostgres("postgres")
     .WithLifetime(ContainerLifetime.Persistent);
 
 // tenancy: the migrator connects as the owner; the service connects as its own non-owner role,
-// so RLS applies to it exactly as in Azure.
+// so RLS applies to it exactly as in Azure. statement_timeout: design §4.
 var tenancyOwnerDb = postgres.AddDatabase("tenancy-db-owner", "athlos_tenancy");
 var tenancyAppPassword = builder.AddParameter(
     "tenancy-db-app-password",
@@ -24,7 +24,7 @@ var tenancyAppPassword = builder.AddParameter(
     secret: true,
     persist: true);
 var tenancyAppDb = builder.AddConnectionString("tenancy-db", ReferenceExpression.Create(
-    $"Host={postgres.Resource.PrimaryEndpoint.Property(EndpointProperty.Host)};Port={postgres.Resource.PrimaryEndpoint.Property(EndpointProperty.Port)};Database=athlos_tenancy;Username=athlos_tenancy_app;Password={tenancyAppPassword};Maximum Pool Size=3"));
+    $"Host={postgres.Resource.PrimaryEndpoint.Property(EndpointProperty.Host)};Port={postgres.Resource.PrimaryEndpoint.Property(EndpointProperty.Port)};Database=athlos_tenancy;Username=athlos_tenancy_app;Password={tenancyAppPassword};Maximum Pool Size=3;Options=-c statement_timeout=5000"));
 
 var migrator = builder.AddProject<Projects.Athlos_DbMigrator>("db-migrator")
     .WithReference(tenancyOwnerDb)

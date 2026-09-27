@@ -27,13 +27,15 @@ public sealed class TenancyDatabase : IAsyncLifetime
         Username = AppRole,
         Password = AppPassword,
         MaxPoolSize = 3,
+        Options = "-c statement_timeout=5000",
     }.ConnectionString;
 
     public async ValueTask InitializeAsync()
     {
         await _container.StartAsync(TestContext.Current.CancellationToken);
+        await using var owner = NpgsqlDataSource.Create(OwnerConnectionString);
         await ServiceDatabase.PrepareAsync<TenancyDbContext>(
-            OwnerConnectionString, AppRole, AppPassword,
+            owner, AppRole, AppPassword,
             options => new TenancyDbContext(options, new TenantContext()),
             TestContext.Current.CancellationToken);
     }

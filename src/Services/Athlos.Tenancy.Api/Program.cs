@@ -18,7 +18,9 @@ builder.Services.AddGatewaySignature(builder.Configuration);
 builder.Services.AddAthlosAuthentication(builder.Configuration);
 builder.Services.AddTenantContext();
 builder.Services.AddTenantDbContext<TenancyDbContext>(options => options
-    .UseNpgsql(builder.Configuration.GetConnectionString("tenancy-db"))
+    .UseNpgsql(
+        builder.Configuration.GetConnectionString("tenancy-db"),
+        npgsql => npgsql.ConfigureDataSource(dataSource => dataSource.UseEntraTokenIfNoPassword(builder.Configuration["AZURE_CLIENT_ID"])))
     .UseSnakeCaseNamingConvention());
 builder.Services.AddValidation();
 builder.Services.AddOpenApi();

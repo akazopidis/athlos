@@ -34,6 +34,10 @@ for rg in shared "${ENVIRONMENTS[@]}"; do
   az group create --name "rg-athlos-$rg" --location "$LOCATION" --tags app=athlos env="$rg" --output none
 done
 
+# GitHub's OIDC subject names the owner and repo with their immutable ids:
+# repo:<owner>@<owner id>/<repo>@<repo id>:environment:dev
+oidc_repo=$(gh api "repos/$GITHUB_REPO" --jq '"\(.owner.login)@\(.owner.id)/\(.name)@\(.id)"')
+
 echo "== GitHub OIDC: one app registration per environment"
 # Each environment's workflow signs in as its own identity, which has rights on its own
 # resource group and on the shared one (registry, PostgreSQL server) only. A dev token
@@ -53,12 +57,12 @@ for env in "${ENVIRONMENTS[@]}"; do
   # PR checks (Bicep what-if) sign in as the dev identity.
   [[ "$env" == "dev" ]] && subjects+=("pull_request")
   for subject in "${subjects[@]}"; do
-    fic_name="github-${subject//:/-}"
+    fic_name="github-ids-${subject//:/-}"
     if [[ -z $(az ad app federated-credential list --id "$app_id" --query "[?name=='$fic_name'].name" -o tsv) ]]; then
       az ad app federated-credential create --id "$app_id" --output none --parameters "{
         \"name\": \"$fic_name\",
         \"issuer\": \"https://token.actions.githubusercontent.com\",
-        \"subject\": \"repo:$GITHUB_REPO:$subject\",
+        \"subject\": \"repo:$oidc_repo:$subject\",
         \"audiences\": [\"api://AzureADTokenExchange\"]
       }"
     fi
@@ -113,7 +117,7 @@ if ! gh api --silent -X PUT "repos/$GITHUB_REPO/environments/prod" --input - <<E
 }
 EOF
 then
-  echo "  WARNING: no approval gate on prod (needs GitHub Pro for private repos). Re-run once Pro is active."
+  echo "  WARNING: no approval gate on prod (needs GitHub Enterprise for private repos). Re-run once Pro is active."
   gh api --silent -X PUT "repos/$GITHUB_REPO/environments/prod" --input - <<EOF
 { "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true } }
 EOF

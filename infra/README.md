@@ -14,7 +14,7 @@ The parameter files read `IMAGE_TAG` (and optionally `APP_VERSION`) from the env
 IMAGE_TAG=sha-3f2a1c9 az deployment group create -g rg-athlos-dev --parameters infra/dev.bicepparam
 ```
 
-**GitHub Free:** branch protection and the prod approval gate need GitHub Pro on a private repo (the Student Developer Pack includes it). Until then `bootstrap.sh` stops at those steps; everything else is in place. Re-run it once Pro is active.
+**GitHub plan:** branch protection on a private repo needs GitHub Pro (active since 2026-09-27). Required reviewers on the `prod` environment need GitHub Enterprise for private repos, so `bootstrap.sh` warns and skips them; publishing the GitHub Release is the manual gate instead. Secret scanning is also unavailable for private repos on Pro; the GitGuardian check covers PRs.
 
 ## One-time setup
 
@@ -51,7 +51,7 @@ What it creates:
 |---|---|
 | Resource providers | Registered once per subscription |
 | Resource groups | `rg-athlos-shared`, `rg-athlos-dev`, `rg-athlos-staging`, `rg-athlos-prod` |
-| GitHub OIDC identities | App registrations `athlos-github-{dev,staging,prod}`, each with a federated credential for its GitHub Environment (dev also for `pull_request`, used by Bicep what-if). No client secrets |
+| GitHub OIDC identities | App registrations `athlos-github-{dev,staging,prod}`, each with a federated credential for its GitHub Environment (subject uses the immutable owner and repo ids) (dev also for `pull_request`, used by Bicep what-if). No client secrets |
 | Azure roles | Each identity gets `Contributor` and `Role Based Access Control Administrator` on its own resource group and on `rg-athlos-shared` |
 | Budget | `budget-athlos` on the subscription: 5 per month (billing currency), alert at 100% actual and 80% forecast |
 | GitHub variables | `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_CLIENT_ID` (repo level = dev identity; overridden per environment) |

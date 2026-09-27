@@ -538,7 +538,9 @@ Authentication to Azure is **OIDC federated credentials** (`azure/login` with `c
 
 <sub>Source: [diagrams/06-release-pipeline.mmd](diagrams/06-release-pipeline.mmd)</sub>
 
-**GitHub Environments:** `dev` (no approval), `staging` (deployments only from `main`) and `prod` (deployments only from `v*` tags, and requires your approval; environment protection on private repos needs GitHub Pro, which the Student Developer Pack includes).
+**GitHub Environments:** `dev` (no restrictions), `staging` (deployments only from `main`) and `prod` (deployments only from `v*` tags). Branch policies on a private repo need GitHub Pro (in the Student Developer Pack). **Required reviewers do not**: on private repos they need GitHub Enterprise (checked 2026-09-27). The approval step for prod is therefore publishing the GitHub Release itself, which only the repo owner can do; if the repo is made public, required reviewers become free and can be added to `prod`.
+
+**OIDC subject:** GitHub's token names the owner and repo with their immutable ids (`repo:akazopidis@70575515/athlos@1390631916:environment:prod`), so a renamed or re-created repo cannot reuse the federated credentials. `bootstrap.sh` builds the subject from the ids.
 
 **Supply chain and hygiene:**
 - **Dependabot** for NuGet, npm, GitHub Actions and base images, targeting `dev`.

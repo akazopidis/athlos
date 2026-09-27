@@ -4,8 +4,8 @@ Bicep for Athlos (design §11), all in `italynorth`.
 
 | File | Deploys | Deployed by |
 |---|---|---|
-| `shared.bicep` | `rg-athlos-shared`: registry `acrathlosshared` (Standard), Log Analytics `log-athlos-shared` (0.15 GB/day cap). PostgreSQL comes with the first database | `deploy-dev.yml`, before images are pushed |
-| `env.bicep` + `{dev,staging,prod}.bicepparam` | `rg-athlos-{env}`: VNet, App Insights, Container Apps environment (in the VNet), Key Vault with the gateway signing key, one identity per service with `AcrPull` and `Key Vault Secrets User`, the container apps | `_deploy.yml`, called by the dev, staging and prod workflows |
+| `shared.bicep` | `rg-athlos-shared`: registry `acrathlosshared` (Standard), Log Analytics `log-athlos-shared` (0.15 GB/day cap), VNet `vnet-athlos-shared` and the one Container Apps environment `cae-athlos-shared` (the subscription allows one per region). PostgreSQL comes with the first database | `deploy-dev.yml`, before images are pushed |
+| `env.bicep` + `{dev,staging,prod}.bicepparam` | `rg-athlos-{env}`: App Insights, Key Vault with the stage's gateway signing key, one identity per service with `AcrPull` and `Key Vault Secrets User`, and the stage's container apps (placed in `cae-athlos-shared`) | `_deploy.yml`, called by the dev, staging and prod workflows |
 | `modules/budget.bicep` | Subscription budget | `bootstrap.sh`, once |
 
 The parameter files read `IMAGE_TAG`, `GATEWAY_SIGNING_KEY` (and optionally `APP_VERSION`) from the environment. `_deploy.yml` reads the stored key from `kv-athlos-{env}` and only generates one on the first deploy:

@@ -1,4 +1,5 @@
-// One environment (dev, staging or prod), deployed into rg-athlos-{environmentName} (design §11).
+// One stage (dev, staging or prod), deployed into rg-athlos-{environmentName} (design §11).
+// Its apps run in the shared Container Apps environment in rg-athlos-shared.
 targetScope = 'resourceGroup'
 
 @allowed(['dev', 'staging', 'prod'])
@@ -22,15 +23,9 @@ param gatewaySigningKey string
 param sharedResourceGroup string = 'rg-athlos-shared'
 param registryName string = 'acrathlosshared'
 param workspaceName string = 'log-athlos-shared'
+param acaEnvironmentName string = 'cae-athlos-shared'
 
 var registryServer = '${registryName}.azurecr.io'
-
-// Each environment gets its own address space.
-var addressSpaces = {
-  dev: '10.10'
-  staging: '10.20'
-  prod: '10.30'
-}
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' existing = {
   name: workspaceName
@@ -47,23 +42,9 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-module network 'modules/network.bicep' = {
-  name: 'network'
-  params: {
-    name: 'vnet-athlos-${environmentName}'
-    location: location
-    addressPrefix: '${addressSpaces[environmentName]}.0.0/16'
-    acaSubnetPrefix: '${addressSpaces[environmentName]}.0.0/23'
-  }
-}
-
-module acaEnvironment 'modules/aca-env.bicep' = {
-  name: 'aca-env'
-  params: {
-    name: 'cae-athlos-${environmentName}'
-    location: location
-    subnetId: network.outputs.acaSubnetId
-  }
+resource acaEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' existing = {
+  name: acaEnvironmentName
+  scope: resourceGroup(sharedResourceGroup)
 }
 
 module tenancyIdentity 'modules/identity.bicep' = {
@@ -113,7 +94,7 @@ module tenancyApi 'modules/container-app.bicep' = {
   params: {
     name: 'ca-athlos-tenancy-api-${environmentName}'
     location: location
-    environmentId: acaEnvironment.outputs.id
+    environmentId: acaEnvironment.id
     identityId: tenancyIdentity.outputs.id
     registryServer: registryServer
     image: '${registryServer}/athlos/tenancy-api:${imageTag}'
@@ -131,7 +112,7 @@ module gateway 'modules/container-app.bicep' = {
   params: {
     name: 'ca-athlos-gateway-${environmentName}'
     location: location
-    environmentId: acaEnvironment.outputs.id
+    environmentId: acaEnvironment.id
     identityId: gatewayIdentity.outputs.id
     registryServer: registryServer
     image: '${registryServer}/athlos/gateway:${imageTag}'

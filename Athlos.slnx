@@ -1,4 +1,13 @@
 <Solution>
-  <Project Path="src/AppHost/Athlos.AppHost.csproj" />
-  <Project Path="src/ServiceDefaults/Athlos.ServiceDefaults.csproj" />
+  <Folder Name="/src/">
+    <Project Path="src/AppHost/Athlos.AppHost.csproj" />
+    <Project Path="src/Gateway/Athlos.Gateway.csproj" />
+    <Project Path="src/ServiceDefaults/Athlos.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/">
+    <Project Path="src/Services/Athlos.Tenancy.Api/Athlos.Tenancy.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Athlos.Gateway.Tests/Athlos.Gateway.Tests.csproj" />
+  </Folder>
 </Solution>

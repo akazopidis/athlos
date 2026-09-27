@@ -1,0 +1,65 @@
+# Builds and tests everything, then pushes one image per service to the shared registry.
+# Images are built only here; staging and prod reuse them (design §12.2).
+name: build
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub Environment whose Azure identity pushes the images
+        type: string
+        required: true
+      image-tag:
+        description: Tag for every image, for example sha-3f2a1c9
+        type: string
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  REGISTRY: acrathlosshared
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+
+      # The SPA build lands in src/Gateway/wwwroot and ships inside the gateway image (design §8.1).
+      - name: Build SPA
+        working-directory: src/web
+        run: |
+          npm ci
+          npm run build
+
+      - run: dotnet test Athlos.slnx --configuration Release
+
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - run: az acr login --name "$REGISTRY"
+
+      - name: Publish images
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
+        run: |
+          for project in src/Gateway src/Services/Athlos.Tenancy.Api; do
+            dotnet publish "$project" --configuration Release --os linux --arch x64 -t:PublishContainer \
+              -p ContainerRegistry="$REGISTRY.azurecr.io" -p ContainerImageTag="$IMAGE_TAG"
+          done

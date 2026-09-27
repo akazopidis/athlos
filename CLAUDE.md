@@ -16,6 +16,7 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
 - Backend tests: `dotnet test`
 - Frontend: `cd src/web && npm run lint && npm run typecheck && npm test && npm run build`
 - Bicep: `az bicep lint --file infra/env.bicep`
+- Container images: `dotnet publish <project> -c Release --os linux --arch x64 -t:PublishContainer` (use `-t:`, not `/t:`, in Git Bash)
 - Stripe webhooks locally: `stripe listen --forward-to https://localhost:<gateway-port>/webhooks/stripe`
 
 ## Rules that must not be broken
@@ -57,4 +58,4 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
 
 ## Current phase
 
-Keep this line updated as you go: **Phase 0, setup** (see §15 of the design).
+Keep this line updated as you go: **Phase 1, walking skeleton** (see §15 of the design). Phase 0 is done except branch protection and the prod approval gate, which need GitHub Pro (see `infra/README.md`).

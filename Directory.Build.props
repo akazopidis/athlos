@@ -9,4 +9,9 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
+
+  <!-- dotnet publish /t:PublishContainer: small, non-root, chiseled Ubuntu images, no Dockerfiles (design §7). -->
+  <PropertyGroup>
+    <ContainerFamily>noble-chiseled</ContainerFamily>
+  </PropertyGroup>
 </Project>

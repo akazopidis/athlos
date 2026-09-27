@@ -1,5 +1,4 @@
-// rg-athlos-shared: what every stage uses (design §11). The PostgreSQL server is added with the
-// first service that needs a database.
+// rg-athlos-shared: what every stage uses (design §11).
 //
 // The Container Apps environment is shared too: the student subscription allows only one per
 // region. dev, staging and prod apps all run in it, each stage with its own identities, Key Vault,
@@ -37,6 +36,29 @@ module acaEnvironment 'modules/aca-env.bicep' = {
   }
 }
 
+// The db-migrator's identity: Entra admin of the PostgreSQL server, used by every stage's
+// migrator job to create databases, map service identities to roles and run migrations.
+module migratorIdentity 'modules/identity.bicep' = {
+  name: 'id-migrator'
+  params: { name: 'id-athlos-migrator-shared', location: location }
+}
+
+module migratorAcrPull 'modules/acr-pull.bicep' = {
+  name: 'acr-pull-migrator'
+  dependsOn: [registry]
+  params: { registryName: 'acrathlosshared', principalId: migratorIdentity.outputs.principalId }
+}
+
+module postgres 'modules/postgres.bicep' = {
+  name: 'postgres'
+  params: {
+    location: location
+    adminPrincipalId: migratorIdentity.outputs.principalId
+    adminPrincipalName: migratorIdentity.outputs.name
+  }
+}
+
 output registryLoginServer string = registry.outputs.loginServer
 output workspaceName string = monitoring.outputs.workspaceName
 output acaEnvironmentId string = acaEnvironment.outputs.id
+output postgresFqdn string = postgres.outputs.fqdn

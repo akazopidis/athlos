@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v8, building (2026-09-27)
+**Status:** v9, building (2026-09-27)
+
+**Changes in v9 (phase 2):** services validate tokens with plain `JwtBearer` instead of Microsoft.Identity.Web (§5); `statement_timeout` is set in the connection string (§4); the db-migrator runs as a Container Apps Job between two passes of `env.bicep` (§11, §12.3); a user's own memberships are a listed cross-tenant slice (§3.2).
 
 **Changes in v8:** one shared Container Apps environment for all three stages. The student subscription allows only one Container Apps environment per region (quota `ManagedEnvironmentCount` = 1), so `cae-athlos-shared` and its VNet live in `rg-athlos-shared`, and each stage deploys its apps into it (§10, §11).
 
@@ -169,7 +171,8 @@ Pool is what a marketplace with many small coaches would use in practice, and it
    - Every tenant-owned entity implements `ITenantOwned { Guid TenantId }`.
    - A global query filter `e => e.TenantId == tenantContext.TenantId` is applied to all of them.
    - An override of `SaveChanges` sets `TenantId` on insert and throws if an update or delete targets another tenant's row.
-   - `IgnoreQueryFilters()` is allowed only in explicitly named "cross-tenant" slices (public marketplace search, a customer's own orders) and is caught by a unit test that greps for it.
+   - `IgnoreQueryFilters()` is allowed only in explicitly named "cross-tenant" slices (public marketplace search, a customer's own orders, a user's own memberships in `GET /api/v1/me/memberships`) and is caught by a test that greps for it (`CrossTenantSliceGuardTests`).
+   - Every tenant-scoped endpoint runs inside one database transaction (`WithTenantTransaction`), because the RLS settings below live only as long as a transaction. An endpoint that forgets it sees no rows at all: the failure is closed, not open.
 4. **PostgreSQL Row-Level Security.** The last line, which protects even against a bug in layer 3.
    - An EF Core interceptor sets the tenant for the current transaction with `SELECT set_config('app.tenant_id', @t, true)` (and `app.user_id`, `app.scope`). The `true` makes the setting **transaction-local**, so a pooled connection can never carry one tenant's context into another request.
    - A policy on each tenant table:
@@ -186,7 +189,9 @@ Pool is what a marketplace with many small coaches would use in practice, and it
      WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
    ```
 
-   - For orders, the `USING` clause also allows `customer_id = current_setting('app.user_id', true)::uuid`, which is exactly the B2B2C rule from §1: the customer sees all of their own rows, the coach sees their tenant's rows.
+   - For orders, the `USING` clause also allows `customer_id = current_setting('app.user_id', true)::uuid`, which is exactly the B2B2C rule from §1: the customer sees all of their own rows, the coach sees their tenant's rows. `memberships` works the same way with `user_id`.
+   - `tenants` itself: every session may read it (storefronts, slug lookup), but insert, update and delete only the row whose `id` is `app.tenant_id`. `user_profiles`: only the row of `app.user_id`.
+   - Settings are read as `NULLIF(current_setting(...), '')::uuid`, so a missing tenant matches nothing.
    - **Two PostgreSQL pitfalls to handle and write about:** RLS does not apply to the table owner unless `FORCE ROW LEVEL SECURITY` is set, and it never applies to superusers or roles with `BYPASSRLS`. So the migrator role owns the tables, and each service connects as a separate, non-owner role with only `SELECT, INSERT, UPDATE, DELETE`.
 
 **Other isolation points**
@@ -225,7 +230,7 @@ Goal: one tenant's spike must not degrade others. Layered, cheapest first:
 | 4 | Elastic scale | Container Apps | HTTP scale rule (concurrent requests) on each app, and Service Bus queue-length rules on enrollment-api and notifications-worker. Each app has `maxReplicas` set, which also caps the bill |
 | 5 | Async offloading | Service Bus | Slow work (enrollment, future emails) runs off the request path |
 | 6 | Resilience between services | all | `Microsoft.Extensions.Http.Resilience` standard handler: timeouts, retries with jitter, circuit breaker |
-| 7 | Database protection | all | Indexes leading with `tenant_id`, `statement_timeout` per service role, a small connection pool per service (B1ms allows about 50 connections in total), hard page-size caps (max 50) |
+| 7 | Database protection | all | Indexes leading with `tenant_id`, `statement_timeout` of 5 s per service (in the connection string, `Options=-c statement_timeout=5000`: roles created through Entra cannot be altered by the migrator), a small connection pool per service (B1ms allows about 50 connections in total), hard page-size caps (max 50) |
 
 **Known limitation (write it down):** the gateway's rate limiter is in memory, so with N gateway replicas each tenant effectively gets N × the limit. The fixes are a distributed limiter on Redis (about €13+/month, over budget) or dividing the limit by the replica count. For the thesis, keep the gateway at `maxReplicas: 2` and document the trade-off.
 
@@ -241,7 +246,7 @@ The shared B1ms database is itself a noisy-neighbor story: without limits, tenan
 ## 5. Identity and authorization
 
 - **Microsoft Entra External ID** (the successor of Azure AD B2C) for sign-up and sign-in. Free for the first 50,000 monthly active users. Customers and coaches use the same user flow (email + password, optionally Google). One external tenant, with a separate app registration per environment (dev, staging, prod).
-- The SPA uses **MSAL React** (auth code + PKCE). The gateway and services validate tokens with `Microsoft.Identity.Web`.
+- The SPA uses **MSAL React** (auth code + PKCE). The gateway and services validate tokens with ASP.NET Core's `JwtBearer` handler (authority = the External ID tenant, audience = the Athlos API app registration). Microsoft.Identity.Web was the first plan; for a single External ID tenant it adds hidden scope checks and configuration without adding safety, and plain `JwtBearer` lets tests swap in a local signing key.
 - **Authorization data lives in your app, not in the token.** "Who is a coach of which tenant" is in `tenancy-api` `memberships`. This keeps tokens small, avoids a custom-claims extension, and makes role changes immediate. One Entra app role, `Platform.Admin`, covers the admin.
 - Becoming a coach: a signed-in user calls `POST /api/v1/tenants` → a tenant is created with them as `Owner` → they are sent to Stripe Connect onboarding.
 
@@ -484,7 +489,7 @@ That leaves most of the €100 unused, which is a comfortable buffer for load te
 - **Identity model:**
   - One user-assigned managed identity per service per environment (they are free).
   - Role assignments in Bicep: `AcrPull` on the registry, `Key Vault Secrets User`, `Azure Service Bus Data Sender` (ordering) and `Data Receiver` (enrollment), `Storage Blob Data Contributor` (catalog), and a role on the Communication Services resource for the notifications-worker so it sends email with its managed identity.
-  - PostgreSQL uses **Microsoft Entra authentication** (password auth disabled). The db-migrator identity is an Entra admin on the server; on deploy it creates the databases, maps each service's managed identity to its own PostgreSQL role (`pgaadauth_create_principal`), grants that role DML rights on its own database only, and applies the RLS policies.
+  - PostgreSQL uses **Microsoft Entra authentication** (password auth disabled). One shared identity, `id-athlos-migrator-shared`, is the server's Entra admin. Each stage has a `caj-athlos-migrator-{env}` Container Apps Job running as that identity: it creates `athlos_{service}_{env}` if missing, maps the service's managed identity to the role `athlos_{service}_{env}_app` (`pgaadauth_create_principal_with_oid`), refuses to continue if that role could bypass RLS, runs the EF migrations (tables, indexes, RLS policies), and grants the role DML on its own database only. Services sign in with a token for their managed identity instead of a password.
 - **PostgreSQL server settings in Bicep:** `sku: { name: 'Standard_B1ms', tier: 'Burstable' }`, `version: '17'`, `storage: { storageSizeGB: 32, autoGrow: 'Disabled' }`, `backup: { backupRetentionDays: 7, geoRedundantBackup: 'Disabled' }`, `highAvailability: { mode: 'Disabled' }`, `authConfig: { activeDirectoryAuth: 'Enabled', passwordAuth: 'Disabled' }`.
 - **One environment, three stages.** The subscription allows one Container Apps environment per region, so `cae-athlos-shared` hosts the apps of dev, staging and prod (`ca-athlos-gateway-dev`, `ca-athlos-gateway-staging`, ...). What stays separate per stage: resource group, managed identities, Key Vault, **gateway signing key**, App Insights and (later) databases and PostgreSQL roles. Because each stage has its own signing key, a dev gateway cannot call a prod service even though they share a network. The trade-off for the thesis: stages share one platform, so a load test on staging runs next to prod, and a platform-level problem hits all three. With more quota, the environment moves back into `env.bicep` unchanged.
 - **Networking:** the environment runs in a VNet (`vnet-athlos-shared`, a delegated subnet, Consumption workload profile only). VNets and VNet-integrated Consumption environments cost nothing. The environment stays public (`internal: false`) so the gateway can have external ingress. PostgreSQL keeps public access with Entra-only auth and the "Allow public access from Azure services" firewall rule, ACR admin user is disabled, HTTPS only. Private endpoints (which do cost) remain a production hardening step for the thesis.
@@ -538,7 +543,7 @@ Authentication to Azure is **OIDC federated credentials** (`azure/login` with `c
 | Workflow | Trigger | Steps |
 |---|---|---|
 | `ci.yml` | PR to `dev` or `main` | `dotnet build` + `dotnet test` (unit, integration, isolation; Testcontainers on the hosted runner); frontend lint, type-check, `vitest`, `vite build`; `az bicep lint` + `what-if` when `infra/**` changed |
-| `deploy-dev.yml` | push to `dev` | build and test → publish images tagged `sha-<short>` to the registry → Bicep deploy `env.bicep` with `dev.bicepparam` → run db-migrator job → smoke test `/health` and the SPA (the SPA ships inside the gateway image) |
+| `deploy-dev.yml` | push to `dev` | build and test → publish images tagged `sha-<short>` to the registry → Bicep deploy `env.bicep` without the apps → run the db-migrator job and wait → Bicep deploy `env.bicep` with the apps → smoke test `/health` and the SPA (the SPA ships inside the gateway image) |
 | `deploy-staging.yml` | push to `main` | find the images for the merged `dev` commit (the merge commit's second parent) and add the tag `sha-<main commit>` to them with `az acr import`; for a hotfix, build them → Bicep deploy with `staging.bicepparam` → run db-migrator job → smoke test → Playwright end-to-end tests |
 | `release-prod.yml` | tag `v*` pushed (from a GitHub Release), or manual with a tag input for rollback | take the images tagged `sha-<tagged commit>` (the ones staging deployed) → add the version tag → **wait for approval** → Bicep deploy with `prod.bicepparam` → run db-migrator job → smoke test |
 

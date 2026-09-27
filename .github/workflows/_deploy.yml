@@ -28,7 +28,7 @@ permissions:
 
 env:
   REGISTRY: acrathlosshared
-  IMAGES: gateway tenancy-api
+  IMAGES: gateway tenancy-api db-migrator
 
 jobs:
   deploy:
@@ -56,12 +56,18 @@ jobs:
               --source "$REGISTRY.azurecr.io/athlos/$image:$FROM" --image "athlos/$image:$TO"
           done
 
+      # Three steps, so an app never starts against a database that is not ready:
+      # 1. env.bicep without the apps (identities, Key Vault, App Insights, the migrator job);
+      # 2. run the migrator job and wait for it;
+      # 3. env.bicep with the apps.
       - name: Deploy env.bicep
         id: bicep
         env:
           ENVIRONMENT: ${{ inputs.environment }}
           IMAGE_TAG: ${{ inputs.image-tag }}
           APP_VERSION: ${{ inputs.app-version || inputs.image-tag }}
+          AUTH_AUTHORITY: ${{ vars.AUTH_AUTHORITY }}
+          AUTH_AUDIENCE: ${{ vars.AUTH_AUDIENCE }}
         run: |
           # Gateway signing key: reuse the stored one; only the first deploy (no vault yet) creates it.
           # If the vault exists but the key cannot be read, fail rather than silently rotate it.
@@ -74,11 +80,34 @@ jobs:
           echo "::add-mask::$GATEWAY_SIGNING_KEY"
           export GATEWAY_SIGNING_KEY
 
-          outputs=$(az deployment group create \
-            --resource-group "rg-athlos-$ENVIRONMENT" \
-            --name "env-${{ github.run_id }}" \
-            --parameters "infra/$ENVIRONMENT.bicepparam" \
-            --query properties.outputs --output json)
+          deploy() {
+            DEPLOY_APPS=$1 az deployment group create \
+              --resource-group "rg-athlos-$ENVIRONMENT" \
+              --name "env-${{ github.run_id }}-$2" \
+              --parameters "infra/$ENVIRONMENT.bicepparam" \
+              --query properties.outputs --output json
+          }
+
+          echo "::group::Supporting resources and migrator job"
+          deploy false base > /dev/null
+          echo "::endgroup::"
+
+          echo "::group::Database migrations"
+          az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors
+          job="caj-athlos-migrator-$ENVIRONMENT"
+          execution=$(az containerapp job start --name "$job" --resource-group "rg-athlos-$ENVIRONMENT" --query name --output tsv)
+          for attempt in $(seq 1 60); do
+            status=$(az containerapp job execution show --name "$job" --resource-group "rg-athlos-$ENVIRONMENT" \
+              --job-execution-name "$execution" --query properties.status --output tsv)
+            echo "migrator: $status"
+            [[ "$status" == "Succeeded" ]] && break
+            [[ "$status" == "Failed" ]] && { echo "::error::Migrator job $execution failed; see its logs in App Insights (cloud_RoleName db-migrator)"; exit 1; }
+            sleep 10
+          done
+          [[ "$status" == "Succeeded" ]] || { echo "::error::Migrator job $execution did not finish in time"; exit 1; }
+          echo "::endgroup::"
+
+          outputs=$(deploy true apps)
           echo "gateway-url=$(jq -r .gatewayUrl.value <<< "$outputs")" >> "$GITHUB_OUTPUT"
           echo "tenancy-api-fqdn=$(jq -r .tenancyApiFqdn.value <<< "$outputs")" >> "$GITHUB_OUTPUT"
 

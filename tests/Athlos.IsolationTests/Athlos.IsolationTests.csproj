@@ -6,12 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="xunit.v3.mtp-v2" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Services\Athlos.Tenancy.Api\Athlos.Tenancy.Api.csproj" />
+    <ProjectReference Include="..\Athlos.Testing\Athlos.Testing.csproj" />
   </ItemGroup>
 
   <ItemGroup>

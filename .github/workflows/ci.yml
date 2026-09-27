@@ -75,6 +75,7 @@ jobs:
       - name: Build parameter files
         env:
           IMAGE_TAG: sha-ci
+          GATEWAY_SIGNING_KEY: not-a-real-key
         run: |
           for env in dev staging prod; do
             az bicep build-params --file "infra/$env.bicepparam" --stdout > /dev/null

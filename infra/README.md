@@ -5,14 +5,17 @@ Bicep for Athlos (design §11), all in `italynorth`.
 | File | Deploys | Deployed by |
 |---|---|---|
 | `shared.bicep` | `rg-athlos-shared`: registry `acrathlosshared` (Standard), Log Analytics `log-athlos-shared` (0.15 GB/day cap). PostgreSQL comes with the first database | `deploy-dev.yml`, before images are pushed |
-| `env.bicep` + `{dev,staging,prod}.bicepparam` | `rg-athlos-{env}`: App Insights, Container Apps environment, one identity per service with `AcrPull`, the container apps | `_deploy.yml`, called by the dev, staging and prod workflows |
+| `env.bicep` + `{dev,staging,prod}.bicepparam` | `rg-athlos-{env}`: VNet, App Insights, Container Apps environment (in the VNet), Key Vault with the gateway signing key, one identity per service with `AcrPull` and `Key Vault Secrets User`, the container apps | `_deploy.yml`, called by the dev, staging and prod workflows |
 | `modules/budget.bicep` | Subscription budget | `bootstrap.sh`, once |
 
-The parameter files read `IMAGE_TAG` (and optionally `APP_VERSION`) from the environment:
+The parameter files read `IMAGE_TAG`, `GATEWAY_SIGNING_KEY` (and optionally `APP_VERSION`) from the environment. `_deploy.yml` reads the stored key from `kv-athlos-{env}` and only generates one on the first deploy:
 
 ```bash
+export GATEWAY_SIGNING_KEY=$(az keyvault secret show --vault-name kv-athlos-dev --name gateway-signing-key --query value -o tsv)
 IMAGE_TAG=sha-3f2a1c9 az deployment group create -g rg-athlos-dev --parameters infra/dev.bicepparam
 ```
+
+**A Container Apps environment cannot be moved into a VNet.** Changing `vnetConfiguration` means deleting the environment (and its apps) and deploying again.
 
 **GitHub plan:** branch protection on a private repo needs GitHub Pro (active since 2026-09-27). Required reviewers on the `prod` environment need GitHub Enterprise for private repos, so `bootstrap.sh` warns and skips them; publishing the GitHub Release is the manual gate instead. Secret scanning is also unavailable for private repos on Pro; the GitGuardian check covers PRs.
 

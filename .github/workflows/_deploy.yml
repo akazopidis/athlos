@@ -63,16 +63,29 @@ jobs:
           IMAGE_TAG: ${{ inputs.image-tag }}
           APP_VERSION: ${{ inputs.app-version || inputs.image-tag }}
         run: |
-          url=$(az deployment group create \
+          # Gateway signing key: reuse the stored one; only the first deploy (no vault yet) creates it.
+          # If the vault exists but the key cannot be read, fail rather than silently rotate it.
+          vault="kv-athlos-$ENVIRONMENT"
+          if az keyvault show --name "$vault" --output none 2>/dev/null; then
+            GATEWAY_SIGNING_KEY=$(az keyvault secret show --vault-name "$vault" --name gateway-signing-key --query value --output tsv)
+          else
+            GATEWAY_SIGNING_KEY=$(openssl rand -base64 48)
+          fi
+          echo "::add-mask::$GATEWAY_SIGNING_KEY"
+          export GATEWAY_SIGNING_KEY
+
+          outputs=$(az deployment group create \
             --resource-group "rg-athlos-$ENVIRONMENT" \
             --name "env-${{ github.run_id }}" \
             --parameters "infra/$ENVIRONMENT.bicepparam" \
-            --query properties.outputs.gatewayUrl.value --output tsv)
-          echo "gateway-url=$url" >> "$GITHUB_OUTPUT"
+            --query properties.outputs --output json)
+          echo "gateway-url=$(jq -r .gatewayUrl.value <<< "$outputs")" >> "$GITHUB_OUTPUT"
+          echo "tenancy-api-fqdn=$(jq -r .tenancyApiFqdn.value <<< "$outputs")" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test
         env:
           URL: ${{ steps.bicep.outputs.gateway-url }}
+          TENANCY_API: ${{ steps.bicep.outputs.tenancy-api-fqdn }}
           EXPECTED_VERSION: ${{ inputs.app-version || inputs.image-tag }}
         run: |
           # Apps scale to zero, so the first request may wait for a cold start.
@@ -83,6 +96,11 @@ jobs:
           curl --fail --silent --show-error "$URL/health/ready"
           version=$(curl --fail --silent --show-error "$URL/version" | jq -r .version)
           [[ "$version" == "$EXPECTED_VERSION" ]] || { echo "::error::/version is '$version', expected '$EXPECTED_VERSION'"; exit 1; }
+          # Through the gateway the request is signed; tenancy-api accepts it.
           curl --fail --silent --show-error "$URL/api/v1/plans" | jq -e 'length > 0'
           curl --fail --silent --show-error "$URL/" | grep -q '<div id="root">'
+          # Isolation layer 1: calling a service directly, around the gateway, must not work.
+          direct=$(curl --silent --max-time 10 --output /dev/null --write-out '%{http_code}' "https://$TENANCY_API/api/v1/plans" || true)
+          [[ "$direct" != 2* ]] || { echo "::error::tenancy-api answered $direct when called directly"; exit 1; }
+          echo "Direct call to tenancy-api: $direct (000 = unreachable, 401 = unsigned request rejected)"
           echo "### $URL is running $version" >> "$GITHUB_STEP_SUMMARY"

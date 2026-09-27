@@ -10,6 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks\Athlos.Tenancy\Athlos.Tenancy.csproj" />
     <ProjectReference Include="..\ServiceDefaults\Athlos.ServiceDefaults.csproj" />
   </ItemGroup>
 

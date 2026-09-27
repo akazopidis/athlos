@@ -4,10 +4,14 @@
     <Project Path="src/Gateway/Athlos.Gateway.csproj" />
     <Project Path="src/ServiceDefaults/Athlos.ServiceDefaults.csproj" />
   </Folder>
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/Athlos.Tenancy/Athlos.Tenancy.csproj" />
+  </Folder>
   <Folder Name="/src/Services/">
     <Project Path="src/Services/Athlos.Tenancy.Api/Athlos.Tenancy.Api.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Athlos.Gateway.Tests/Athlos.Gateway.Tests.csproj" />
+    <Project Path="tests/Athlos.IsolationTests/Athlos.IsolationTests.csproj" />
   </Folder>
 </Solution>

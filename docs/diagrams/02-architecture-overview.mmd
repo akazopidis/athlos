@@ -1,11 +1,11 @@
 flowchart LR
   subgraph CLIENTS["Callers"]
-    SPA["React SPA<br/>(Static Web Apps)"]
+    SPA["React SPA<br/>(browser)"]
     STRIPE["Stripe webhooks"]
   end
 
   subgraph ACA["Container Apps environment"]
-    GW["gateway (YARP)<br/>only public entry"]
+    GW["gateway (YARP)<br/>only public entry,<br/>serves the SPA files"]
     TEN["tenancy-api"]
     CAT["catalog-api"]
     ORD["ordering-api"]

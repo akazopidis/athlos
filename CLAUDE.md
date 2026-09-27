@@ -35,6 +35,7 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
 - Money is integer minor units plus a currency code.
 - Never store or handle passwords; Entra External ID owns sign-up, verification and password reset. App emails go only through the `notifications` queue and the notifications-worker; never log email addresses.
 - No secrets in the repo. Local: user secrets or Aspire parameters. Azure: Key Vault + managed identity.
+- Every Azure resource goes in `italynorth`; the subscription's policy blocks other regions (design §10). Static Web Apps is not available there, so the gateway serves the SPA and per-environment SPA settings come from `GET /config.json`, never from build-time variables (§8.1).
 - Budget is €100 for 12 months. Do not add Azure resources that are not in the design (no Redis, API Management, Front Door, a second PostgreSQL server, Service Bus Standard) without asking.
 
 ## Code style

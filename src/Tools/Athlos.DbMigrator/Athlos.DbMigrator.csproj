@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ContainerRepository>athlos/db-migrator</ContainerRepository>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\ServiceDefaults\Athlos.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\Services\Athlos.Tenancy.Api\Athlos.Tenancy.Api.csproj" />
+  </ItemGroup>
+
+</Project>

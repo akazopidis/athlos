@@ -1,23 +1,31 @@
 using System.Net;
+using System.Net.Http.Headers;
 using Athlos.Tenancy;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
+using Athlos.Testing;
 using Microsoft.Extensions.Options;
 
 namespace Athlos.IsolationTests;
 
 // Layer 1 (design §3.2): a service only acts on requests the gateway signed. These tests call a
 // service directly, as someone who found its address would, and expect every attempt to fail.
-public sealed class BypassGatewayTests(BypassGatewayTests.TenancyApi api) : IClassFixture<BypassGatewayTests.TenancyApi>
+public sealed class BypassGatewayTests(TenancyDatabase database) : IAsyncLifetime
 {
-    private const string Key = "isolation-test-key-0123456789abcdef0123456789";
     private const string TenantA = "0198a3b2-0000-7000-8000-00000000000a";
     private const string TenantB = "0198a3b2-0000-7000-8000-00000000000b";
 
-    // Every tenancy-api endpoint that sits behind the gateway. Add new endpoints here.
+    private readonly TenancyApiFactory _api = new(database);
+
+    // Every tenancy-api endpoint. Add each new endpoint here.
     public static TheoryData<string, string> Endpoints => new()
     {
         { "GET", "/api/v1/plans" },
+        { "GET", "/api/v1/marketplace/coaches/some-coach" },
+        { "POST", "/api/v1/tenants" },
+        { "GET", "/api/v1/me/memberships" },
+        { "PUT", "/api/v1/me/profile" },
+        { "GET", "/api/v1/studio/some-coach/workspace" },
+        { "PUT", "/api/v1/studio/some-coach/workspace" },
+        { "GET", $"/internal/tenants/some-coach/members/{TenantB}" },
     };
 
     [Theory]
@@ -27,6 +35,7 @@ public sealed class BypassGatewayTests(BypassGatewayTests.TenancyApi api) : ICla
         using var request = new HttpRequestMessage(new HttpMethod(method), path);
         request.Headers.Add(TrustedHeaders.TenantId, TenantA);
         request.Headers.Add(TrustedHeaders.UserRole, "Owner");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", TestTokens.For(Guid.CreateVersion7()));
 
         var response = await Send(request);
 
@@ -37,7 +46,8 @@ public sealed class BypassGatewayTests(BypassGatewayTests.TenancyApi api) : ICla
     [MemberData(nameof(Endpoints))]
     public async Task Correctly_signed_requests_are_accepted(string method, string path)
     {
-        var response = await Send(Signed(Signer(TimeProvider.System), method, path, TenantA, "Owner"));
+        var response = await _api.SendAsGateway(
+            new HttpRequestMessage(new HttpMethod(method), path), Guid.CreateVersion7(), Guid.Parse(TenantA), TenantRole.Owner);
 
         Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -99,16 +109,16 @@ public sealed class BypassGatewayTests(BypassGatewayTests.TenancyApi api) : ICla
     [InlineData("/version")]
     public async Task Probes_and_version_work_without_a_signature(string path)
     {
-        var response = await api.CreateClient().GetAsync(path, TestContext.Current.CancellationToken);
+        var response = await _api.CreateClient().GetAsync(path, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private Task<HttpResponseMessage> Send(HttpRequestMessage request) =>
-        api.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
+        _api.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
 
     private static GatewaySignature Signer(TimeProvider time) =>
-        new(Options.Create(new GatewaySignatureOptions { Key = Key }), time);
+        new(Options.Create(new GatewaySignatureOptions { Key = TenancyApiFactory.SigningKey }), time);
 
     private static HttpRequestMessage Signed(GatewaySignature signer, string method, string path, string tenantId, string role)
     {
@@ -125,11 +135,9 @@ public sealed class BypassGatewayTests(BypassGatewayTests.TenancyApi api) : ICla
         request.Headers.Add(GatewaySignature.SignatureHeader, signed.Signature);
     }
 
-    public sealed class TenancyApi : WebApplicationFactory<Program>
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder) =>
-            builder.UseSetting("GatewaySignature:Key", Key);
-    }
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
+
+    public ValueTask DisposeAsync() => _api.DisposeAsync();
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {

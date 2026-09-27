@@ -25,7 +25,7 @@ read -r -p "Continue? [y/N] " answer
 echo "== Resource providers"
 for ns in Microsoft.App Microsoft.ContainerRegistry Microsoft.DBforPostgreSQL Microsoft.ServiceBus \
           Microsoft.Storage Microsoft.KeyVault Microsoft.OperationalInsights Microsoft.Insights \
-          Microsoft.ManagedIdentity Microsoft.Communication Microsoft.Web Microsoft.Consumption; do
+          Microsoft.ManagedIdentity Microsoft.Communication Microsoft.Network Microsoft.Consumption; do
   az provider register --namespace "$ns" --output none
 done
 

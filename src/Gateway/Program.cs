@@ -6,6 +6,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.Services.AddGatewaySignature(builder.Configuration);
+builder.Services.AddAthlosAuthentication(builder.Configuration);
+builder.Services.AddHybridCache();
+builder.Services.AddHttpClient<MembershipLookup>(http => http.BaseAddress = new Uri("https+http://tenancy-api"));
 
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
@@ -18,6 +21,9 @@ builder.Services.AddReverseProxy()
         {
             context.AddRequestHeaderRemove(header);
         }
+
+        // The gateway's own values, for studio routes (StudioAccess.ResolveMembership).
+        context.AddRequestTransform(StudioAccess.AddTrustedHeaders);
 
         // Runs last, so the signature covers the final path and trusted headers.
         context.AddRequestTransform(GatewayRequestSigning.SignAsync);
@@ -34,10 +40,11 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseSecurityHeaders();
+app.UseAuthentication();
 
 app.MapDefaultEndpoints();
 app.MapSpaConfig();
-app.MapReverseProxy();
+app.MapReverseProxy(proxy => proxy.Use(StudioAccess.ResolveMembership));
 app.MapSpa();
 
 app.Run();

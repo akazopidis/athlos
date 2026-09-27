@@ -1,11 +1,8 @@
 using System.Net.Http.Headers;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Api.Data;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Athlos.Testing;
@@ -20,14 +17,7 @@ public sealed class TenancyApiFactory(TenancyDatabase database) : WebApplication
     {
         builder.UseSetting("ConnectionStrings:tenancy-db", database.AppConnectionString);
         builder.UseSetting("GatewaySignature:Key", SigningKey);
-        builder.UseSetting("Auth:Audience", TestTokens.Audience);
-
-        builder.ConfigureTestServices(services =>
-            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
-            {
-                options.TokenValidationParameters.ValidIssuer = TestTokens.Issuer;
-                options.TokenValidationParameters.IssuerSigningKey = TestTokens.SigningKey;
-            }));
+        builder.TrustTestTokens();
     }
 
     // Sends a request the way the gateway forwards it: trusted headers set, then signed.

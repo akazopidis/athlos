@@ -88,14 +88,16 @@ jobs:
           TENANCY_API: ${{ steps.bicep.outputs.tenancy-api-fqdn }}
           EXPECTED_VERSION: ${{ inputs.app-version || inputs.image-tag }}
         run: |
-          # Apps scale to zero, so the first request may wait for a cold start.
+          # The old revision keeps serving until the new one is ready, and apps may be cold-starting
+          # from zero, so wait until /version reports the version just deployed.
+          version=""
           for attempt in $(seq 1 30); do
-            curl --fail --silent "$URL/health/ready" && break
-            echo "not ready yet ($attempt)"; sleep 10
+            version=$(curl --fail --silent "$URL/version" | jq -r .version || true)
+            [[ "$version" == "$EXPECTED_VERSION" ]] && break
+            echo "serving '$version', waiting for '$EXPECTED_VERSION' ($attempt)"; sleep 10
           done
-          curl --fail --silent --show-error "$URL/health/ready"
-          version=$(curl --fail --silent --show-error "$URL/version" | jq -r .version)
           [[ "$version" == "$EXPECTED_VERSION" ]] || { echo "::error::/version is '$version', expected '$EXPECTED_VERSION'"; exit 1; }
+          curl --fail --silent --show-error "$URL/health/ready"
           # Through the gateway the request is signed; tenancy-api accepts it.
           curl --fail --silent --show-error "$URL/api/v1/plans" | jq -e 'length > 0'
           curl --fail --silent --show-error "$URL/" | grep -q '<div id="root">'

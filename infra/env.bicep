@@ -47,6 +47,8 @@ var registryServer = '${registryName}.azurecr.io'
 // Database per service, per stage; each service connects as its own non-owner role (design §2.1, §7).
 var tenancyDatabase = 'athlos_tenancy_${environmentName}'
 var tenancyAppRole = 'athlos_tenancy_${environmentName}_app'
+var catalogDatabase = 'athlos_catalog_${environmentName}'
+var catalogAppRole = 'athlos_catalog_${environmentName}_app'
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' existing = {
   name: workspaceName
@@ -90,6 +92,17 @@ module gatewayIdentity 'modules/identity.bicep' = {
   params: { name: 'id-athlos-gateway-${environmentName}', location: location }
 }
 
+module catalogIdentity 'modules/identity.bicep' = {
+  name: 'id-catalog-api'
+  params: { name: 'id-athlos-catalog-api-${environmentName}', location: location }
+}
+
+module catalogAcrPull 'modules/acr-pull.bicep' = {
+  name: 'acr-pull-catalog-api-${environmentName}'
+  scope: resourceGroup(sharedResourceGroup)
+  params: { registryName: registryName, principalId: catalogIdentity.outputs.principalId }
+}
+
 module tenancyAcrPull 'modules/acr-pull.bicep' = {
   name: 'acr-pull-tenancy-api-${environmentName}'
   scope: resourceGroup(sharedResourceGroup)
@@ -108,7 +121,7 @@ module keyVault 'modules/keyvault.bicep' = {
     name: 'kv-athlos-${environmentName}'
     location: location
     gatewaySigningKey: gatewaySigningKey
-    readerPrincipalIds: [tenancyIdentity.outputs.principalId, gatewayIdentity.outputs.principalId]
+    readerPrincipalIds: [tenancyIdentity.outputs.principalId, catalogIdentity.outputs.principalId, gatewayIdentity.outputs.principalId]
     deployerPrincipalId: deployer().objectId
   }
 }
@@ -135,6 +148,9 @@ module migrator 'modules/container-job.bicep' = {
       { name: 'ConnectionStrings__tenancy-db-owner', value: 'Host=${postgresHost};Database=${tenancyDatabase};Username=${migratorIdentity.name};SSL Mode=Require' }
       { name: 'Databases__Tenancy__AppRole', value: tenancyAppRole }
       { name: 'Databases__Tenancy__AppPrincipalObjectId', value: tenancyIdentity.outputs.principalId }
+      { name: 'ConnectionStrings__catalog-db-owner', value: 'Host=${postgresHost};Database=${catalogDatabase};Username=${migratorIdentity.name};SSL Mode=Require' }
+      { name: 'Databases__Catalog__AppRole', value: catalogAppRole }
+      { name: 'Databases__Catalog__AppPrincipalObjectId', value: catalogIdentity.outputs.principalId }
       { name: 'AZURE_CLIENT_ID', value: migratorIdentity.properties.clientId }
       { name: 'APP_VERSION', value: appVersion }
       { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
@@ -169,6 +185,26 @@ module tenancyApi 'modules/container-app.bicep' = if (deployApps) {
   }
 }
 
+module catalogApi 'modules/container-app.bicep' = if (deployApps) {
+  name: 'ca-catalog-api'
+  dependsOn: [catalogAcrPull]
+  params: {
+    name: 'ca-athlos-catalog-api-${environmentName}'
+    location: location
+    environmentId: acaEnvironment.id
+    identityId: catalogIdentity.outputs.id
+    registryServer: registryServer
+    image: '${registryServer}/athlos/catalog-api:${imageTag}'
+    maxReplicas: 3
+    keyVaultSecrets: signingKeySecret
+    env: concat(commonEnv, authEnv, [
+      { name: 'OTEL_SERVICE_NAME', value: 'catalog-api' }
+      { name: 'AZURE_CLIENT_ID', value: catalogIdentity.outputs.clientId }
+      { name: 'ConnectionStrings__catalog-db', value: 'Host=${postgresHost};Database=${catalogDatabase};Username=${catalogAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
+    ])
+  }
+}
+
 module gateway 'modules/container-app.bicep' = if (deployApps) {
   name: 'ca-gateway'
   dependsOn: [gatewayAcrPull]
@@ -194,10 +230,12 @@ module gateway 'modules/container-app.bicep' = if (deployApps) {
       { name: 'Spa__ApiScope', value: apiScope }
       // Service discovery: the gateway's "https+http://tenancy-api" address resolves to this, as it does under Aspire.
       { name: 'services__tenancy-api__https__0', value: 'https://${tenancyApi!.outputs.fqdn}' }
+      { name: 'services__catalog-api__https__0', value: 'https://${catalogApi!.outputs.fqdn}' }
     ])
   }
 }
 
 output gatewayUrl string = deployApps ? 'https://${gateway!.outputs.fqdn}' : ''
 output tenancyApiFqdn string = deployApps ? tenancyApi!.outputs.fqdn : ''
+output catalogApiFqdn string = deployApps ? catalogApi!.outputs.fqdn : ''
 output migratorJobName string = 'caj-athlos-migrator-${environmentName}'

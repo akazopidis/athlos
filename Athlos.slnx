@@ -8,12 +8,14 @@
     <Project Path="src/BuildingBlocks/Athlos.Tenancy/Athlos.Tenancy.csproj" />
   </Folder>
   <Folder Name="/src/Services/">
+    <Project Path="src/Services/Athlos.Catalog.Api/Athlos.Catalog.Api.csproj" />
     <Project Path="src/Services/Athlos.Tenancy.Api/Athlos.Tenancy.Api.csproj" />
   </Folder>
   <Folder Name="/src/Tools/">
     <Project Path="src/Tools/Athlos.DbMigrator/Athlos.DbMigrator.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Athlos.Catalog.Api.IntegrationTests/Athlos.Catalog.Api.IntegrationTests.csproj" />
     <Project Path="tests/Athlos.Gateway.Tests/Athlos.Gateway.Tests.csproj" />
     <Project Path="tests/Athlos.IsolationTests/Athlos.IsolationTests.csproj" />
     <Project Path="tests/Athlos.Tenancy.Api.IntegrationTests/Athlos.Tenancy.Api.IntegrationTests.csproj" />

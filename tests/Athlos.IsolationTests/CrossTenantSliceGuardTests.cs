@@ -6,6 +6,10 @@ public sealed class CrossTenantSliceGuardTests
 {
     private static readonly string[] AllowedCrossTenantSlices =
     [
+        // Public marketplace search and program pages (public-read scope, published only).
+        "src/Services/Athlos.Catalog.Api/Features/Marketplace/GetPublishedProgram.cs",
+        "src/Services/Athlos.Catalog.Api/Features/Marketplace/SearchPrograms.cs",
+        // A user's own memberships across workspaces.
         "src/Services/Athlos.Tenancy.Api/Features/Account/ListMyMemberships.cs",
     ];
 

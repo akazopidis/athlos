@@ -32,10 +32,10 @@ public static class TenancyArrange
     }
 
     // Staff invites arrive in a later phase; until then staff are added directly as the owner role.
-    public static async Task<Guid> AddMember(this TenancyDatabase database, Guid tenantId, TenantRole role)
+    public static async Task<Guid> AddMember(this AthlosDatabases database, Guid tenantId, TenantRole role, Guid? existingUser = null)
     {
-        var userId = Guid.CreateVersion7();
-        await using var connection = new NpgsqlConnection(database.OwnerConnectionString);
+        var userId = existingUser ?? Guid.CreateVersion7();
+        await using var connection = new NpgsqlConnection(database.OwnerConnectionString("tenancy"));
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         await using var command = new NpgsqlCommand(
             "INSERT INTO memberships (id, tenant_id, user_id, role, created_at, updated_at) VALUES ($1, $2, $3, $4, now(), now())",

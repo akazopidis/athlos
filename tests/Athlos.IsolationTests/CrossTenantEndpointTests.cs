@@ -7,7 +7,7 @@ namespace Athlos.IsolationTests;
 
 // Design §3.3: for every tenant-scoped endpoint, call with tenant B's identity against tenant A's
 // resources and expect 404 (not 403, which would reveal that A's resource exists).
-public sealed class CrossTenantEndpointTests(TenancyDatabase database) : IAsyncLifetime
+public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncLifetime
 {
     private readonly TenancyApiFactory _api = new(database);
     private TenancyArrange.Workspace _a = null!;

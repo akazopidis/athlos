@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Tenancy.Api.Data;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
 namespace Athlos.Tenancy.Api.Features.Workspace;
@@ -17,7 +18,7 @@ public static class UpdateWorkspace
             .WithName("UpdateWorkspace")
             .WithTags("Workspace");
 
-    private static async Task<IResult> Handle(
+    private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> Handle(
         string tenantSlug, Request request, ITenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
     {
         var workspace = await db.Tenants.SingleOrDefaultAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug, cancellationToken);

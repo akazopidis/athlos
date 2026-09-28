@@ -8,6 +8,7 @@ using Athlos.Tenancy.Api.Features.Storefront;
 using Athlos.Tenancy.Api.Features.Tenants;
 using Athlos.Tenancy.Api.Features.Workspace;
 using Athlos.Tenancy.Data;
+using Microsoft.AspNetCore.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
@@ -23,7 +24,11 @@ builder.Services.AddTenantDbContext<TenancyDbContext>(options => options
         npgsql => npgsql.ConfigureDataSource(dataSource => dataSource.UseEntraTokenIfNoPassword(builder.Configuration["AZURE_CLIENT_ID"])))
     .UseSnakeCaseNamingConvention());
 builder.Services.AddValidation();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+    // Slices nest their Request/Response records; name schemas after the slice (CreateTenantRequest).
+    options.CreateSchemaReferenceId = type => type.Type.IsNested
+        ? type.Type.DeclaringType!.Name + type.Type.Name
+        : OpenApiOptions.CreateDefaultSchemaReferenceId(type));
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 

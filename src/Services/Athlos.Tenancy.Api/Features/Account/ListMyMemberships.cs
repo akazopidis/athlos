@@ -1,5 +1,6 @@
 using Athlos.Tenancy.Api.Data;
 using Athlos.Tenancy.Data;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
 namespace Athlos.Tenancy.Api.Features.Account;
@@ -16,7 +17,7 @@ public static class ListMyMemberships
             .WithName("ListMyMemberships")
             .WithTags("Account");
 
-    private static async Task<IResult> Handle(ITenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
+    private static async Task<Ok<List<Item>>> Handle(ITenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
     {
         var userId = tenant.UserId;
         var items = await (

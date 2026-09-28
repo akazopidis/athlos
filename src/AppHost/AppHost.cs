@@ -40,25 +40,44 @@ IResourceBuilder<IResourceWithConnectionString> ServiceDatabase(string service)
 var tenancyDb = ServiceDatabase("tenancy");
 var catalogDb = ServiceDatabase("catalog");
 
+// Entra External ID (design §5). Locally the dev app registrations are used; set them with
+// dotnet user-secrets in src/AppHost: Entra:Authority, Entra:ApiClientId, Entra:SpaClientId.
+// Without them everything runs, signed out.
+var entraAuthority = builder.Configuration["Entra:Authority"] ?? "";
+var entraApiClientId = builder.Configuration["Entra:ApiClientId"] ?? "";
+var entraSpaClientId = builder.Configuration["Entra:SpaClientId"] ?? "";
+var apiScope = entraApiClientId.Length > 0 ? $"api://{entraApiClientId}/access_as_user" : "";
+
 var tenancyApi = builder.AddProject<Projects.Athlos_Tenancy_Api>("tenancy-api")
+    .WithEnvironment("Auth__Authority", entraAuthority)
+    .WithEnvironment("Auth__Audience", entraApiClientId)
     .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)
     .WithReference(tenancyDb)
     .WaitForCompletion(migrator);
 
 var catalogApi = builder.AddProject<Projects.Athlos_Catalog_Api>("catalog-api")
+    .WithEnvironment("Auth__Authority", entraAuthority)
+    .WithEnvironment("Auth__Audience", entraApiClientId)
     .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)
     .WithReference(catalogDb)
     .WaitForCompletion(migrator);
 
 var gateway = builder.AddProject<Projects.Athlos_Gateway>("gateway")
     .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)
+    .WithEnvironment("Auth__Authority", entraAuthority)
+    .WithEnvironment("Auth__Audience", entraApiClientId)
+    .WithEnvironment("Spa__EntraClientId", entraSpaClientId)
+    .WithEnvironment("Spa__EntraAuthority", entraAuthority)
+    .WithEnvironment("Spa__ApiScope", apiScope)
     .WithReference(tenancyApi)
     .WithReference(catalogApi)
     .WaitFor(tenancyApi)
     .WaitFor(catalogApi);
 
 // Locally the Vite dev server serves the SPA and proxies API calls to the gateway (src/web/vite.config.ts).
+// Fixed port: it is the redirect URI registered on the dev SPA app registration.
 builder.AddViteApp("web", "../web")
+    .WithEndpoint("http", endpoint => endpoint.Port = 5173)
     .WithReference(gateway)
     .WaitFor(gateway);
 

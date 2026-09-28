@@ -41,6 +41,14 @@ jobs:
       - run: dotnet build Athlos.slnx --no-restore --configuration Release
       - run: dotnet test Athlos.slnx --no-build --configuration Release
 
+      # The deploy publishes these as container images; catch publish-only errors (such as
+      # duplicate output files) before merging, not in deploy-dev.
+      - name: Publish deployables
+        run: |
+          for project in src/Gateway src/Services/Athlos.Tenancy.Api src/Services/Athlos.Catalog.Api src/Tools/Athlos.DbMigrator; do
+            dotnet publish "$project" --no-build --configuration Release --output "$RUNNER_TEMP/publish/$(basename "$project")"
+          done
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

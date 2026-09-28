@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\ServiceDefaults\Athlos.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\Services\Athlos.Catalog.Api\Athlos.Catalog.Api.csproj" />
     <ProjectReference Include="..\..\Services\Athlos.Tenancy.Api\Athlos.Tenancy.Api.csproj" />
   </ItemGroup>
 

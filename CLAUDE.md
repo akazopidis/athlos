@@ -33,7 +33,7 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
   - Every new endpoint gets a case in `tests/Athlos.IsolationTests`.
 - Services connect to PostgreSQL as their own non-owner role. Never grant `BYPASSRLS` or superuser to an app role.
 - Tenant-scoped route groups use `.RequireTenant()` and `.WithTenantTransaction<TDbContext>()`; RLS settings only exist inside a transaction.
-- Schema changes go through EF migrations; RLS policies are written in the same migration with the `RowLevelSecurity` helpers.
+- Schema changes go through EF migrations; RLS policies are written in the same migration with the `RowLevelSecurity` helpers. Never widen reads in a combined policy: `AddTenantIsolationPolicy(table, alsoReadable)` splits SELECT from writes (design §3.2).
 - `set_config('app.tenant_id', ..., true)` is transaction-local; do not change it to session-level.
 - Database per service. A service never reads another service's database; use an HTTP call or an event.
 - Money is integer minor units plus a currency code.
@@ -62,4 +62,4 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
 
 ## Current phase
 
-Keep this line updated as you go: **Phase 2, identity + tenancy** (see §15 of the design). Phase 1 was released as `v0.1.0`. Tenancy data, RLS and the isolation suite are in; Entra External ID and the gateway's membership lookup are next.
+Keep this line updated as you go: **Phase 3, catalog** (see §15 of the design). Phase 1 was released as `v0.1.0`. Phase 2 is done except Entra External ID sign-in (draft PR #12), which waits for an Azure support request allowing the tenant resource in Europe. Catalog programs, workouts, marketplace search and isolation tests are in; blob media is next.

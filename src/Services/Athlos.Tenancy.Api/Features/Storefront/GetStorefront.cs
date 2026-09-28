@@ -1,4 +1,5 @@
 using Athlos.Tenancy.Api.Data;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
 namespace Athlos.Tenancy.Api.Features.Storefront;
@@ -17,7 +18,7 @@ public static class GetStorefront
         return app;
     }
 
-    private static async Task<IResult> Handle(string slug, TenancyDbContext db, CancellationToken cancellationToken)
+    private static async Task<Results<Ok<Response>, NotFound>> Handle(string slug, TenancyDbContext db, CancellationToken cancellationToken)
     {
         var storefront = await db.Tenants
             .AsNoTracking()

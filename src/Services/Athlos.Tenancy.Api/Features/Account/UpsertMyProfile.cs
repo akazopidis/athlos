@@ -1,4 +1,5 @@
 using Athlos.Tenancy.Api.Data;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
 namespace Athlos.Tenancy.Api.Features.Account;
@@ -14,7 +15,7 @@ public static class UpsertMyProfile
             .WithName("UpsertMyProfile")
             .WithTags("Account");
 
-    private static async Task<IResult> Handle(HttpContext http, ITenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
+    private static async Task<Results<Ok<Response>, ProblemHttpResult>> Handle(HttpContext http, ITenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
     {
         var email = http.User.FindFirst("email")?.Value;
         var name = http.User.FindFirst("name")?.Value;

@@ -25,6 +25,12 @@ param authAuthority string = ''
 @description('Client id of the Athlos API app registration. Empty until Entra is set up.')
 param authAudience string = ''
 
+@description('Client id of the SPA app registration, served to the browser by /config.json.')
+param spaClientId string = ''
+
+@description('The API scope the SPA asks for, for example api://<api client id>/access_as_user.')
+param apiScope string = ''
+
 @secure()
 @description('Gateway signing key (GatewaySignature). The deploy workflow passes the stored value, or a new one on the first deploy.')
 param gatewaySigningKey string
@@ -182,6 +188,10 @@ module gateway 'modules/container-app.bicep' = if (deployApps) {
       { name: 'OTEL_SERVICE_NAME', value: 'gateway' }
       // Container Apps terminates TLS; trust its X-Forwarded-* headers so HSTS sees https.
       { name: 'ASPNETCORE_FORWARDEDHEADERS_ENABLED', value: 'true' }
+      // SPA sign-in settings, served by GET /config.json (design §8.1).
+      { name: 'Spa__EntraClientId', value: spaClientId }
+      { name: 'Spa__EntraAuthority', value: authAuthority }
+      { name: 'Spa__ApiScope', value: apiScope }
       // Service discovery: the gateway's "https+http://tenancy-api" address resolves to this, as it does under Aspire.
       { name: 'services__tenancy-api__https__0', value: 'https://${tenancyApi!.outputs.fqdn}' }
     ])

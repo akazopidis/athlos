@@ -1,5 +1,6 @@
 using Athlos.Tenancy.Api.Data;
 using Athlos.Tenancy.Api.Features.Plans;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
 namespace Athlos.Tenancy.Api.Features.Workspace;
@@ -16,7 +17,7 @@ public static class GetWorkspace
             .WithName("GetWorkspace")
             .WithTags("Workspace");
 
-    private static async Task<IResult> Handle(string tenantSlug, ITenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
+    private static async Task<Results<Ok<Response>, NotFound>> Handle(string tenantSlug, ITenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
     {
         var workspace = await db.Tenants
             .AsNoTracking()

@@ -9,7 +9,7 @@ namespace Athlos.IsolationTests;
 
 // Layer 4 on its own (design §3.3): connect as the service's role, act as tenant B, and try to
 // reach tenant A's rows with raw SQL, with no application code in between.
-public sealed class RowLevelSecurityTests(TenancyDatabase database) : IAsyncLifetime
+public sealed class RowLevelSecurityTests(AthlosDatabases database) : IAsyncLifetime
 {
     private readonly TenancyApiFactory _api = new(database);
     private TenancyArrange.Workspace _a = null!;
@@ -78,6 +78,24 @@ public sealed class RowLevelSecurityTests(TenancyDatabase database) : IAsyncLife
         Assert.Equal(0, changed);
     }
 
+    // A user may read their memberships in every workspace, but only change them inside the tenant
+    // they are acting for. Found by the catalog public-read test: DELETE follows the USING clause.
+    [Fact]
+    public async Task A_user_acting_in_B_cannot_delete_their_membership_in_A()
+    {
+        await database.AddMember(_a.TenantId, TenantRole.Staff, existingUser: _b.OwnerId);
+
+        var (visible, deleted) = await AsAppRole(_b.TenantId, _b.OwnerId, async connection =>
+        {
+            var count = await Scalar<long>(connection, $"SELECT count(*) FROM memberships WHERE tenant_id = '{_a.TenantId}' AND user_id = '{_b.OwnerId}'");
+            await using var command = new NpgsqlCommand($"DELETE FROM memberships WHERE tenant_id = '{_a.TenantId}' AND user_id = '{_b.OwnerId}'", connection);
+            return (count, await command.ExecuteNonQueryAsync(Cancel));
+        });
+
+        Assert.Equal(1, visible);
+        Assert.Equal(0, deleted);
+    }
+
     [Fact]
     public async Task A_user_sees_only_their_own_profile()
     {
@@ -98,7 +116,7 @@ public sealed class RowLevelSecurityTests(TenancyDatabase database) : IAsyncLife
         var tenant = new TenantContext();
         tenant.EnterTenant(_b.TenantId, TenantRole.Owner);
         var options = new DbContextOptionsBuilder<TenancyDbContext>()
-            .UseNpgsql(database.AppConnectionString)
+            .UseNpgsql(database.AppConnectionString("tenancy"))
             .UseSnakeCaseNamingConvention()
             .AddInterceptors(new TenantSessionInterceptor(tenant))
             .Options;
@@ -117,7 +135,7 @@ public sealed class RowLevelSecurityTests(TenancyDatabase database) : IAsyncLife
     [Fact]
     public async Task The_tenant_setting_does_not_survive_the_transaction()
     {
-        await using var connection = new NpgsqlConnection(database.AppConnectionString);
+        await using var connection = new NpgsqlConnection(database.AppConnectionString("tenancy"));
         await connection.OpenAsync(Cancel);
 
         await using (var transaction = await connection.BeginTransactionAsync(Cancel))
@@ -132,7 +150,7 @@ public sealed class RowLevelSecurityTests(TenancyDatabase database) : IAsyncLife
 
     private async Task<T> AsAppRole<T>(Guid? tenantId, Guid? userId, Func<NpgsqlConnection, Task<T>> act)
     {
-        await using var connection = new NpgsqlConnection(database.AppConnectionString);
+        await using var connection = new NpgsqlConnection(database.AppConnectionString("tenancy"));
         await connection.OpenAsync(Cancel);
         await using var transaction = await connection.BeginTransactionAsync(Cancel);
         await Scalar<string>(connection,

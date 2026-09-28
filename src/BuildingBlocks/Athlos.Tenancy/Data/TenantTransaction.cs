@@ -32,6 +32,20 @@ public static class TenantTransaction
         return group;
     }
 
+    // Public marketplace routes (a cross-tenant slice, design §3.2): the session may also read other
+    // tenants' published rows (RLS: app.scope = 'public-read'). Add before WithTenantTransaction, so
+    // the scope is set when the transaction starts.
+    public static RouteGroupBuilder UsePublicReadScope(this RouteGroupBuilder group)
+    {
+        group.AddEndpointFilter(async (context, next) =>
+        {
+            context.HttpContext.RequestServices.GetRequiredService<TenantContext>().UsePublicReadScope();
+            return await next(context);
+        });
+
+        return group;
+    }
+
     // Studio routes: the gateway must have resolved the tenant and the caller's role. If it did not,
     // the resource does not exist for this caller: 404, never 403 (design §3.3).
     public static RouteGroupBuilder RequireTenant(this RouteGroupBuilder group)

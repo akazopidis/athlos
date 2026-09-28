@@ -7,7 +7,7 @@ using Athlos.Testing;
 
 namespace Athlos.Tenancy.Api.IntegrationTests;
 
-public sealed class TenancyApiTests(TenancyDatabase database) : IAsyncLifetime
+public sealed class TenancyApiTests(AthlosDatabases database) : IAsyncLifetime
 {
     private readonly TenancyApiFactory _api = new(database);
 

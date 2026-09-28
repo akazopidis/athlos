@@ -8,7 +8,7 @@ namespace Athlos.IsolationTests;
 
 // Layer 1 (design §3.2): a service only acts on requests the gateway signed. These tests call a
 // service directly, as someone who found its address would, and expect every attempt to fail.
-public sealed class BypassGatewayTests(TenancyDatabase database) : IAsyncLifetime
+public sealed class BypassGatewayTests(AthlosDatabases database) : IAsyncLifetime
 {
     private const string TenantA = "0198a3b2-0000-7000-8000-00000000000a";
     private const string TenantB = "0198a3b2-0000-7000-8000-00000000000b";
@@ -117,8 +117,7 @@ public sealed class BypassGatewayTests(TenancyDatabase database) : IAsyncLifetim
     private Task<HttpResponseMessage> Send(HttpRequestMessage request) =>
         _api.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
 
-    private static GatewaySignature Signer(TimeProvider time) =>
-        new(Options.Create(new GatewaySignatureOptions { Key = TenancyApiFactory.SigningKey }), time);
+    private static GatewaySignature Signer(TimeProvider time) => TestGateway.Signer(time);
 
     private static HttpRequestMessage Signed(GatewaySignature signer, string method, string path, string tenantId, string role)
     {

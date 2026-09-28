@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v9, building (2026-09-27)
+**Status:** v10, building (2026-09-28)
+
+**Changes in v10 (phase 3):** RLS policies that widen reads are split per command (§3.2): the isolation suite showed that one combined policy let a public-read session reach other tenants' published rows with `UPDATE`/`DELETE`. Catalog notes added to §2.3.
 
 **Changes in v9 (phase 2):** services validate tokens with plain `JwtBearer` instead of Microsoft.Identity.Web (§5); `statement_timeout` is set in the connection string (§4); the db-migrator runs as a Container Apps Job between two passes of `env.bicep` (§11, §12.3); a user's own memberships are a listed cross-tenant slice (§3.2).
 
@@ -132,6 +134,11 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 | enrollment | `enrollments` **T** | `customer_id`, `program_id`, `order_id` (unique, for idempotency) |
 | enrollment | `workout_progress` **T** | `enrollment_id`, `workout_id`, `completed_at` |
 
+Catalog notes (phase 3):
+- `programs.coach_slug` is a copy of the owning workspace's slug, taken from the gateway-verified route when the program is created. Marketplace results link to `/c/{slug}` without catalog reading tenancy's database; slugs never change, so the copy cannot go stale.
+- `workouts` are the paid content: no public-read policy. Only the owning tenant reads them until enrollments exist (phase 5).
+- Two rules need tenancy's data and arrive with the flows that provide it: publishing requires finished Stripe onboarding (phase 4), and a suspended tenant's programs leave the marketplace (tenant lifecycle, §3.4).
+
 Workout videos are links to an external host (for example unlisted YouTube or Vimeo), not files in Blob Storage: streaming video from Azure would cost bandwidth and needs transcoding. Blob Storage holds images and small PDFs only.
 
 Money is always integer minor units plus a currency code, never `decimal` floats in JSON. Services refer to each other's data by id only; ordering copies the title and price it needs at purchase time instead of joining across services.
@@ -181,13 +188,21 @@ Pool is what a marketplace with many small coaches would use in practice, and it
    ALTER TABLE programs ENABLE ROW LEVEL SECURITY;
    ALTER TABLE programs FORCE ROW LEVEL SECURITY;
 
-   CREATE POLICY tenant_isolation ON programs
+   -- Reads: the tenant's rows, plus published rows in the public-read scope.
+   CREATE POLICY tenant_read ON programs FOR SELECT
      USING (
        tenant_id = current_setting('app.tenant_id', true)::uuid
        OR (current_setting('app.scope', true) = 'public-read' AND is_published)
-     )
+     );
+   -- Writes: the tenant's rows only.
+   CREATE POLICY tenant_insert ON programs FOR INSERT WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
+   CREATE POLICY tenant_update ON programs FOR UPDATE
+     USING (tenant_id = current_setting('app.tenant_id', true)::uuid)
      WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
+   CREATE POLICY tenant_delete ON programs FOR DELETE USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
    ```
+
+   - **Why four policies and not one** (an earlier version of this design had one): a policy's `USING` clause decides which rows `SELECT`, `UPDATE` *and* `DELETE` can reach, and `DELETE` has no `WITH CHECK`. With one combined policy, a session in the public-read scope could delete another tenant's published programs, and a user could delete their own membership rows in other workspaces. The isolation suite caught it (`RLS_public_read_does_not_allow_changing_As_programs`, `A_user_acting_in_B_cannot_delete_their_membership_in_A`). `RowLevelSecurity.AddTenantIsolationPolicy` writes the split form whenever reads are widened.
 
    - For orders, the `USING` clause also allows `customer_id = current_setting('app.user_id', true)::uuid`, which is exactly the B2B2C rule from §1: the customer sees all of their own rows, the coach sees their tenant's rows. `memberships` works the same way with `user_id`.
    - `tenants` itself: every session may read it (storefronts, slug lookup), but insert, update and delete only the row whose `id` is `app.tenant_id`. `user_profiles`: only the row of `app.user_id`.

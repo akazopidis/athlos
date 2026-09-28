@@ -56,6 +56,8 @@ var tenancyApi = builder.AddProject<Projects.Athlos_Tenancy_Api>("tenancy-api")
     .WaitForCompletion(migrator);
 
 var catalogApi = builder.AddProject<Projects.Athlos_Catalog_Api>("catalog-api")
+    .WithEnvironment("Auth__Authority", entraAuthority)
+    .WithEnvironment("Auth__Audience", entraApiClientId)
     .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)
     .WithReference(catalogDb)
     .WaitForCompletion(migrator);

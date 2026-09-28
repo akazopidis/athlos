@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v10, building (2026-09-28)
+**Status:** v11, building (2026-09-28)
+
+**Changes in v11:** the External ID tenant is linked to a separate pay-as-you-go subscription (§5, §10): the Azure for Students policy cannot allow the tenant resource, and Azure support declined an exception.
 
 **Changes in v10 (phase 3):** RLS policies that widen reads are split per command (§3.2): the isolation suite showed that one combined policy let a public-read session reach other tenants' published rows with `UPDATE`/`DELETE`. Catalog notes added to §2.3.
 
@@ -260,6 +262,8 @@ The shared B1ms database is itself a noisy-neighbor story: without limits, tenan
 
 ## 5. Identity and authorization
 
+- **Where the tenant lives (decided 2026-09-28).** An External ID tenant is an Azure resource (`Microsoft.AzureActiveDirectory/ciamDirectories`) whose location follows the country: for Greece it must be **Europe**. The Azure for Students policy allows only five regions (plus `global`), Azure rejects `global` for a Greek tenant, and Azure support declined an exception. The tenant `athlos.onmicrosoft.com` (tenant id `8daab877-07e4-4546-a727-554cc0d5be80`, Europe) is therefore linked to a separate **pay-as-you-go subscription** on the author's personal account, in `rg-athlos-identity`. Nothing else runs there; External ID is free under 50,000 monthly active users. Alternatives weighed: a 30-day trial tenant (must be linked later anyway), a workforce tenant with B2B self-service sign-up (guests, no passwords), and self-hosted open source (ZITADEL fits: Go, PostgreSQL, scales to zero; Keycloak needs about 1 GB and breaks the budget).
+- **Setup is code:** `infra/entra_setup.py` creates, per stage, an API app registration (scope `access_as_user`, email in access tokens) and a SPA app registration (redirect to the stage's gateway, admin-consented), plus one "Athlos sign-up and sign-in" user flow (email + password, display name). It prints the GitHub environment variables `AUTH_AUTHORITY`, `AUTH_AUDIENCE`, `SPA_CLIENT_ID`, `API_SCOPE`.
 - **Microsoft Entra External ID** (the successor of Azure AD B2C) for sign-up and sign-in. Free for the first 50,000 monthly active users. Customers and coaches use the same user flow (email + password, optionally Google). One external tenant, with a separate app registration per environment (dev, staging, prod).
 - The SPA uses **MSAL React** (auth code + PKCE). The gateway and services validate tokens with ASP.NET Core's `JwtBearer` handler (authority = the External ID tenant, audience = the Athlos API app registration). Microsoft.Identity.Web was the first plan; for a single External ID tenant it adds hidden scope checks and configuration without adding safety, and plain `JwtBearer` lets tests swap in a local signing key.
 - **Authorization data lives in your app, not in the token.** "Who is a coach of which tenant" is in `tenancy-api` `memberships`. This keeps tokens small, avoids a custom-claims extension, and makes role changes immediate. One Entra app role, `Platform.Admin`, covers the admin.
@@ -472,7 +476,7 @@ Other prices are from the Azure Retail Prices API, West Europe, EUR (Italy North
 | Storage accounts | Blob, LRS, a few GB, one per environment | <0.50 |
 | Key Vault | Standard, one per environment | <0.10 |
 | Log Analytics + App Insights | One shared workspace, first 5 GB/month free, daily cap 0.15 GB | 0–1 |
-| Entra External ID | Under 50,000 MAU; sign-up and password-reset emails included | 0 |
+| Entra External ID | Under 50,000 MAU; sign-up and password-reset emails included. Billed to a separate pay-as-you-go subscription (§5) | 0 |
 | Communication Services Email | Azure-managed domain, a few hundred emails a month | ~0 |
 | Stripe | Test mode | 0 |
 | **Total** | | **≈ €1–4** |

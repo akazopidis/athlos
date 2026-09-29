@@ -2,8 +2,11 @@ using System.Net.Http.Headers;
 using Athlos.Catalog.Api.Data;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Api.Data;
+using Athlos.Tenancy.Api.Features.Payouts;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Athlos.Testing;
@@ -46,9 +49,35 @@ public abstract class ServiceApiFactory<TAnchor>(AthlosDatabases databases, stri
     }
 }
 
-public sealed class TenancyApiFactory(AthlosDatabases databases) : ServiceApiFactory<TenancyDbContext>(databases, "tenancy");
+public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConnect? stripe = null)
+    : ServiceApiFactory<TenancyDbContext>(databases, "tenancy")
+{
+    public const string PublicUrl = "https://athlos.test";
 
-public sealed class CatalogApiFactory(AthlosDatabases databases, AthlosStorage storage) : ServiceApiFactory<CatalogDbContext>(databases, "catalog", storage);
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("App:PublicUrl", PublicUrl);
+
+        // Without a fake, Stripe counts as not configured, as in an environment without a key.
+        if (stripe is not null)
+        {
+            builder.ConfigureTestServices(services => services.AddSingleton<IStripeConnect>(stripe));
+        }
+    }
+}
+
+public sealed class CatalogApiFactory(AthlosDatabases databases, AthlosStorage storage)
+    : ServiceApiFactory<CatalogDbContext>(databases, "catalog", storage)
+{
+    public FakePayoutReadiness Payouts { get; } = new();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.ConfigureTestServices(services => services.AddSingleton<Athlos.Catalog.Api.Features.Programs.IPayoutReadiness>(Payouts));
+    }
+}
 
 // The signing key the services under test trust, standing in for the gateway's.
 public static class TestGateway

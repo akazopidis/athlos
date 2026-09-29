@@ -31,6 +31,9 @@ param spaClientId string = ''
 @description('The API scope the SPA asks for, for example api://<api client id>/access_as_user.')
 param apiScope string = ''
 
+@description('true once the stage Key Vault holds stripe-secret-key (infra/stripe_setup.py). Referencing a missing Key Vault secret would fail the deploy.')
+param stripeConfigured bool = false
+
 @secure()
 @description('Gateway signing key (GatewaySignature). The deploy workflow passes the stored value, or a new one on the first deploy.')
 param gatewaySigningKey string
@@ -128,6 +131,12 @@ module keyVault 'modules/keyvault.bicep' = {
 
 var signingKeySecret = [{ name: 'gateway-signing-key', keyVaultUrl: keyVault.outputs.signingKeyUri }]
 
+// Stripe secrets are written into Key Vault by infra/stripe_setup.py, not by Bicep (no secret in the repo or pipeline).
+var stripeSecretKey = [{ name: 'stripe-secret-key', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/stripe-secret-key' }]
+
+// The stage's public address: its gateway (container app names are fixed, the domain is the environment's).
+var publicUrl = 'https://ca-athlos-gateway-${environmentName}.${acaEnvironment.properties.defaultDomain}'
+
 var commonEnv = [
   { name: 'GatewaySignature__Key', secretRef: 'gateway-signing-key' }
   { name: 'APP_VERSION', value: appVersion }
@@ -175,13 +184,14 @@ module tenancyApi 'modules/container-app.bicep' = if (deployApps) {
     registryServer: registryServer
     image: '${registryServer}/athlos/tenancy-api:${imageTag}'
     maxReplicas: 3
-    keyVaultSecrets: signingKeySecret
+    keyVaultSecrets: concat(signingKeySecret, stripeConfigured ? stripeSecretKey : [])
     env: concat(commonEnv, authEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'tenancy-api' }
+      { name: 'App__PublicUrl', value: publicUrl }
       { name: 'AZURE_CLIENT_ID', value: tenancyIdentity.outputs.clientId }
       // No password: the app signs in with its managed identity's token (PostgresEntraAuthentication).
       { name: 'ConnectionStrings__tenancy-db', value: 'Host=${postgresHost};Database=${tenancyDatabase};Username=${tenancyAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
-    ])
+    ], stripeConfigured ? [{ name: 'Stripe__SecretKey', secretRef: 'stripe-secret-key' }] : [])
   }
 }
 
@@ -212,6 +222,7 @@ module catalogApi 'modules/container-app.bicep' = if (deployApps) {
       { name: 'AZURE_CLIENT_ID', value: catalogIdentity.outputs.clientId }
       // A blob endpoint, no key: the client signs in with AZURE_CLIENT_ID's managed identity.
       { name: 'ConnectionStrings__media', value: storage.outputs.blobEndpoint }
+      { name: 'services__tenancy-api__https__0', value: 'https://${tenancyApi!.outputs.fqdn}' }
       { name: 'ConnectionStrings__catalog-db', value: 'Host=${postgresHost};Database=${catalogDatabase};Username=${catalogAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
     ])
   }

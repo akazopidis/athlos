@@ -26,6 +26,9 @@ builder.Services.AddTenantDbContext<CatalogDbContext>(options => options
 builder.AddAzureBlobServiceClient("media");
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<MediaStore>();
+// Service-to-service: tenancy-api tells catalog whether a workspace may sell (publish rule, §3.4).
+builder.Services.AddHttpClient<IPayoutReadiness, TenancyPayoutReadiness>(http => http.BaseAddress = new Uri("https+http://tenancy-api"))
+    .AddSignedRequests();
 builder.Services.AddValidation();
 builder.Services.AddOpenApi(options =>
     // Slices nest their Request/Response records; name schemas after the slice (CreateProgramRequest).

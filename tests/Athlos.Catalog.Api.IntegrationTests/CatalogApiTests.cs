@@ -43,6 +43,20 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
     }
 
     [Fact]
+    public async Task A_workspace_without_finished_payouts_cannot_publish()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach);
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/workouts", new { week = 1, day = 1, title = "Day one" });
+        _api.Payouts.NotReady(coach.TenantId);
+
+        var published = await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/publish");
+
+        Assert.Equal(HttpStatusCode.Conflict, published.StatusCode);
+        Assert.Equal(0, (await Search($"?coach={coach.Slug}")).TotalCount);
+    }
+
+    [Fact]
     public async Task Unpublishing_removes_it_from_the_marketplace()
     {
         var coach = NewCoach();

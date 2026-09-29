@@ -48,7 +48,14 @@ var entraApiClientId = builder.Configuration["Entra:ApiClientId"] ?? "";
 var entraSpaClientId = builder.Configuration["Entra:SpaClientId"] ?? "";
 var apiScope = entraApiClientId.Length > 0 ? $"api://{entraApiClientId}/access_as_user" : "";
 
+// Stripe test mode (design §15 phase 4). Optional locally: dotnet user-secrets set Stripe:SecretKey
+// in src/AppHost. Without it, payout onboarding answers 503.
+var stripeSecretKey = builder.Configuration["Stripe:SecretKey"] ?? "";
+
 var tenancyApi = builder.AddProject<Projects.Athlos_Tenancy_Api>("tenancy-api")
+    .WithEnvironment("Stripe__SecretKey", stripeSecretKey)
+    // Where Stripe sends coaches back after onboarding: the SPA (Vite locally).
+    .WithEnvironment("App__PublicUrl", "http://localhost:5173")
     .WithEnvironment("Auth__Authority", entraAuthority)
     .WithEnvironment("Auth__Audience", entraApiClientId)
     .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)
@@ -61,6 +68,7 @@ var media = builder.AddAzureStorage("storage")
     .AddBlobs("media");
 
 var catalogApi = builder.AddProject<Projects.Athlos_Catalog_Api>("catalog-api")
+    .WithReference(tenancyApi)
     .WithReference(media)
     .WaitFor(media)
     .WithEnvironment("Auth__Authority", entraAuthority)

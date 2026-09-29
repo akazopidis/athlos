@@ -62,4 +62,4 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
 
 ## Current phase
 
-Keep this line updated as you go: **Phase 3, catalog** (see §15 of the design). Phase 1 was released as `v0.1.0`. Phase 2 is done: Entra External ID tenant `athlos` (on a separate pay-as-you-go subscription, design §5) with sign-in in the SPA. Phase 3 is complete: catalog programs, workouts, marketplace search, cover images in Blob Storage (user-delegation SAS), isolation tests. Next: promote and release `v0.2.0`, then phase 4 (ordering + Stripe).
+Keep this line updated as you go: **Phase 4, ordering + Stripe** (see §15 of the design). Released: `v0.1.0` (walking skeleton), `v0.2.0` (phases 2 and 3: Entra sign-in, tenancy, catalog with RLS, cover images). Entra External ID tenant `athlos` lives on a separate pay-as-you-go subscription (design §5).

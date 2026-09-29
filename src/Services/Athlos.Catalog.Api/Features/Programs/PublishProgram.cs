@@ -1,22 +1,39 @@
 using Athlos.Catalog.Api.Data;
 using Athlos.Catalog.Api.Media;
+using Athlos.Tenancy;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
 namespace Athlos.Catalog.Api.Features.Programs;
 
-// Publishing puts a program in the marketplace (RLS public-read then applies to it).
-// Design §3.4 also requires finished Stripe onboarding; that check arrives with Stripe in phase 4.
+// Publishing puts a program in the marketplace (RLS public-read then applies to it). The workspace
+// must be able to sell first: active, with Stripe onboarding finished (design §3.4).
 public static class PublishProgram
 {
     public static void MapPublishProgram(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/programs/{programId:guid}/publish", (Guid programId, CatalogDbContext db, MediaStore media, CancellationToken ct) => SetPublished(programId, true, db, media, ct))
+        app.MapPost("/programs/{programId:guid}/publish", (Guid programId, CatalogDbContext db, MediaStore media, IPayoutReadiness payouts, ITenantContext tenant, CancellationToken ct) => Publish(programId, db, media, payouts, tenant, ct))
             .WithName("PublishProgram")
             .WithTags("Programs");
         app.MapPost("/programs/{programId:guid}/unpublish", (Guid programId, CatalogDbContext db, MediaStore media, CancellationToken ct) => SetPublished(programId, false, db, media, ct))
             .WithName("UnpublishProgram")
             .WithTags("Programs");
+    }
+
+    private static async Task<Results<Ok<ProgramDetails>, NotFound, ProblemHttpResult>> Publish(
+        Guid programId, CatalogDbContext db, MediaStore media, IPayoutReadiness payouts, ITenantContext tenant, CancellationToken cancellationToken)
+    {
+        if (!await db.Programs.AnyAsync(p => p.Id == programId, cancellationToken))
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (!await payouts.CanSellAsync(tenant.TenantId!.Value, cancellationToken))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Finish setting up payouts before publishing.");
+        }
+
+        return await SetPublished(programId, publish: true, db, media, cancellationToken);
     }
 
     private static async Task<Results<Ok<ProgramDetails>, NotFound, ProblemHttpResult>> SetPublished(

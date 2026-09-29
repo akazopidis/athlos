@@ -200,6 +200,72 @@
           }
         }
       }
+    },
+    "/api/v1/studio/{tenantSlug}/payouts/onboarding": {
+      "post": {
+        "tags": [
+          "Payouts"
+        ],
+        "operationId": "StartPayoutOnboarding",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutEndpointsOnboardingLink"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/studio/{tenantSlug}/payouts": {
+      "get": {
+        "tags": [
+          "Payouts"
+        ],
+        "operationId": "GetPayoutStatus",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutEndpointsPayoutStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -340,6 +406,36 @@
           }
         }
       },
+      "PayoutEndpointsOnboardingLink": {
+        "required": [
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "PayoutEndpointsPayoutStatus": {
+        "required": [
+          "connected",
+          "onboardingComplete",
+          "payoutsEnabled"
+        ],
+        "type": "object",
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "onboardingComplete": {
+            "type": "boolean"
+          },
+          "payoutsEnabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "Plan": {
         "required": [
           "name",
@@ -469,6 +565,9 @@
     },
     {
       "name": "Workspace"
+    },
+    {
+      "name": "Payouts"
     }
   ]
 }

@@ -42,6 +42,16 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
         Assert.DoesNotContain("Hijacked", await storefront.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("POST", "/payouts/onboarding")]
+    [InlineData("GET", "/payouts")]
+    public async Task B_cannot_reach_As_payouts(string method, string path)
+    {
+        var response = await AsOwnerOfB(new HttpMethod(method), $"/api/v1/studio/{_a.Slug}{path}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     [Fact]
     public async Task A_studio_request_without_a_resolved_tenant_is_not_found()
     {

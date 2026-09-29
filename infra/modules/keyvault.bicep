@@ -56,3 +56,4 @@ resource deployerReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 }
 
 output signingKeyUri string = signingKey.properties.secretUri
+output vaultUri string = vault.properties.vaultUri

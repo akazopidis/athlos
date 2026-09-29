@@ -9,6 +9,10 @@ public sealed class CrossTenantSliceGuardTests
         // Public marketplace search and program pages (public-read scope, published only).
         "src/Services/Athlos.Catalog.Api/Features/Marketplace/GetPublishedProgram.cs",
         "src/Services/Athlos.Catalog.Api/Features/Marketplace/SearchPrograms.cs",
+        // Checkout's price lookup: the buyer is outside the coach's tenant (published only).
+        "src/Services/Athlos.Catalog.Api/Features/Internal/GetProgramOffer.cs",
+        // A customer's own orders across coaches.
+        "src/Services/Athlos.Ordering.Api/Features/Orders/OrderLists.cs",
         // A user's own memberships across workspaces.
         "src/Services/Athlos.Tenancy.Api/Features/Account/ListMyMemberships.cs",
     ];

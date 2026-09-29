@@ -1,0 +1,474 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Athlos.Tenancy.Api | v1",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/plans": {
+      "get": {
+        "tags": [
+          "Plans"
+        ],
+        "operationId": "ListPlans",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Plan"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants": {
+      "post": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "CreateTenant",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateTenantResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/marketplace/coaches/{slug}": {
+      "get": {
+        "tags": [
+          "Marketplace"
+        ],
+        "operationId": "GetStorefront",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetStorefrontResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/me/memberships": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "ListMyMemberships",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ListMyMembershipsItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/profile": {
+      "put": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "UpsertMyProfile",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpsertMyProfileResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/studio/{tenantSlug}/workspace": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "operationId": "GetWorkspace",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWorkspaceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Workspace"
+        ],
+        "operationId": "UpdateWorkspace",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkspaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Branding": {
+        "type": "object",
+        "properties": {
+          "logoUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "primaryColor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CreateTenantRequest": {
+        "required": [
+          "slug",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "maxLength": 40,
+            "minLength": 3,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      },
+      "CreateTenantResponse": {
+        "required": [
+          "id",
+          "slug",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      },
+      "GetStorefrontResponse": {
+        "required": [
+          "slug",
+          "displayName",
+          "branding"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "branding": {
+            "$ref": "#/components/schemas/Branding"
+          }
+        }
+      },
+      "GetWorkspaceResponse": {
+        "required": [
+          "id",
+          "slug",
+          "displayName",
+          "status",
+          "plan",
+          "branding",
+          "stripeOnboardingComplete"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantStatus"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanName"
+          },
+          "branding": {
+            "$ref": "#/components/schemas/Branding"
+          },
+          "stripeOnboardingComplete": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ListMyMembershipsItem": {
+        "required": [
+          "tenantId",
+          "slug",
+          "displayName",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TenantRole"
+          }
+        }
+      },
+      "Plan": {
+        "required": [
+          "name",
+          "requestsPerSecond",
+          "maxPrograms",
+          "maxStaff",
+          "maxMediaGigabytes"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/PlanName"
+          },
+          "requestsPerSecond": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maxPrograms": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maxStaff": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maxMediaGigabytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PlanName": {
+        "enum": [
+          "Free",
+          "Pro"
+        ]
+      },
+      "TenantRole": {
+        "enum": [
+          "Owner",
+          "Staff"
+        ]
+      },
+      "TenantStatus": {
+        "enum": [
+          "Active",
+          "Suspended",
+          "Deleted"
+        ]
+      },
+      "UpdateWorkspaceRequest": {
+        "required": [
+          "displayName",
+          "logoUrl",
+          "primaryColor"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "logoUrl": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "primaryColor": {
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "UpsertMyProfileResponse": {
+        "required": [
+          "email",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Plans"
+    },
+    {
+      "name": "Tenants"
+    },
+    {
+      "name": "Marketplace"
+    },
+    {
+      "name": "Account"
+    },
+    {
+      "name": "Workspace"
+    }
+  ]
+}

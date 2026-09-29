@@ -14,7 +14,7 @@ namespace Athlos.Gateway.Tests;
 public sealed class TrustedHeaderTests : IAsyncLifetime
 {
     private WebApplication? _backend;
-    private WebApplicationFactory<Program>? _gateway;
+    private WebApplicationFactory<MembershipLookup>? _gateway;
 
     public async ValueTask InitializeAsync()
     {

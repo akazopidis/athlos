@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -12,10 +13,15 @@ public static class GatewayOnlyExtensions
     // Registers the signer/verifier. The key is required: a service must not start without it.
     public static IServiceCollection AddGatewaySignature(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOptions<GatewaySignatureOptions>()
+        var options = services.AddOptions<GatewaySignatureOptions>()
             .Bind(configuration.GetSection(GatewaySignatureOptions.Section))
-            .Validate(GatewaySignatureOptions.IsValid, $"{GatewaySignatureOptions.Section}:Key must be at least {GatewaySignatureOptions.MinKeyLength} characters.")
-            .ValidateOnStart();
+            .Validate(GatewaySignatureOptions.IsValid, $"{GatewaySignatureOptions.Section}:Key must be at least {GatewaySignatureOptions.MinKeyLength} characters.");
+
+        // The build starts the app once to write its OpenAPI document; it serves no requests then.
+        if (Assembly.GetEntryAssembly()?.GetName().Name != "GetDocument.Insider")
+        {
+            options.ValidateOnStart();
+        }
 
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<GatewaySignature>();

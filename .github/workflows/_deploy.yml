@@ -28,7 +28,7 @@ permissions:
 
 env:
   REGISTRY: acrathlosshared
-  IMAGES: gateway tenancy-api
+  IMAGES: gateway tenancy-api catalog-api db-migrator
 
 jobs:
   deploy:
@@ -56,12 +56,20 @@ jobs:
               --source "$REGISTRY.azurecr.io/athlos/$image:$FROM" --image "athlos/$image:$TO"
           done
 
+      # Three steps, so an app never starts against a database that is not ready:
+      # 1. env.bicep without the apps (identities, Key Vault, App Insights, the migrator job);
+      # 2. run the migrator job and wait for it;
+      # 3. env.bicep with the apps.
       - name: Deploy env.bicep
         id: bicep
         env:
           ENVIRONMENT: ${{ inputs.environment }}
           IMAGE_TAG: ${{ inputs.image-tag }}
           APP_VERSION: ${{ inputs.app-version || inputs.image-tag }}
+          AUTH_AUTHORITY: ${{ vars.AUTH_AUTHORITY }}
+          AUTH_AUDIENCE: ${{ vars.AUTH_AUDIENCE }}
+          SPA_CLIENT_ID: ${{ vars.SPA_CLIENT_ID }}
+          API_SCOPE: ${{ vars.API_SCOPE }}
         run: |
           # Gateway signing key: reuse the stored one; only the first deploy (no vault yet) creates it.
           # If the vault exists but the key cannot be read, fail rather than silently rotate it.
@@ -74,18 +82,43 @@ jobs:
           echo "::add-mask::$GATEWAY_SIGNING_KEY"
           export GATEWAY_SIGNING_KEY
 
-          outputs=$(az deployment group create \
-            --resource-group "rg-athlos-$ENVIRONMENT" \
-            --name "env-${{ github.run_id }}" \
-            --parameters "infra/$ENVIRONMENT.bicepparam" \
-            --query properties.outputs --output json)
+          deploy() {
+            DEPLOY_APPS=$1 az deployment group create \
+              --resource-group "rg-athlos-$ENVIRONMENT" \
+              --name "env-${{ github.run_id }}-$2" \
+              --parameters "infra/$ENVIRONMENT.bicepparam" \
+              --query properties.outputs --output json
+          }
+
+          echo "::group::Supporting resources and migrator job"
+          deploy false base > /dev/null
+          echo "::endgroup::"
+
+          echo "::group::Database migrations"
+          az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors
+          job="caj-athlos-migrator-$ENVIRONMENT"
+          execution=$(az containerapp job start --name "$job" --resource-group "rg-athlos-$ENVIRONMENT" --query name --output tsv)
+          for attempt in $(seq 1 60); do
+            status=$(az containerapp job execution show --name "$job" --resource-group "rg-athlos-$ENVIRONMENT" \
+              --job-execution-name "$execution" --query properties.status --output tsv)
+            echo "migrator: $status"
+            [[ "$status" == "Succeeded" ]] && break
+            [[ "$status" == "Failed" ]] && { echo "::error::Migrator job $execution failed; see its logs in App Insights (cloud_RoleName db-migrator)"; exit 1; }
+            sleep 10
+          done
+          [[ "$status" == "Succeeded" ]] || { echo "::error::Migrator job $execution did not finish in time"; exit 1; }
+          echo "::endgroup::"
+
+          outputs=$(deploy true apps)
           echo "gateway-url=$(jq -r .gatewayUrl.value <<< "$outputs")" >> "$GITHUB_OUTPUT"
           echo "tenancy-api-fqdn=$(jq -r .tenancyApiFqdn.value <<< "$outputs")" >> "$GITHUB_OUTPUT"
+          echo "catalog-api-fqdn=$(jq -r .catalogApiFqdn.value <<< "$outputs")" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test
         env:
           URL: ${{ steps.bicep.outputs.gateway-url }}
           TENANCY_API: ${{ steps.bicep.outputs.tenancy-api-fqdn }}
+          CATALOG_API: ${{ steps.bicep.outputs.catalog-api-fqdn }}
           EXPECTED_VERSION: ${{ inputs.app-version || inputs.image-tag }}
         run: |
           # The old revision keeps serving until the new one is ready, and apps may be cold-starting
@@ -101,8 +134,12 @@ jobs:
           # Through the gateway the request is signed; tenancy-api accepts it.
           curl --fail --silent --show-error "$URL/api/v1/plans" | jq -e 'length > 0'
           curl --fail --silent --show-error "$URL/" | grep -q '<div id="root">'
+          curl --fail --silent --show-error "$URL/api/v1/marketplace/programs" | jq -e '.totalCount >= 0'
           # Isolation layer 1: calling a service directly, around the gateway, must not work.
-          direct=$(curl --silent --max-time 10 --output /dev/null --write-out '%{http_code}' "https://$TENANCY_API/api/v1/plans" || true)
-          [[ "$direct" != 2* ]] || { echo "::error::tenancy-api answered $direct when called directly"; exit 1; }
-          echo "Direct call to tenancy-api: $direct (000 = unreachable, 401 = unsigned request rejected)"
+          for target in "tenancy-api https://$TENANCY_API/api/v1/plans" "catalog-api https://$CATALOG_API/api/v1/marketplace/programs"; do
+            read -r name address <<< "$target"
+            direct=$(curl --silent --max-time 10 --output /dev/null --write-out '%{http_code}' "$address" || true)
+            [[ "$direct" != 2* ]] || { echo "::error::$name answered $direct when called directly"; exit 1; }
+            echo "Direct call to $name: $direct (000 = unreachable, 401 = unsigned request rejected)"
+          done
           echo "### $URL is running $version" >> "$GITHUB_STEP_SUMMARY"

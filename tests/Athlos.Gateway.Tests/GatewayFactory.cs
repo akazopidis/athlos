@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Hosting;
+using Athlos.Testing;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Athlos.Gateway.Tests;
 
 // Runs the gateway with a stand-in SPA shell, so SPA fallback behaviour is tested even when
 // src/web has not been built. When it has, the real index.html (from MapStaticAssets) wins.
-public class GatewayFactory : WebApplicationFactory<Program>
+// Anchored on MembershipLookup: referenced test projects also have a top-level Program.
+public class GatewayFactory : WebApplicationFactory<MembershipLookup>
 {
     public const string SigningKey = "test-signing-key-0123456789abcdef0123456789";
 
@@ -19,6 +21,7 @@ public class GatewayFactory : WebApplicationFactory<Program>
     {
         builder.UseSetting(WebHostDefaults.WebRootKey, _webRoot);
         builder.UseSetting("GatewaySignature:Key", SigningKey);
+        builder.TrustTestTokens();
     }
 
     public override async ValueTask DisposeAsync()

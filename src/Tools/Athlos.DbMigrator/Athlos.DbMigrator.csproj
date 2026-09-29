@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ContainerRepository>athlos/db-migrator</ContainerRepository>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\ServiceDefaults\Athlos.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\Services\Athlos.Catalog.Api\Athlos.Catalog.Api.csproj" />
+    <ProjectReference Include="..\..\Services\Athlos.Tenancy.Api\Athlos.Tenancy.Api.csproj" />
+  </ItemGroup>
+
+  <!-- The migrator references the services only for their DbContexts and migrations. Their
+       appsettings.json files would all land on the same publish path (NETSDK1152); it needs none. -->
+  <Target Name="DropServiceAppSettings" AfterTargets="GetCopyToPublishDirectoryItems">
+    <ItemGroup>
+      <_SourceItemsToCopyToPublishDirectory Remove="@(_SourceItemsToCopyToPublishDirectory)" Condition="'%(Filename)' == 'appsettings' Or $([System.String]::Copy('%(Filename)').StartsWith('appsettings.'))" />
+      <_SourceItemsToCopyToPublishDirectoryAlways Remove="@(_SourceItemsToCopyToPublishDirectoryAlways)" Condition="'%(Filename)' == 'appsettings' Or $([System.String]::Copy('%(Filename)').StartsWith('appsettings.'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

@@ -7,12 +7,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Azure.Storage" />
     <PackageReference Include="Aspire.Hosting.JavaScript" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Gateway\Athlos.Gateway.csproj" />
+    <ProjectReference Include="..\Services\Athlos.Catalog.Api\Athlos.Catalog.Api.csproj" />
     <ProjectReference Include="..\Services\Athlos.Tenancy.Api\Athlos.Tenancy.Api.csproj" />
+    <ProjectReference Include="..\Tools\Athlos.DbMigrator\Athlos.DbMigrator.csproj" />
   </ItemGroup>
 
 </Project>

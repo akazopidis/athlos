@@ -1,0 +1,170 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Athlos.Tenancy;
+using Athlos.Testing;
+
+namespace Athlos.Tenancy.Api.IntegrationTests;
+
+public sealed class TenancyApiTests(AthlosDatabases database) : IAsyncLifetime
+{
+    private readonly TenancyApiFactory _api = new(database);
+
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
+
+    private static CancellationToken Cancel => TestContext.Current.CancellationToken;
+
+    [Fact]
+    public async Task Creating_a_workspace_makes_the_caller_its_owner()
+    {
+        var workspace = await _api.CreateWorkspace();
+
+        var memberships = await Get<List<Membership>>("/api/v1/me/memberships", workspace.OwnerId);
+
+        var membership = Assert.Single(memberships);
+        Assert.Equal(workspace.TenantId, membership.TenantId);
+        Assert.Equal(workspace.Slug, membership.Slug);
+        Assert.Equal(TenantRole.Owner, membership.Role);
+    }
+
+    [Fact]
+    public async Task A_taken_slug_is_a_conflict()
+    {
+        var existing = await _api.CreateWorkspace();
+
+        var response = await CreateTenant(existing.Slug, Guid.CreateVersion7());
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("admin", HttpStatusCode.Conflict)]
+    [InlineData("Not A Slug", HttpStatusCode.BadRequest)]
+    [InlineData("-leading-dash", HttpStatusCode.BadRequest)]
+    [InlineData("ab", HttpStatusCode.BadRequest)]
+    public async Task Reserved_and_malformed_slugs_are_rejected(string slug, HttpStatusCode expected)
+    {
+        var response = await CreateTenant(slug, Guid.CreateVersion7());
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Creating_a_workspace_requires_sign_in()
+    {
+        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, "/api/v1/tenants")
+        {
+            Content = JsonContent.Create(new { slug = TenancyArrange.NewSlug(), displayName = "Anonymous" }),
+        });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task The_owner_reads_and_updates_the_workspace()
+    {
+        var workspace = await _api.CreateWorkspace();
+
+        var update = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/studio/{workspace.Slug}/workspace")
+            {
+                Content = JsonContent.Create(new { displayName = "Strong Coaching", logoUrl = "https://example.com/logo.png", primaryColor = "#1a2b3c" }),
+            },
+            workspace.OwnerId, workspace.TenantId, TenantRole.Owner);
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var read = await Get<WorkspaceSettings>($"/api/v1/studio/{workspace.Slug}/workspace", workspace.OwnerId, workspace.TenantId, TenantRole.Owner);
+        Assert.Equal("Strong Coaching", read.DisplayName);
+        Assert.Equal("#1a2b3c", read.Branding.PrimaryColor);
+    }
+
+    [Fact]
+    public async Task Staff_can_read_but_not_change_the_workspace()
+    {
+        var workspace = await _api.CreateWorkspace();
+        var staff = await database.AddMember(workspace.TenantId, TenantRole.Staff);
+
+        var read = await Send(HttpMethod.Get, $"/api/v1/studio/{workspace.Slug}/workspace", staff, workspace.TenantId, TenantRole.Staff);
+        var update = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/studio/{workspace.Slug}/workspace")
+            {
+                Content = JsonContent.Create(new { displayName = "Taken over" }),
+            },
+            staff, workspace.TenantId, TenantRole.Staff);
+
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, update.StatusCode);
+    }
+
+    [Fact]
+    public async Task The_storefront_is_public()
+    {
+        var workspace = await _api.CreateWorkspace();
+
+        var storefront = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{workspace.Slug}"));
+        var unknown = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/marketplace/coaches/nobody-here"));
+
+        Assert.Equal(HttpStatusCode.OK, storefront.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+    }
+
+    [Fact]
+    public async Task The_profile_comes_from_the_token()
+    {
+        var userId = Guid.CreateVersion7();
+
+        var profile = await Send(HttpMethod.Put, "/api/v1/me/profile", userId);
+        var body = await profile.Content.ReadFromJsonAsync<Profile>(Json, Cancel);
+
+        Assert.Equal(HttpStatusCode.OK, profile.StatusCode);
+        Assert.Equal($"{userId}@test.local", body!.Email);
+    }
+
+    [Fact]
+    public async Task The_gateway_lookup_returns_the_members_role()
+    {
+        var workspace = await _api.CreateWorkspace();
+        var staff = await database.AddMember(workspace.TenantId, TenantRole.Staff);
+
+        var owner = await Get<Lookup>($"/internal/tenants/{workspace.Slug}/members/{workspace.OwnerId}");
+        var staffLookup = await Get<Lookup>($"/internal/tenants/{workspace.Slug}/members/{staff}");
+        var stranger = await Send(HttpMethod.Get, $"/internal/tenants/{workspace.Slug}/members/{Guid.CreateVersion7()}");
+
+        Assert.Equal((workspace.TenantId, TenantRole.Owner), (owner.TenantId, owner.Role));
+        Assert.Equal(TenantRole.Staff, staffLookup.Role);
+        Assert.Equal(HttpStatusCode.NotFound, stranger.StatusCode);
+    }
+
+    private Task<HttpResponseMessage> CreateTenant(string slug, Guid userId) =>
+        _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, "/api/v1/tenants")
+            {
+                Content = JsonContent.Create(new { slug, displayName = "Coach" }),
+            },
+            userId);
+
+    private Task<HttpResponseMessage> Send(HttpMethod method, string path, Guid? userId = null, Guid? tenantId = null, TenantRole? role = null) =>
+        _api.SendAsGateway(new HttpRequestMessage(method, path), userId, tenantId, role);
+
+    private async Task<T> Get<T>(string path, Guid? userId = null, Guid? tenantId = null, TenantRole? role = null)
+    {
+        var response = await Send(HttpMethod.Get, path, userId, tenantId, role);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<T>(Json, Cancel))!;
+    }
+
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
+
+    public ValueTask DisposeAsync() => _api.DisposeAsync();
+
+    private sealed record Membership(Guid TenantId, string Slug, string DisplayName, TenantRole Role);
+
+    private sealed record Branding(string? LogoUrl, string? PrimaryColor);
+
+    private sealed record WorkspaceSettings(Guid Id, string Slug, string DisplayName, Branding Branding);
+
+    private sealed record Profile(string Email, string DisplayName);
+
+    private sealed record Lookup(Guid TenantId, TenantRole Role);
+}

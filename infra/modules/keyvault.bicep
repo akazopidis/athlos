@@ -33,13 +33,26 @@ resource signingKey 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   properties: { value: gatewaySigningKey }
 }
 
-resource readers 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for principalId in concat(readerPrincipalIds, [deployerPrincipalId]): {
+// principalType tells Azure not to look the identity up first: a freshly created managed identity
+// may not have replicated yet (PrincipalNotFound on the first deploy of a stage).
+resource readers 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for principalId in readerPrincipalIds: {
   name: guid(vault.id, principalId, secretsUserRoleId)
   scope: vault
   properties: {
     roleDefinitionId: secretsUserRoleId
     principalId: principalId
+    principalType: 'ServicePrincipal'
   }
 }]
+
+// The deployer is a service principal in the workflows but may be a user when run by hand.
+resource deployerReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(vault.id, deployerPrincipalId, secretsUserRoleId)
+  scope: vault
+  properties: {
+    roleDefinitionId: secretsUserRoleId
+    principalId: deployerPrincipalId
+  }
+}
 
 output signingKeyUri string = signingKey.properties.secretUri

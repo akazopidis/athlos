@@ -28,7 +28,7 @@ permissions:
 
 env:
   REGISTRY: acrathlosshared
-  IMAGES: gateway tenancy-api catalog-api db-migrator
+  IMAGES: gateway tenancy-api catalog-api ordering-api db-migrator
 
 jobs:
   deploy:
@@ -114,12 +114,14 @@ jobs:
           echo "gateway-url=$(jq -r .gatewayUrl.value <<< "$outputs")" >> "$GITHUB_OUTPUT"
           echo "tenancy-api-fqdn=$(jq -r .tenancyApiFqdn.value <<< "$outputs")" >> "$GITHUB_OUTPUT"
           echo "catalog-api-fqdn=$(jq -r .catalogApiFqdn.value <<< "$outputs")" >> "$GITHUB_OUTPUT"
+          echo "ordering-api-fqdn=$(jq -r .orderingApiFqdn.value <<< "$outputs")" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test
         env:
           URL: ${{ steps.bicep.outputs.gateway-url }}
           TENANCY_API: ${{ steps.bicep.outputs.tenancy-api-fqdn }}
           CATALOG_API: ${{ steps.bicep.outputs.catalog-api-fqdn }}
+          ORDERING_API: ${{ steps.bicep.outputs.ordering-api-fqdn }}
           EXPECTED_VERSION: ${{ inputs.app-version || inputs.image-tag }}
         run: |
           # The old revision keeps serving until the new one is ready, and apps may be cold-starting
@@ -137,7 +139,7 @@ jobs:
           curl --fail --silent --show-error "$URL/" | grep -q '<div id="root">'
           curl --fail --silent --show-error "$URL/api/v1/marketplace/programs" | jq -e '.totalCount >= 0'
           # Isolation layer 1: calling a service directly, around the gateway, must not work.
-          for target in "tenancy-api https://$TENANCY_API/api/v1/plans" "catalog-api https://$CATALOG_API/api/v1/marketplace/programs"; do
+          for target in "tenancy-api https://$TENANCY_API/api/v1/plans" "catalog-api https://$CATALOG_API/api/v1/marketplace/programs" "ordering-api https://$ORDERING_API/api/v1/me/orders"; do
             read -r name address <<< "$target"
             direct=$(curl --silent --max-time 10 --output /dev/null --write-out '%{http_code}' "$address" || true)
             [[ "$direct" != 2* ]] || { echo "::error::$name answered $direct when called directly"; exit 1; }

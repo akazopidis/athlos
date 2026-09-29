@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Athlos.Catalog.Api.Data;
+using Athlos.Catalog.Api.Features.Internal;
 using Athlos.Catalog.Api.Features.Marketplace;
 using Athlos.Catalog.Api.Features.Programs;
 using Athlos.Catalog.Api.Features.Workouts;
@@ -74,6 +75,12 @@ studio.MapUpdateProgram();
 studio.MapDeleteProgram();
 studio.MapPublishProgram();
 studio.MapProgramCover();
+
+// Other services only (signed): published programs, public-read scope
+app.MapGroup("/internal")
+    .UsePublicReadScope()
+    .WithTenantTransaction<CatalogDbContext>()
+    .MapGetProgramOffer();
 studio.MapWorkouts();
 
 app.Run();

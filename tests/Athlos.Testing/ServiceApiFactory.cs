@@ -1,5 +1,8 @@
 using System.Net.Http.Headers;
 using Athlos.Catalog.Api.Data;
+using Athlos.Messaging;
+using Athlos.Ordering.Api.Data;
+using Athlos.Ordering.Api.Features.Checkout;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Api.Data;
 using Athlos.Tenancy.Api.Features.Payouts;
@@ -86,4 +89,36 @@ public static class TestGateway
 
     public static GatewaySignature Signer(TimeProvider time) =>
         new(Options.Create(new GatewaySignatureOptions { Key = SigningKey }), time);
+}
+
+public sealed class OrderingApiFactory(AthlosDatabases databases) : ServiceApiFactory<OrderingDbContext>(databases, "ordering")
+{
+    public FakeSellerDirectory Sellers { get; } = new();
+
+    public FakeCheckoutSessions CheckoutSessions { get; } = new();
+
+    public CapturingMessageSender Messages { get; } = new();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("App:PublicUrl", TenancyApiFactory.PublicUrl);
+        builder.UseSetting("Stripe:WebhookSecret", StripeEvents.SigningSecret);
+        // The client is never used: tests replace the sender. Aspire only needs a well-formed value.
+        builder.UseSetting("ConnectionStrings:messaging", "Endpoint=sb://localhost;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<ISellerDirectory>(Sellers);
+            services.AddSingleton<ICheckoutSessions>(CheckoutSessions);
+            services.AddSingleton<IMessageSender>(Messages);
+        });
+    }
+
+    // Sends a Stripe webhook the way Stripe (through the gateway) would.
+    public Task<HttpResponseMessage> SendWebhook(string payload, string? signature = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/webhooks/stripe") { Content = new StringContent(payload) };
+        request.Headers.Add("Stripe-Signature", signature ?? StripeEvents.Signature(payload));
+        return SendAsGateway(request);
+    }
 }

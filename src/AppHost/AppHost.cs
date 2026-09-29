@@ -1,6 +1,5 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// The Service Bus emulator is added with the services that need it (design §13).
 
 // Shared by the gateway (signs) and the services (verify). Generated once and kept in user secrets.
 var gatewaySigningKey = builder.AddParameter(
@@ -39,6 +38,11 @@ IResourceBuilder<IResourceWithConnectionString> ServiceDatabase(string service)
 
 var tenancyDb = ServiceDatabase("tenancy");
 var catalogDb = ServiceDatabase("catalog");
+var orderingDb = ServiceDatabase("ordering");
+
+// Service Bus emulator with the queues of design §7 (Basic tier in Azure: queues only).
+var messaging = builder.AddAzureServiceBus("messaging").RunAsEmulator();
+messaging.AddServiceBusQueue("order-paid");
 
 // Entra External ID (design §5). Locally the dev app registrations are used; set them with
 // dotnet user-secrets in src/AppHost: Entra:Authority, Entra:ApiClientId, Entra:SpaClientId.
@@ -51,6 +55,8 @@ var apiScope = entraApiClientId.Length > 0 ? $"api://{entraApiClientId}/access_a
 // Stripe test mode (design §15 phase 4). Optional locally: dotnet user-secrets set Stripe:SecretKey
 // in src/AppHost. Without it, payout onboarding answers 503.
 var stripeSecretKey = builder.Configuration["Stripe:SecretKey"] ?? "";
+// From `stripe listen --forward-to http://localhost:5100/webhooks/stripe` (it prints the whsec_ secret).
+var stripeWebhookSecret = builder.Configuration["Stripe:WebhookSecret"] ?? "";
 
 var tenancyApi = builder.AddProject<Projects.Athlos_Tenancy_Api>("tenancy-api")
     .WithEnvironment("Stripe__SecretKey", stripeSecretKey)
@@ -77,6 +83,20 @@ var catalogApi = builder.AddProject<Projects.Athlos_Catalog_Api>("catalog-api")
     .WithReference(catalogDb)
     .WaitForCompletion(migrator);
 
+var orderingApi = builder.AddProject<Projects.Athlos_Ordering_Api>("ordering-api")
+    .WithEnvironment("Auth__Authority", entraAuthority)
+    .WithEnvironment("Auth__Audience", entraApiClientId)
+    .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)
+    .WithEnvironment("Stripe__SecretKey", stripeSecretKey)
+    .WithEnvironment("Stripe__WebhookSecret", stripeWebhookSecret)
+    .WithEnvironment("App__PublicUrl", "http://localhost:5173")
+    .WithReference(orderingDb)
+    .WithReference(messaging)
+    .WithReference(catalogApi)
+    .WithReference(tenancyApi)
+    .WaitFor(messaging)
+    .WaitForCompletion(migrator);
+
 var gateway = builder.AddProject<Projects.Athlos_Gateway>("gateway")
     .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)
     .WithEnvironment("Auth__Authority", entraAuthority)
@@ -86,8 +106,10 @@ var gateway = builder.AddProject<Projects.Athlos_Gateway>("gateway")
     .WithEnvironment("Spa__ApiScope", apiScope)
     .WithReference(tenancyApi)
     .WithReference(catalogApi)
+    .WithReference(orderingApi)
     .WaitFor(tenancyApi)
-    .WaitFor(catalogApi);
+    .WaitFor(catalogApi)
+    .WaitFor(orderingApi);
 
 // Locally the Vite dev server serves the SPA and proxies API calls to the gateway (src/web/vite.config.ts).
 // Fixed port: it is the redirect URI registered on the dev SPA app registration.

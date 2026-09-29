@@ -52,6 +52,8 @@ var tenancyDatabase = 'athlos_tenancy_${environmentName}'
 var tenancyAppRole = 'athlos_tenancy_${environmentName}_app'
 var catalogDatabase = 'athlos_catalog_${environmentName}'
 var catalogAppRole = 'athlos_catalog_${environmentName}_app'
+var orderingDatabase = 'athlos_ordering_${environmentName}'
+var orderingAppRole = 'athlos_ordering_${environmentName}_app'
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' existing = {
   name: workspaceName
@@ -106,6 +108,28 @@ module catalogAcrPull 'modules/acr-pull.bicep' = {
   params: { registryName: registryName, principalId: catalogIdentity.outputs.principalId }
 }
 
+module orderingIdentity 'modules/identity.bicep' = {
+  name: 'id-ordering-api'
+  params: { name: 'id-athlos-ordering-api-${environmentName}', location: location }
+}
+
+module orderingAcrPull 'modules/acr-pull.bicep' = {
+  name: 'acr-pull-ordering-api-${environmentName}'
+  scope: resourceGroup(sharedResourceGroup)
+  params: { registryName: registryName, principalId: orderingIdentity.outputs.principalId }
+}
+
+// Events between services (design §2.2): ordering sends OrderPaid; enrollment receives it (phase 5).
+module serviceBus 'modules/servicebus.bicep' = {
+  name: 'servicebus'
+  params: {
+    name: 'sb-athlos-${environmentName}'
+    location: location
+    queues: ['order-paid']
+    senderPrincipalIds: [orderingIdentity.outputs.principalId]
+  }
+}
+
 module tenancyAcrPull 'modules/acr-pull.bicep' = {
   name: 'acr-pull-tenancy-api-${environmentName}'
   scope: resourceGroup(sharedResourceGroup)
@@ -124,7 +148,7 @@ module keyVault 'modules/keyvault.bicep' = {
     name: 'kv-athlos-${environmentName}'
     location: location
     gatewaySigningKey: gatewaySigningKey
-    readerPrincipalIds: [tenancyIdentity.outputs.principalId, catalogIdentity.outputs.principalId, gatewayIdentity.outputs.principalId]
+    readerPrincipalIds: [tenancyIdentity.outputs.principalId, catalogIdentity.outputs.principalId, orderingIdentity.outputs.principalId, gatewayIdentity.outputs.principalId]
     deployerPrincipalId: deployer().objectId
   }
 }
@@ -133,6 +157,7 @@ var signingKeySecret = [{ name: 'gateway-signing-key', keyVaultUrl: keyVault.out
 
 // Stripe secrets are written into Key Vault by infra/stripe_setup.py, not by Bicep (no secret in the repo or pipeline).
 var stripeSecretKey = [{ name: 'stripe-secret-key', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/stripe-secret-key' }]
+var stripeWebhookSecret = [{ name: 'stripe-webhook-secret', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/stripe-webhook-secret' }]
 
 // The stage's public address: its gateway (container app names are fixed, the domain is the environment's).
 var publicUrl = 'https://ca-athlos-gateway-${environmentName}.${acaEnvironment.properties.defaultDomain}'
@@ -160,6 +185,9 @@ module migrator 'modules/container-job.bicep' = {
       { name: 'ConnectionStrings__catalog-db-owner', value: 'Host=${postgresHost};Database=${catalogDatabase};Username=${migratorIdentity.name};SSL Mode=Require' }
       { name: 'Databases__Catalog__AppRole', value: catalogAppRole }
       { name: 'Databases__Catalog__AppPrincipalObjectId', value: catalogIdentity.outputs.principalId }
+      { name: 'ConnectionStrings__ordering-db-owner', value: 'Host=${postgresHost};Database=${orderingDatabase};Username=${migratorIdentity.name};SSL Mode=Require' }
+      { name: 'Databases__Ordering__AppRole', value: orderingAppRole }
+      { name: 'Databases__Ordering__AppPrincipalObjectId', value: orderingIdentity.outputs.principalId }
       { name: 'AZURE_CLIENT_ID', value: migratorIdentity.properties.clientId }
       { name: 'APP_VERSION', value: appVersion }
       { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
@@ -228,6 +256,34 @@ module catalogApi 'modules/container-app.bicep' = if (deployApps) {
   }
 }
 
+module orderingApi 'modules/container-app.bicep' = if (deployApps) {
+  name: 'ca-ordering-api'
+  dependsOn: [orderingAcrPull]
+  params: {
+    name: 'ca-athlos-ordering-api-${environmentName}'
+    location: location
+    environmentId: acaEnvironment.id
+    identityId: orderingIdentity.outputs.id
+    registryServer: registryServer
+    image: '${registryServer}/athlos/ordering-api:${imageTag}'
+    maxReplicas: 3
+    keyVaultSecrets: concat(signingKeySecret, stripeConfigured ? concat(stripeSecretKey, stripeWebhookSecret) : [])
+    env: concat(commonEnv, authEnv, [
+      { name: 'OTEL_SERVICE_NAME', value: 'ordering-api' }
+      { name: 'AZURE_CLIENT_ID', value: orderingIdentity.outputs.clientId }
+      { name: 'App__PublicUrl', value: publicUrl }
+      { name: 'ConnectionStrings__ordering-db', value: 'Host=${postgresHost};Database=${orderingDatabase};Username=${orderingAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
+      // A namespace, no key: the client signs in with AZURE_CLIENT_ID's managed identity.
+      { name: 'ConnectionStrings__messaging', value: serviceBus.outputs.fullyQualifiedNamespace }
+      { name: 'services__catalog-api__https__0', value: 'https://${catalogApi!.outputs.fqdn}' }
+      { name: 'services__tenancy-api__https__0', value: 'https://${tenancyApi!.outputs.fqdn}' }
+    ], stripeConfigured ? [
+      { name: 'Stripe__SecretKey', secretRef: 'stripe-secret-key' }
+      { name: 'Stripe__WebhookSecret', secretRef: 'stripe-webhook-secret' }
+    ] : [])
+  }
+}
+
 module gateway 'modules/container-app.bicep' = if (deployApps) {
   name: 'ca-gateway'
   dependsOn: [gatewayAcrPull]
@@ -254,6 +310,7 @@ module gateway 'modules/container-app.bicep' = if (deployApps) {
       // Service discovery: the gateway's "https+http://tenancy-api" address resolves to this, as it does under Aspire.
       { name: 'services__tenancy-api__https__0', value: 'https://${tenancyApi!.outputs.fqdn}' }
       { name: 'services__catalog-api__https__0', value: 'https://${catalogApi!.outputs.fqdn}' }
+      { name: 'services__ordering-api__https__0', value: 'https://${orderingApi!.outputs.fqdn}' }
     ])
   }
 }
@@ -261,4 +318,5 @@ module gateway 'modules/container-app.bicep' = if (deployApps) {
 output gatewayUrl string = deployApps ? 'https://${gateway!.outputs.fqdn}' : ''
 output tenancyApiFqdn string = deployApps ? tenancyApi!.outputs.fqdn : ''
 output catalogApiFqdn string = deployApps ? catalogApi!.outputs.fqdn : ''
+output orderingApiFqdn string = deployApps ? orderingApi!.outputs.fqdn : ''
 output migratorJobName string = 'caj-athlos-migrator-${environmentName}'

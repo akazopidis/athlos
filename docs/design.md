@@ -139,6 +139,7 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 Catalog notes (phase 3):
 - `programs.coach_slug` is a copy of the owning workspace's slug, taken from the gateway-verified route when the program is created. Marketplace results link to `/c/{slug}` without catalog reading tenancy's database; slugs never change, so the copy cannot go stale.
 - `workouts` are the paid content: no public-read policy. Only the owning tenant reads them until enrollments exist (phase 5).
+- Cover images: `PUT /api/v1/studio/{slug}/programs/{id}/cover` takes the image as the request body (JPEG, PNG or WebP, recognised by their first bytes, not the claimed `Content-Type`; at most 2 MB). The blob path is `tenants/{tenantId}/programs/{programId}/cover-{uuid}.{ext}`, built from `ITenantContext`; a new name per upload avoids stale caches, and the old blob is deleted. Every program response carries `coverImageUrl`, a read-only SAS link for that one blob, valid 15 minutes: a user-delegation SAS in Azure (the storage accounts have shared-key access disabled), a shared-key SAS against Azurite locally.
 - Two rules need tenancy's data and arrive with the flows that provide it: publishing requires finished Stripe onboarding (phase 4), and a suspended tenant's programs leave the marketplace (tenant lifecycle, §3.4).
 
 Workout videos are links to an external host (for example unlisted YouTube or Vimeo), not files in Blob Storage: streaming video from Azure would cost bandwidth and needs transcoding. Blob Storage holds images and small PDFs only.

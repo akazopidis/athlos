@@ -1,4 +1,5 @@
 using Athlos.Catalog.Api.Data;
+using Athlos.Catalog.Api.Media;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,9 +13,9 @@ public static class GetProgram
             .WithName("GetProgram")
             .WithTags("Programs");
 
-    private static async Task<Results<Ok<ProgramDetails>, NotFound>> Handle(Guid programId, CatalogDbContext db, CancellationToken cancellationToken)
+    private static async Task<Results<Ok<ProgramDetails>, NotFound>> Handle(Guid programId, CatalogDbContext db, MediaStore media, CancellationToken cancellationToken)
     {
         var program = await db.Programs.AsNoTracking().SingleOrDefaultAsync(p => p.Id == programId, cancellationToken);
-        return program is null ? TypedResults.NotFound() : TypedResults.Ok(ProgramDetails.From(program));
+        return program is null ? TypedResults.NotFound() : TypedResults.Ok(await ProgramDetails.FromAsync(program, media, cancellationToken));
     }
 }

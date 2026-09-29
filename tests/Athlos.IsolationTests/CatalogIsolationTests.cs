@@ -12,9 +12,9 @@ namespace Athlos.IsolationTests;
 // Design §3.3 for catalog-api: tenant B against tenant A's programs and workouts, through every
 // studio endpoint (404) and directly in PostgreSQL (RLS alone). Also the marketplace's public-read
 // scope: it shows other tenants' published programs and never their drafts or workouts.
-public sealed class CatalogIsolationTests(AthlosDatabases databases) : IAsyncLifetime
+public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStorage storage) : IAsyncLifetime
 {
-    private readonly CatalogApiFactory _api = new(databases);
+    private readonly CatalogApiFactory _api = new(databases, storage);
     private readonly Coach _a = NewCoach();
     private readonly Coach _b = NewCoach();
     private CreatedProgram _aDraft = null!;
@@ -43,6 +43,7 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases) : IAsyncLif
         { "POST", "/programs/{published}/workouts", true },
         { "PUT", "/programs/{published}/workouts/{workout}", true },
         { "DELETE", "/programs/{published}/workouts/{workout}", false },
+        { "DELETE", "/programs/{published}/cover", false },
     };
 
     [Theory]
@@ -76,6 +77,8 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases) : IAsyncLif
         { "POST", $"/api/v1/studio/some-coach/programs/{Guid.Empty}/workouts" },
         { "PUT", $"/api/v1/studio/some-coach/programs/{Guid.Empty}/workouts/{Guid.Empty}" },
         { "DELETE", $"/api/v1/studio/some-coach/programs/{Guid.Empty}/workouts/{Guid.Empty}" },
+        { "PUT", $"/api/v1/studio/some-coach/programs/{Guid.Empty}/cover" },
+        { "DELETE", $"/api/v1/studio/some-coach/programs/{Guid.Empty}/cover" },
     };
 
     [Theory]
@@ -90,6 +93,33 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases) : IAsyncLif
         var response = await _api.CreateClient().SendAsync(request, Cancel);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task B_cannot_upload_a_cover_to_As_program()
+    {
+        var response = await _api.UploadCover(_b, _aPublished.Id, Png());
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // Blob paths come from ITenantContext, so a tenant's media always lands under its own prefix,
+    // and the link handed out allows reading that one blob, nothing else.
+    [Fact]
+    public async Task Covers_live_under_the_owning_tenants_prefix_and_links_are_read_only()
+    {
+        var upload = await _api.UploadCover(_a, _aDraft.Id, Png());
+        var url = System.Text.Json.JsonDocument.Parse(await upload.Content.ReadAsStringAsync(Cancel)).RootElement.GetProperty("coverImageUrl").GetString()!;
+
+        using var web = new HttpClient();
+        using var overwrite = new HttpRequestMessage(HttpMethod.Put, url) { Content = new ByteArrayContent(Png()) };
+        overwrite.Headers.Add("x-ms-blob-type", "BlockBlob");
+        var write = await web.SendAsync(overwrite, Cancel);
+        var delete = await web.DeleteAsync(url, Cancel);
+
+        Assert.Contains($"/tenants/{_a.TenantId}/programs/{_aDraft.Id}/", url, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Forbidden, write.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, delete.StatusCode);
     }
 
     [Fact]

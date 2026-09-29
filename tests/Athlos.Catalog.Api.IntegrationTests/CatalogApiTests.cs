@@ -6,9 +6,9 @@ using static Athlos.Testing.CatalogArrange;
 
 namespace Athlos.Catalog.Api.IntegrationTests;
 
-public sealed class CatalogApiTests(AthlosDatabases databases) : IAsyncLifetime
+public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage storage) : IAsyncLifetime
 {
-    private readonly CatalogApiFactory _api = new(databases);
+    private readonly CatalogApiFactory _api = new(databases, storage);
 
     private static CancellationToken Cancel => TestContext.Current.CancellationToken;
 

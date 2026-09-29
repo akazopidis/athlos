@@ -1,4 +1,5 @@
 using Athlos.Catalog.Api.Data;
+using Athlos.Catalog.Api.Media;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,13 +13,19 @@ public static class ListPrograms
             .WithName("ListPrograms")
             .WithTags("Programs");
 
-    private static async Task<Ok<List<ProgramDetails>>> Handle(CatalogDbContext db, CancellationToken cancellationToken)
+    private static async Task<Ok<List<ProgramDetails>>> Handle(CatalogDbContext db, MediaStore media, CancellationToken cancellationToken)
     {
         var programs = await db.Programs.AsNoTracking()
             .OrderByDescending(p => p.UpdatedAt)
             .Take(200)
             .ToListAsync(cancellationToken);
 
-        return TypedResults.Ok(programs.Select(ProgramDetails.From).ToList());
+        var details = new List<ProgramDetails>(programs.Count);
+        foreach (var program in programs)
+        {
+            details.Add(await ProgramDetails.FromAsync(program, media, cancellationToken));
+        }
+
+        return TypedResults.Ok(details);
     }
 }

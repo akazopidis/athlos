@@ -10,13 +10,18 @@ namespace Athlos.Testing;
 
 // A service against its test database, trusting TestTokens instead of Entra. TAnchor is any type in
 // the service's assembly (several referenced projects have a top-level Program).
-public abstract class ServiceApiFactory<TAnchor>(AthlosDatabases databases, string service) : WebApplicationFactory<TAnchor>
+public abstract class ServiceApiFactory<TAnchor>(AthlosDatabases databases, string service, AthlosStorage? storage = null) : WebApplicationFactory<TAnchor>
     where TAnchor : class
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting($"ConnectionStrings:{service}-db", databases.AppConnectionString(service));
         builder.UseSetting("GatewaySignature:Key", TestGateway.SigningKey);
+        if (storage is not null)
+        {
+            builder.UseSetting("ConnectionStrings:media", storage.ConnectionString);
+        }
+
         builder.TrustTestTokens();
     }
 
@@ -43,7 +48,7 @@ public abstract class ServiceApiFactory<TAnchor>(AthlosDatabases databases, stri
 
 public sealed class TenancyApiFactory(AthlosDatabases databases) : ServiceApiFactory<TenancyDbContext>(databases, "tenancy");
 
-public sealed class CatalogApiFactory(AthlosDatabases databases) : ServiceApiFactory<CatalogDbContext>(databases, "catalog");
+public sealed class CatalogApiFactory(AthlosDatabases databases, AthlosStorage storage) : ServiceApiFactory<CatalogDbContext>(databases, "catalog", storage);
 
 // The signing key the services under test trust, standing in for the gateway's.
 public static class TestGateway

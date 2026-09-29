@@ -1,4 +1,5 @@
 using Athlos.Catalog.Api.Data;
+using Athlos.Catalog.Api.Media;
 
 namespace Athlos.Catalog.Api.Features.Programs;
 
@@ -14,10 +15,13 @@ public sealed record ProgramDetails(
     string Currency,
     bool IsPublished,
     DateTimeOffset? PublishedAt,
-    DateTimeOffset UpdatedAt)
+    DateTimeOffset UpdatedAt,
+    // A read-only link valid for 15 minutes, or null without a cover.
+    string? CoverImageUrl)
 {
-    public static ProgramDetails From(TrainingProgram p) =>
-        new(p.Id, p.Slug, p.Title, p.Description, p.Level, p.DurationWeeks, p.PriceAmount, p.Currency, p.IsPublished, p.PublishedAt, p.UpdatedAt);
+    public static async Task<ProgramDetails> FromAsync(TrainingProgram p, MediaStore media, CancellationToken cancellationToken) =>
+        new(p.Id, p.Slug, p.Title, p.Description, p.Level, p.DurationWeeks, p.PriceAmount, p.Currency, p.IsPublished, p.PublishedAt, p.UpdatedAt,
+            await media.ReadLinkAsync(p.CoverImagePath, cancellationToken));
 }
 
 // Fields a coach sets when creating or editing a program. Validation attributes are enforced by

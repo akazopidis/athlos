@@ -1,4 +1,5 @@
 using Athlos.Catalog.Api.Data;
+using Athlos.Catalog.Api.Media;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,16 +11,16 @@ public static class PublishProgram
 {
     public static void MapPublishProgram(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/programs/{programId:guid}/publish", (Guid programId, CatalogDbContext db, CancellationToken ct) => SetPublished(programId, true, db, ct))
+        app.MapPost("/programs/{programId:guid}/publish", (Guid programId, CatalogDbContext db, MediaStore media, CancellationToken ct) => SetPublished(programId, true, db, media, ct))
             .WithName("PublishProgram")
             .WithTags("Programs");
-        app.MapPost("/programs/{programId:guid}/unpublish", (Guid programId, CatalogDbContext db, CancellationToken ct) => SetPublished(programId, false, db, ct))
+        app.MapPost("/programs/{programId:guid}/unpublish", (Guid programId, CatalogDbContext db, MediaStore media, CancellationToken ct) => SetPublished(programId, false, db, media, ct))
             .WithName("UnpublishProgram")
             .WithTags("Programs");
     }
 
     private static async Task<Results<Ok<ProgramDetails>, NotFound, ProblemHttpResult>> SetPublished(
-        Guid programId, bool publish, CatalogDbContext db, CancellationToken cancellationToken)
+        Guid programId, bool publish, CatalogDbContext db, MediaStore media, CancellationToken cancellationToken)
     {
         var program = await db.Programs.SingleOrDefaultAsync(p => p.Id == programId, cancellationToken);
         if (program is null)
@@ -39,6 +40,6 @@ public static class PublishProgram
             await db.SaveChangesAsync(cancellationToken);
         }
 
-        return TypedResults.Ok(ProgramDetails.From(program));
+        return TypedResults.Ok(await ProgramDetails.FromAsync(program, media, cancellationToken));
     }
 }

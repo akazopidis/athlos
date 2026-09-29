@@ -1,6 +1,6 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// The Service Bus emulator and Azurite are added with the services that need them (design §13).
+// The Service Bus emulator is added with the services that need it (design §13).
 
 // Shared by the gateway (signs) and the services (verify). Generated once and kept in user secrets.
 var gatewaySigningKey = builder.AddParameter(
@@ -55,7 +55,14 @@ var tenancyApi = builder.AddProject<Projects.Athlos_Tenancy_Api>("tenancy-api")
     .WithReference(tenancyDb)
     .WaitForCompletion(migrator);
 
+// Program media in Azurite, the Blob Storage emulator (design §13).
+var media = builder.AddAzureStorage("storage")
+    .RunAsEmulator(azurite => azurite.WithDataVolume("athlos-azurite").WithLifetime(ContainerLifetime.Persistent))
+    .AddBlobs("media");
+
 var catalogApi = builder.AddProject<Projects.Athlos_Catalog_Api>("catalog-api")
+    .WithReference(media)
+    .WaitFor(media)
     .WithEnvironment("Auth__Authority", entraAuthority)
     .WithEnvironment("Auth__Audience", entraApiClientId)
     .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)

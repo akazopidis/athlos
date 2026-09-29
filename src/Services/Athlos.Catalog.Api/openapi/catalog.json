@@ -349,6 +349,85 @@
         }
       }
     },
+    "/api/v1/studio/{tenantSlug}/programs/{programId}/cover": {
+      "put": {
+        "tags": [
+          "Programs"
+        ],
+        "operationId": "UploadProgramCover",
+        "parameters": [
+          {
+            "name": "programId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "$ref": "#/components/schemas/IFormFile"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "$ref": "#/components/schemas/IFormFile"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "$ref": "#/components/schemas/IFormFile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgramDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Programs"
+        ],
+        "operationId": "DeleteProgramCover",
+        "parameters": [
+          {
+            "name": "programId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/v1/studio/{tenantSlug}/programs/{programId}/workouts": {
       "get": {
         "tags": [
@@ -595,7 +674,8 @@
           "level",
           "durationWeeks",
           "priceAmount",
-          "currency"
+          "currency",
+          "coverImageUrl"
         ],
         "type": "object",
         "properties": {
@@ -632,8 +712,18 @@
           },
           "currency": {
             "type": "string"
+          },
+          "coverImageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
+      },
+      "IFormFile": {
+        "type": "string",
+        "format": "binary"
       },
       "ProgramDetails": {
         "required": [
@@ -647,7 +737,8 @@
           "currency",
           "isPublished",
           "publishedAt",
-          "updatedAt"
+          "updatedAt",
+          "coverImageUrl"
         ],
         "type": "object",
         "properties": {
@@ -699,6 +790,12 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "coverImageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -717,7 +814,8 @@
           "level",
           "durationWeeks",
           "priceAmount",
-          "currency"
+          "currency",
+          "coverImageUrl"
         ],
         "type": "object",
         "properties": {
@@ -751,6 +849,12 @@
           },
           "currency": {
             "type": "string"
+          },
+          "coverImageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

@@ -3,6 +3,7 @@ using Athlos.Catalog.Api.Data;
 using Athlos.Catalog.Api.Features.Marketplace;
 using Athlos.Catalog.Api.Features.Programs;
 using Athlos.Catalog.Api.Features.Workouts;
+using Athlos.Catalog.Api.Media;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Data;
 using Microsoft.AspNetCore.OpenApi;
@@ -20,6 +21,11 @@ builder.Services.AddTenantDbContext<CatalogDbContext>(options => options
         builder.Configuration.GetConnectionString("catalog-db"),
         npgsql => npgsql.ConfigureDataSource(dataSource => dataSource.UseEntraTokenIfNoPassword(builder.Configuration["AZURE_CLIENT_ID"])))
     .UseSnakeCaseNamingConvention());
+// Program images (design §3.2): ConnectionStrings:media is Azurite locally and the account's blob
+// endpoint in Azure, where the client signs in with the app's managed identity.
+builder.AddAzureBlobServiceClient("media");
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<MediaStore>();
 builder.Services.AddValidation();
 builder.Services.AddOpenApi(options =>
     // Slices nest their Request/Response records; name schemas after the slice (CreateProgramRequest).
@@ -64,6 +70,7 @@ studio.MapGetProgram();
 studio.MapUpdateProgram();
 studio.MapDeleteProgram();
 studio.MapPublishProgram();
+studio.MapProgramCover();
 studio.MapWorkouts();
 
 app.Run();

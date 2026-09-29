@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Catalog.Api.Data;
+using Athlos.Catalog.Api.Media;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,7 +24,7 @@ public static class UpdateProgram
             .WithTags("Programs");
 
     private static async Task<Results<Ok<ProgramDetails>, NotFound>> Handle(
-        Guid programId, Request request, CatalogDbContext db, CancellationToken cancellationToken)
+        Guid programId, Request request, CatalogDbContext db, MediaStore media, CancellationToken cancellationToken)
     {
         var program = await db.Programs.SingleOrDefaultAsync(p => p.Id == programId, cancellationToken);
         if (program is null)
@@ -39,6 +40,6 @@ public static class UpdateProgram
         program.Currency = request.Currency;
         await db.SaveChangesAsync(cancellationToken);
 
-        return TypedResults.Ok(ProgramDetails.From(program));
+        return TypedResults.Ok(await ProgramDetails.FromAsync(program, media, cancellationToken));
     }
 }

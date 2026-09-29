@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Catalog.Api.Data;
+using Athlos.Catalog.Api.Media;
 using Athlos.Tenancy.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +16,7 @@ public static class SearchPrograms
     public const int MaxPageSize = 50;
 
     public sealed record Item(
-        string CoachSlug, string Slug, string Title, ProgramLevel Level, int DurationWeeks, long PriceAmount, string Currency);
+        string CoachSlug, string Slug, string Title, ProgramLevel Level, int DurationWeeks, long PriceAmount, string Currency, string? CoverImageUrl);
 
     // API convention for paged lists (design §7.1).
     public sealed record SearchResults(List<Item> Items, int Page, int PageSize, int TotalCount);
@@ -32,7 +33,7 @@ public static class SearchPrograms
             .WithName("SearchPrograms")
             .WithTags("Marketplace");
 
-    private static async Task<Ok<SearchResults>> Handle([AsParameters] Query query, CatalogDbContext db, CancellationToken cancellationToken)
+    private static async Task<Ok<SearchResults>> Handle([AsParameters] Query query, CatalogDbContext db, MediaStore media, CancellationToken cancellationToken)
     {
         var programs = db.Programs.AsNoTracking()
             .IgnoreQueryFilters([TenantDbContext.TenantFilter])
@@ -56,12 +57,19 @@ public static class SearchPrograms
         }
 
         var total = await programs.CountAsync(cancellationToken);
-        var items = await programs
+        var page = await programs
             .OrderByDescending(p => p.PublishedAt).ThenBy(p => p.Id)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(p => new Item(p.CoachSlug, p.Slug, p.Title, p.Level, p.DurationWeeks, p.PriceAmount, p.Currency))
+            .Select(p => new { p.CoachSlug, p.Slug, p.Title, p.Level, p.DurationWeeks, p.PriceAmount, p.Currency, p.CoverImagePath })
             .ToListAsync(cancellationToken);
+
+        var items = new List<Item>(page.Count);
+        foreach (var p in page)
+        {
+            items.Add(new Item(p.CoachSlug, p.Slug, p.Title, p.Level, p.DurationWeeks, p.PriceAmount, p.Currency,
+                await media.ReadLinkAsync(p.CoverImagePath, cancellationToken)));
+        }
 
         return TypedResults.Ok(new SearchResults(items, query.Page, query.PageSize, total));
     }

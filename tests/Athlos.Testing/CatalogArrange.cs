@@ -17,6 +17,18 @@ public static class CatalogArrange
 
     public sealed record CreatedProgram(Guid Id, string Slug, string Title, bool IsPublished);
 
+    // Minimal files that pass the upload's first-bytes check; the content is not decoded.
+    public static byte[] Png(int size = 64) => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, .. new byte[Math.Max(0, size - 8)]];
+
+    public static Task<HttpResponseMessage> UploadCover(this CatalogApiFactory api, Coach coach, Guid programId, byte[] image, string contentType = "image/png")
+    {
+        var content = new ByteArrayContent(image);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+        return api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/studio/{coach.Slug}/programs/{programId}/cover") { Content = content },
+            coach.OwnerId, coach.TenantId, TenantRole.Owner);
+    }
+
     public static Coach NewCoach() => new(Guid.CreateVersion7(), TenancyArrange.NewSlug(), Guid.CreateVersion7());
 
     public static Task<HttpResponseMessage> AsCoach(this CatalogApiFactory api, Coach coach, HttpMethod method, string path, object? body = null) =>

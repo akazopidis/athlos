@@ -185,6 +185,16 @@ module tenancyApi 'modules/container-app.bicep' = if (deployApps) {
   }
 }
 
+// Names that forbid dashes have none (design §7): stathlosdev, stathlosstaging, stathlosprod.
+module storage 'modules/storage.bicep' = {
+  name: 'storage'
+  params: {
+    name: 'stathlos${environmentName}'
+    location: location
+    contributorPrincipalIds: [catalogIdentity.outputs.principalId]
+  }
+}
+
 module catalogApi 'modules/container-app.bicep' = if (deployApps) {
   name: 'ca-catalog-api'
   dependsOn: [catalogAcrPull]
@@ -200,6 +210,8 @@ module catalogApi 'modules/container-app.bicep' = if (deployApps) {
     env: concat(commonEnv, authEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'catalog-api' }
       { name: 'AZURE_CLIENT_ID', value: catalogIdentity.outputs.clientId }
+      // A blob endpoint, no key: the client signs in with AZURE_CLIENT_ID's managed identity.
+      { name: 'ConnectionStrings__media', value: storage.outputs.blobEndpoint }
       { name: 'ConnectionStrings__catalog-db', value: 'Host=${postgresHost};Database=${catalogDatabase};Username=${catalogAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
     ])
   }

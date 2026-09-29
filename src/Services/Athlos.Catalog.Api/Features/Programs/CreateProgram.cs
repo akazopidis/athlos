@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Catalog.Api.Data;
+using Athlos.Catalog.Api.Media;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -24,7 +25,7 @@ public static class CreateProgram
             .WithTags("Programs");
 
     private static async Task<Results<Created<ProgramDetails>, ProblemHttpResult>> Handle(
-        string tenantSlug, Request request, CatalogDbContext db, CancellationToken cancellationToken)
+        string tenantSlug, Request request, CatalogDbContext db, MediaStore media, CancellationToken cancellationToken)
     {
         var program = new TrainingProgram
         {
@@ -48,6 +49,6 @@ public static class CreateProgram
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "You already have a program with this address.");
         }
 
-        return TypedResults.Created($"/api/v1/studio/{tenantSlug}/programs/{program.Id}", ProgramDetails.From(program));
+        return TypedResults.Created($"/api/v1/studio/{tenantSlug}/programs/{program.Id}", await ProgramDetails.FromAsync(program, media, cancellationToken));
     }
 }

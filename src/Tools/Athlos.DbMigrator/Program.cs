@@ -1,5 +1,6 @@
 using Athlos.Catalog.Api.Data;
 using Athlos.DbMigrator;
+using Athlos.Enrollment.Api.Data;
 using Athlos.Ordering.Api.Data;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Api.Data;
@@ -30,6 +31,7 @@ var managedIdentityClientId = configuration["AZURE_CLIENT_ID"];
 await Migrate<TenancyDbContext>("tenancy", "Tenancy", options => new TenancyDbContext(options, new TenantContext()));
 await Migrate<CatalogDbContext>("catalog", "Catalog", options => new CatalogDbContext(options, new TenantContext()));
 await Migrate<OrderingDbContext>("ordering", "Ordering", options => new OrderingDbContext(options, new TenantContext()));
+await Migrate<EnrollmentDbContext>("enrollment", "Enrollment", options => new EnrollmentDbContext(options, new TenantContext()));
 
 async Task Migrate<TContext>(string service, string section, Func<DbContextOptions<TContext>, TContext> createContext)
     where TContext : DbContext

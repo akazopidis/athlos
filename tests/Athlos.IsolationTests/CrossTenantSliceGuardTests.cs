@@ -13,6 +13,8 @@ public sealed class CrossTenantSliceGuardTests
         "src/Services/Athlos.Catalog.Api/Features/Internal/GetProgramOffer.cs",
         // A customer's own orders across coaches.
         "src/Services/Athlos.Ordering.Api/Features/Orders/OrderLists.cs",
+        // A customer's own enrollments and progress across coaches.
+        "src/Services/Athlos.Enrollment.Api/Features/MyPrograms/MyEnrollments.cs",
         // A user's own memberships across workspaces.
         "src/Services/Athlos.Tenancy.Api/Features/Account/ListMyMemberships.cs",
     ];

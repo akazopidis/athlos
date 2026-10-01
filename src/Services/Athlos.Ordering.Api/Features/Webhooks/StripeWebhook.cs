@@ -86,7 +86,7 @@ public static class StripeWebhook
             {
                 order.PaidAt = DateTimeOffset.UtcNow;
                 db.OutboxMessages.Add(OutboxMessage.For(OrderPaid.Queue, new OrderPaid(
-                    order.Id, order.TenantId, order.CustomerId, order.CustomerEmail, order.ProgramId, order.ProgramTitle,
+                    order.Id, order.TenantId, order.CustomerId, order.CustomerEmail, order.ProgramId, order.ProgramTitle, order.CoachSlug,
                     order.Amount, order.Currency, order.PaidAt.Value)));
             }
 

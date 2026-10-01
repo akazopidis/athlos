@@ -10,6 +10,7 @@
   </Folder>
   <Folder Name="/src/Services/">
     <Project Path="src/Services/Athlos.Catalog.Api/Athlos.Catalog.Api.csproj" />
+    <Project Path="src/Services/Athlos.Enrollment.Api/Athlos.Enrollment.Api.csproj" />
     <Project Path="src/Services/Athlos.Ordering.Api/Athlos.Ordering.Api.csproj" />
     <Project Path="src/Services/Athlos.Tenancy.Api/Athlos.Tenancy.Api.csproj" />
   </Folder>
@@ -18,6 +19,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Athlos.Catalog.Api.IntegrationTests/Athlos.Catalog.Api.IntegrationTests.csproj" />
+    <Project Path="tests/Athlos.Enrollment.Api.IntegrationTests/Athlos.Enrollment.Api.IntegrationTests.csproj" />
     <Project Path="tests/Athlos.Gateway.Tests/Athlos.Gateway.Tests.csproj" />
     <Project Path="tests/Athlos.IsolationTests/Athlos.IsolationTests.csproj" />
     <Project Path="tests/Athlos.Ordering.Api.IntegrationTests/Athlos.Ordering.Api.IntegrationTests.csproj" />

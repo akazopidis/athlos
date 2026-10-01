@@ -16,6 +16,9 @@ param env array = []
 @description('Key Vault secrets as { name, keyVaultUrl }, read with the app identity; reference them from env with secretRef.')
 param keyVaultSecrets array = []
 
+@description('Extra KEDA scale rules next to the HTTP rule, for example a Service Bus queue-length rule (design §4).')
+param scaleRules array = []
+
 resource app 'Microsoft.App/containerApps@2025-01-01' = {
   name: name
   location: location
@@ -67,9 +70,9 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
       scale: {
         minReplicas: minReplicas
         maxReplicas: maxReplicas
-        rules: [
+        rules: concat([
           { name: 'http', http: { metadata: { concurrentRequests: '50' } } }
-        ]
+        ], scaleRules)
       }
     }
   }

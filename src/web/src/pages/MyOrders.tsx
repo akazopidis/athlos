@@ -1,28 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
-import { Link, useSearchParams } from 'react-router'
-import { useApp } from '../AppContext.tsx'
+import { Link } from 'react-router'
 import { formatMoney } from '../money.ts'
+import { useMyOrders } from './useMyOrders.ts'
 
 // The customer's orders across all coaches (design §8, "/me").
-// Stripe returns here with ?checkout=success&order=<id>. The order turns Paid only when Stripe's
-// webhook arrives, usually a moment later, so the list is re-read until that order is no longer Pending.
 export function MyOrders() {
-  const { api } = useApp()
-  const [search] = useSearchParams()
-  const returnedOrderId = search.get('checkout') === 'success' ? search.get('order') : null
-
-  const orders = useQuery({
-    queryKey: ['my-orders'],
-    queryFn: async () => (await api.GET('/api/v1/me/orders')).data ?? null,
-    refetchInterval: (query) =>
-      returnedOrderId && query.state.data?.items.find((o) => o.id === returnedOrderId)?.status === 'Pending' ? 2000 : false,
-  })
-
-  const returned = orders.data?.items.find((o) => o.id === returnedOrderId)
+  const { orders, returned } = useMyOrders()
 
   return (
     <section>
-      <h1>My orders</h1>
+      <h2>My orders</h2>
       {returned?.status === 'Pending' && <p role="status">Payment received. Confirming your order…</p>}
       {returned?.status === 'Paid' && <p role="status">Thank you! Your purchase of {returned.programTitle} is confirmed.</p>}
       {orders.isPending ? (

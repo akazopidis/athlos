@@ -59,7 +59,7 @@ jobs:
         env:
           IMAGE_TAG: ${{ inputs.image-tag }}
         run: |
-          for project in src/Gateway src/Services/Athlos.Tenancy.Api src/Services/Athlos.Catalog.Api src/Services/Athlos.Ordering.Api src/Tools/Athlos.DbMigrator; do
+          for project in src/Gateway src/Services/Athlos.Tenancy.Api src/Services/Athlos.Catalog.Api src/Services/Athlos.Ordering.Api src/Services/Athlos.Enrollment.Api src/Tools/Athlos.DbMigrator; do
             dotnet publish "$project" --configuration Release --os linux --arch x64 -t:PublishContainer \
               -p ContainerRegistry="$REGISTRY.azurecr.io" -p ContainerImageTag="$IMAGE_TAG"
           done

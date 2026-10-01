@@ -4,6 +4,7 @@ import { AccountMenu } from './pages/AccountMenu.tsx'
 import { CreateWorkspace } from './pages/CreateWorkspace.tsx'
 import { Home } from './pages/Home.tsx'
 import { Me } from './pages/Me.tsx'
+import { MyProgramPage } from './pages/MyProgramPage.tsx'
 import { ProgramPage } from './pages/ProgramPage.tsx'
 import { Storefront } from './pages/Storefront.tsx'
 import { Studio } from './pages/Studio.tsx'
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/studio/new" element={<CreateWorkspace />} />
           <Route path="/studio/:slug" element={<Studio />} />
           <Route path="/me" element={<Me />} />
+          <Route path="/me/programs/:programId" element={<MyProgramPage />} />
         </Routes>
       </main>
       <Footer />

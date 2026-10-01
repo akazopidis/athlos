@@ -68,6 +68,21 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal(program.Id, page.Id);
     }
 
+    // Customers keep what they bought (design §3.4), so the content outlives publishing.
+    [Fact]
+    public async Task Program_content_includes_the_workouts_even_after_unpublishing()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach, publish: true);
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/unpublish");
+
+        var content = await Read<ProgramContent>(
+            await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{coach.TenantId}/programs/{program.Id}/content")));
+
+        Assert.Equal((program.Id, coach.Slug), (content.ProgramId, content.CoachSlug));
+        Assert.Equal("Squat day", Assert.Single(content.Workouts).Title);
+    }
+
     [Fact]
     public async Task Unpublishing_removes_it_from_the_marketplace()
     {
@@ -172,6 +187,10 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
     public ValueTask DisposeAsync() => _api.DisposeAsync();
 
     private sealed record ProgramRow(Guid Id, string Slug, bool IsPublished);
+
+    private sealed record ProgramContent(Guid ProgramId, string CoachSlug, List<WorkoutRow> Workouts);
+
+    private sealed record WorkoutRow(Guid Id, string Title);
 
     private sealed record SearchItem(string CoachSlug, string Slug, string Title);
 

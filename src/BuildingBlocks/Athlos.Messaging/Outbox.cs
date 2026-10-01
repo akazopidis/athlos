@@ -148,12 +148,10 @@ public static class OutboxDelivery
 
 public static class OutboxExtensions
 {
-    // ConnectionStrings:messaging: the Service Bus emulator locally, the namespace endpoint in Azure
-    // (managed identity).
     public static IHostApplicationBuilder AddOutbox<TContext>(this IHostApplicationBuilder builder)
         where TContext : DbContext, IHasOutbox
     {
-        builder.AddAzureServiceBusClient("messaging");
+        builder.AddServiceBus();
         builder.Services.AddSingleton<IMessageSender, ServiceBusMessageSender>();
         builder.Services.AddHostedService<OutboxPublisher<TContext>>();
         return builder;

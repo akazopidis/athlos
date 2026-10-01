@@ -39,6 +39,7 @@ IResourceBuilder<IResourceWithConnectionString> ServiceDatabase(string service)
 var tenancyDb = ServiceDatabase("tenancy");
 var catalogDb = ServiceDatabase("catalog");
 var orderingDb = ServiceDatabase("ordering");
+var enrollmentDb = ServiceDatabase("enrollment");
 
 // Service Bus emulator with the queues of design §7 (Basic tier in Azure: queues only).
 var messaging = builder.AddAzureServiceBus("messaging").RunAsEmulator();
@@ -97,6 +98,17 @@ var orderingApi = builder.AddProject<Projects.Athlos_Ordering_Api>("ordering-api
     .WaitFor(messaging)
     .WaitForCompletion(migrator);
 
+// Consumes OrderPaid from the order-paid queue and serves the customer's programs (design §2.1).
+var enrollmentApi = builder.AddProject<Projects.Athlos_Enrollment_Api>("enrollment-api")
+    .WithEnvironment("Auth__Authority", entraAuthority)
+    .WithEnvironment("Auth__Audience", entraApiClientId)
+    .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)
+    .WithReference(enrollmentDb)
+    .WithReference(messaging)
+    .WithReference(catalogApi)
+    .WaitFor(messaging)
+    .WaitForCompletion(migrator);
+
 var gateway = builder.AddProject<Projects.Athlos_Gateway>("gateway")
     .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)
     .WithEnvironment("Auth__Authority", entraAuthority)
@@ -107,9 +119,11 @@ var gateway = builder.AddProject<Projects.Athlos_Gateway>("gateway")
     .WithReference(tenancyApi)
     .WithReference(catalogApi)
     .WithReference(orderingApi)
+    .WithReference(enrollmentApi)
     .WaitFor(tenancyApi)
     .WaitFor(catalogApi)
-    .WaitFor(orderingApi);
+    .WaitFor(orderingApi)
+    .WaitFor(enrollmentApi);
 
 // Locally the Vite dev server serves the SPA and proxies API calls to the gateway (src/web/vite.config.ts).
 // Fixed port: it is the redirect URI registered on the dev SPA app registration.

@@ -30,9 +30,37 @@ public interface IMessageSettlement
 public sealed partial class QueueConsumer<TMessage>(
     IServiceProvider services, IServiceScopeFactory scopes, string queue, ILogger<QueueConsumer<TMessage>> logger) : BackgroundService
 {
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(30);
+
+    // A failure to start (no configuration, Service Bus unreachable) is logged and retried, like the
+    // outbox publisher: it must not stop the host, which also serves HTTP (and generates the OpenAPI
+    // document at build time, where no Service Bus exists).
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Resolved only when receiving starts: building the host (OpenAPI generation, tests) needs no Service Bus.
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await ReceiveAsync(stoppingToken);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                LogStartFailed(logger, e, queue, RetryDelay);
+                try
+                {
+                    await Task.Delay(RetryDelay, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Shutting down.
+                }
+            }
+        }
+    }
+
+    private async Task ReceiveAsync(CancellationToken stoppingToken)
+    {
+        // Resolved only when receiving starts: building the host (tests) needs no Service Bus.
         var client = services.GetRequiredService<ServiceBusClient>();
         await using var processor = client.CreateProcessor(queue, new ServiceBusProcessorOptions
         {
@@ -95,6 +123,9 @@ public sealed partial class QueueConsumer<TMessage>(
 
         await settlement.CompleteAsync(cancellationToken);
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Could not start receiving from {Queue}; retrying in {Delay}")]
+    private static partial void LogStartFailed(ILogger logger, Exception exception, string queue, TimeSpan delay);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Receiving from {Queue} failed ({ErrorSource})")]
     private static partial void LogReceiveFailed(ILogger logger, Exception exception, string queue, string errorSource);

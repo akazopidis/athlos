@@ -25,6 +25,8 @@ builder.Services.AddSingleton(TimeProvider.System);
 
 // OrderPaid arrives from ordering-api through Service Bus (design §2.2).
 builder.AddQueueConsumer<OrderPaid, EnrollOnOrderPaid>(OrderPaid.Queue);
+// The purchase confirmation email leaves through the outbox to the notifications queue (design §5.3).
+builder.AddOutbox<EnrollmentDbContext>();
 
 // The paid content stays in catalog-api; enrollment asks for it with a signed call.
 builder.Services.AddHttpClient<IProgramContent, CatalogProgramContent>(http => http.BaseAddress = new Uri("https+http://catalog-api"))

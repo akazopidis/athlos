@@ -21,17 +21,25 @@ public sealed class EnrollmentApiFactory(AthlosDatabases databases) : ServiceApi
 {
     public FakeProgramContent Programs { get; } = new();
 
+    public CapturingMessageSender Messages { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
         // Never connected: the consumer's background loop is removed below. Aspire needs a well-formed value.
         builder.UseSetting("ConnectionStrings:messaging", "Endpoint=sb://localhost;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
+        builder.UseSetting("App:PublicUrl", TenancyApiFactory.PublicUrl);
         builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<IHostedService>();
             services.AddSingleton<IProgramContent>(Programs);
+            services.AddSingleton<IMessageSender>(Messages);
         });
     }
+
+    // One pass of the outbox publisher (the background loop is removed above).
+    public Task<int> PublishOutbox() =>
+        OutboxDelivery.PublishPendingAsync<EnrollmentDbContext>(Services.GetRequiredService<IServiceScopeFactory>(), TestContext.Current.CancellationToken);
 
     // One delivery of an OrderPaid, as Service Bus would make it; returns how it was settled.
     public async Task<string> Deliver(OrderPaid message) => await DeliverRaw(BinaryData.FromObjectAsJson(message, JsonSerializerOptions.Web));

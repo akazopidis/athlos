@@ -11,7 +11,9 @@ namespace Athlos.Enrollment.Api.Features.Enrollments;
 // The tenant is the one ordering-api wrote into the event (the coach's, from catalog's offer); the
 // handler enters it, so RLS checks the insert like any other. Idempotent: a redelivered event, or a
 // second paid order for a program the customer already has, finds the unique index and changes nothing.
-public sealed partial class EnrollOnOrderPaid(TenantContext tenant, EnrollmentDbContext db, ILogger<EnrollOnOrderPaid> logger)
+// The purchase confirmation email is queued in the same transaction, so it is sent once access exists,
+// and only for the order that created it (design §5.3).
+public sealed partial class EnrollOnOrderPaid(TenantContext tenant, EnrollmentDbContext db, IConfiguration configuration, ILogger<EnrollOnOrderPaid> logger)
     : IMessageHandler<OrderPaid>
 {
     public async Task HandleAsync(OrderPaid message, CancellationToken cancellationToken)
@@ -28,6 +30,7 @@ public sealed partial class EnrollOnOrderPaid(TenantContext tenant, EnrollmentDb
             CoachSlug = message.CoachSlug,
             EnrolledAt = message.PaidAt,
         });
+        db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, PurchaseEmail(message)));
 
         try
         {
@@ -46,6 +49,19 @@ public sealed partial class EnrollOnOrderPaid(TenantContext tenant, EnrollmentDb
 
         await transaction.CommitAsync(cancellationToken);
         LogEnrolled(logger, message.OrderId, message.ProgramId);
+    }
+
+    private EmailNotification PurchaseEmail(OrderPaid message)
+    {
+        var publicUrl = new Uri(configuration["App:PublicUrl"] ?? throw new InvalidOperationException("App:PublicUrl is not configured."));
+        return new EmailNotification(EmailTemplates.PurchaseConfirmation, To: [message.CustomerEmail], ToOwnersOfTenant: null, Locale: "en",
+            new Dictionary<string, string>
+            {
+                ["programTitle"] = message.ProgramTitle,
+                ["coachSlug"] = message.CoachSlug,
+                ["price"] = MoneyText.Format(message.Amount, message.Currency),
+                ["programUrl"] = new Uri(publicUrl, $"/me/programs/{message.ProgramId}").ToString(),
+            });
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Order {OrderId} enrolled its customer in program {ProgramId}")]

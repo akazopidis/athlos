@@ -132,17 +132,40 @@ module enrollmentAcrPull 'modules/acr-pull.bicep' = {
   params: { registryName: registryName, principalId: enrollmentIdentity.outputs.principalId }
 }
 
+module notificationsIdentity 'modules/identity.bicep' = {
+  name: 'id-notifications-worker'
+  params: { name: 'id-athlos-notifications-worker-${environmentName}', location: location }
+}
+
+module notificationsAcrPull 'modules/acr-pull.bicep' = {
+  name: 'acr-pull-notifications-worker-${environmentName}'
+  scope: resourceGroup(sharedResourceGroup)
+  params: { registryName: registryName, principalId: notificationsIdentity.outputs.principalId }
+}
+
 var serviceBusName = 'sb-athlos-${environmentName}'
 
-// Events between services (design §2.2): ordering sends OrderPaid; enrollment receives it.
+// Events between services (design §2.2): ordering sends OrderPaid, enrollment receives it; ordering
+// and enrollment queue emails, the notifications-worker receives them (design §5.3).
+// Roles are on the namespace: every identity here is one of this stage's own services.
 module serviceBus 'modules/servicebus.bicep' = {
   name: 'servicebus'
   params: {
     name: serviceBusName
     location: location
-    queues: ['order-paid']
-    senderPrincipalIds: [orderingIdentity.outputs.principalId]
-    receiverPrincipalIds: [enrollmentIdentity.outputs.principalId]
+    queues: ['order-paid', 'notifications']
+    senderPrincipalIds: [orderingIdentity.outputs.principalId, enrollmentIdentity.outputs.principalId]
+    receiverPrincipalIds: [enrollmentIdentity.outputs.principalId, notificationsIdentity.outputs.principalId]
+  }
+}
+
+// Communication Services Email, Azure-managed domain (design §5.3, §10).
+module email 'modules/email.bicep' = {
+  name: 'email'
+  params: {
+    communicationServiceName: 'acs-athlos-${environmentName}'
+    emailServiceName: 'ecs-athlos-${environmentName}'
+    senderPrincipalIds: [notificationsIdentity.outputs.principalId]
   }
 }
 
@@ -164,7 +187,7 @@ module keyVault 'modules/keyvault.bicep' = {
     name: 'kv-athlos-${environmentName}'
     location: location
     gatewaySigningKey: gatewaySigningKey
-    readerPrincipalIds: [tenancyIdentity.outputs.principalId, catalogIdentity.outputs.principalId, orderingIdentity.outputs.principalId, enrollmentIdentity.outputs.principalId, gatewayIdentity.outputs.principalId]
+    readerPrincipalIds: [tenancyIdentity.outputs.principalId, catalogIdentity.outputs.principalId, orderingIdentity.outputs.principalId, enrollmentIdentity.outputs.principalId, notificationsIdentity.outputs.principalId, gatewayIdentity.outputs.principalId]
     deployerPrincipalId: deployer().objectId
   }
 }
@@ -334,10 +357,51 @@ module enrollmentApi 'modules/container-app.bicep' = if (deployApps) {
     env: concat(commonEnv, authEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'enrollment-api' }
       { name: 'AZURE_CLIENT_ID', value: enrollmentIdentity.outputs.clientId }
+      { name: 'App__PublicUrl', value: publicUrl }
       { name: 'ConnectionStrings__enrollment-db', value: 'Host=${postgresHost};Database=${enrollmentDatabase};Username=${enrollmentAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
       // A namespace, no key: the client signs in with AZURE_CLIENT_ID's managed identity.
       { name: 'ConnectionStrings__messaging', value: serviceBus.outputs.fullyQualifiedNamespace }
       { name: 'services__catalog-api__https__0', value: 'https://${catalogApi!.outputs.fqdn}' }
+    ])
+  }
+}
+
+// No HTTP API (design §2.1): no ingress, scales from zero on the notifications queue only.
+module notificationsWorker 'modules/container-app.bicep' = if (deployApps) {
+  name: 'ca-notifications-worker'
+  dependsOn: [notificationsAcrPull]
+  params: {
+    name: 'ca-athlos-notifications-worker-${environmentName}'
+    location: location
+    environmentId: acaEnvironment.id
+    identityId: notificationsIdentity.outputs.id
+    registryServer: registryServer
+    image: '${registryServer}/athlos/notifications-worker:${imageTag}'
+    ingress: false
+    maxReplicas: 2
+    keyVaultSecrets: signingKeySecret
+    scaleRules: [
+      {
+        name: 'notifications-queue'
+        custom: {
+          type: 'azure-servicebus'
+          identity: notificationsIdentity.outputs.id
+          metadata: {
+            namespace: serviceBusName
+            queueName: 'notifications'
+            messageCount: '10'
+          }
+        }
+      }
+    ]
+    env: concat(commonEnv, [
+      { name: 'OTEL_SERVICE_NAME', value: 'notifications-worker' }
+      { name: 'AZURE_CLIENT_ID', value: notificationsIdentity.outputs.clientId }
+      { name: 'ConnectionStrings__messaging', value: serviceBus.outputs.fullyQualifiedNamespace }
+      { name: 'services__tenancy-api__https__0', value: 'https://${tenancyApi!.outputs.fqdn}' }
+      { name: 'Email__Mode', value: 'Acs' }
+      { name: 'Email__Endpoint', value: email.outputs.endpoint }
+      { name: 'Email__Sender', value: email.outputs.sender }
     ])
   }
 }

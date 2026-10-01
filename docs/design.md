@@ -330,6 +330,13 @@ Emails Athlos itself sends, all through the `notifications` queue:
 - **Local development:** the worker writes emails to the console and to a local folder instead of sending them, so no real email leaves your machine; dev and staging can use the same "sink" mode.
 - **Privacy:** email addresses are passed in the message only; they are not logged, and the `to` field is redacted in traces.
 
+Built in phase 5:
+- **Contract** (`Athlos.Messaging.Contracts.EmailNotification`): `{ template, to, toOwnersOfTenant, locale, data }`. Services write it to their outbox in the same transaction as the change it announces: ordering-api with the order turning `Paid` (sale email), enrollment-api with the enrollment (purchase email, so it is sent once access exists, and only once per order).
+- **Coach recipients** (this was not decided before phase 5): the sale email names the tenant (`toOwnersOfTenant`), not addresses. The worker asks tenancy-api `GET /internal/tenants/{id}/owner-emails` (signed) when it sends, so ordering never handles coaches' addresses and the email reaches whoever owns the workspace at that moment. Tenancy enters that tenant to answer; a SELECT-only policy `tenant_members_read` on `user_profiles` lets a tenant session read the profiles of that tenant's members (writes still need `own_profile`). The customer's address is not in the sale email.
+- **Worker**: renders `Templates/{name}.txt` (first line `Subject: ...`) and `{name}.html` with `{{key}}` placeholders (HTML-encoded in the HTML part; a missing key fails the message, which retries and dead-letters), and sends one email per recipient so owners never see each other's addresses. `Email:Mode` is `Acs` in Azure and `Sink` locally (files in `src/AppHost/.emails`).
+- **Azure**: `acs-athlos-{env}` and `ecs-athlos-{env}` (Communication Services and Email Communication Services) are global resources with data in Europe; the region policy exempts `global` (§10). The worker's container app has no ingress and scales from zero on the `notifications` queue (KEDA `azure-servicebus`, its own identity).
+- **Staff invite email** comes with the staff-invite feature itself (§5.2), which is not built yet.
+
 ---
 
 ## 6. Observability

@@ -59,7 +59,7 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task The_paid_webhook_marks_the_order_paid_and_publishes_OrderPaid()
+    public async Task The_paid_webhook_marks_the_order_paid_and_publishes_OrderPaid_and_the_sale_email()
     {
         var coach = NewCoach();
         var customer = Guid.CreateVersion7();
@@ -67,8 +67,15 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
 
         var published = await _api.PublishOutbox();
 
-        Assert.Equal(1, published);
+        Assert.Equal(2, published);
         var (queue, message) = Assert.Single(_api.Messages.Sent, m => m.Message.Payload.Contains(orderId.ToString(), StringComparison.Ordinal));
+        var (emailQueue, email) = Assert.Single(_api.Messages.Sent, m => m.Message.Payload.Contains(coach.TenantId.ToString(), StringComparison.Ordinal)
+            && m.Queue == EmailNotification.Queue);
+        var sale = JsonSerializer.Deserialize<EmailNotification>(email.Payload, Json)!;
+        Assert.Equal((EmailTemplates.SaleMade, coach.TenantId), (sale.Template, sale.ToOwnersOfTenant));
+        Assert.Empty(sale.To);
+        Assert.DoesNotContain(customer.ToString(), email.Payload, StringComparison.Ordinal);
+        Assert.Equal(("49.00 EUR", "44.10 EUR"), (sale.Data["price"], sale.Data["earnings"]));
         var orderPaid = JsonSerializer.Deserialize<OrderPaid>(message.Payload, Json)!;
         Assert.Equal(OrderPaid.Queue, queue);
         Assert.Equal((orderId, coach.TenantId, customer), (orderPaid.OrderId, orderPaid.TenantId, orderPaid.CustomerId));
@@ -88,7 +95,7 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
         var retry = await _api.SendWebhook(payload);
 
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (first.StatusCode, retry.StatusCode));
-        Assert.Equal(1, await _api.PublishOutbox());
+        Assert.Equal(2, await _api.PublishOutbox()); // OrderPaid and the sale email, once
     }
 
     [Fact]

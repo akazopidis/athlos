@@ -494,3 +494,6 @@ coverage/
 emails/
 # Vite build output copied into the gateway (design §8.1)
 src/Gateway/wwwroot/
+
+# Emails the local notifications-worker writes instead of sending (design §5.3)
+src/AppHost/.emails/

@@ -28,7 +28,7 @@ permissions:
 
 env:
   REGISTRY: acrathlosshared
-  IMAGES: gateway tenancy-api catalog-api ordering-api enrollment-api db-migrator
+  IMAGES: gateway tenancy-api catalog-api ordering-api enrollment-api notifications-worker db-migrator
 
 jobs:
   deploy:

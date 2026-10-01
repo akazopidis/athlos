@@ -20,6 +20,7 @@
     <ProjectReference Include="..\Services\Athlos.Ordering.Api\Athlos.Ordering.Api.csproj" />
     <ProjectReference Include="..\Services\Athlos.Tenancy.Api\Athlos.Tenancy.Api.csproj" />
     <ProjectReference Include="..\Tools\Athlos.DbMigrator\Athlos.DbMigrator.csproj" />
+    <ProjectReference Include="..\Workers\Athlos.Notifications.Worker\Athlos.Notifications.Worker.csproj" />
   </ItemGroup>
 
 </Project>

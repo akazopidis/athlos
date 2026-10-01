@@ -1,0 +1,7 @@
+Subject: You now have access to {{programTitle}}
+Thank you for your purchase!
+
+You bought {{programTitle}} by {{coachSlug}} for {{price}}.
+Your workouts are ready: {{programUrl}}
+
+Athlos

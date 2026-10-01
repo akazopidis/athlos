@@ -13,8 +13,9 @@ namespace Athlos.Ordering.Api.Features.Webhooks;
 // Stripe calls POST /webhooks/stripe through the gateway (design §2.2, §5.1):
 // 1. verify the Stripe-Signature and reject events older than five minutes;
 // 2. find the tenant in the session's metadata (written by checkout), enter it, so RLS applies;
-// 3. in one transaction: record the event id (dedupe), mark the order Paid, write OrderPaid to the
-//    outbox. Either all of it commits or none of it, and a retried event changes nothing.
+// 3. in one transaction: record the event id (dedupe), mark the order Paid, write OrderPaid and the
+//    coach's "you made a sale" email to the outbox. Either all of it commits or none of it, and a
+//    retried event changes nothing.
 public static class StripeWebhook
 {
     private const long MaxPayloadBytes = 64 * 1024;
@@ -23,8 +24,23 @@ public static class StripeWebhook
         app.MapPost("/webhooks/stripe", Handle)
             .ExcludeFromDescription();
 
+    // To the workspace owners (design §5.3); the worker looks up their addresses with tenancy-api.
+    // The customer's address is not in it: the coach sees buyers in the studio's sales list.
+    public static EmailNotification SaleEmail(Order order, IConfiguration configuration)
+    {
+        var publicUrl = new Uri(configuration["App:PublicUrl"] ?? throw new InvalidOperationException("App:PublicUrl is not configured."));
+        return new EmailNotification(EmailTemplates.SaleMade, To: [], ToOwnersOfTenant: order.TenantId, Locale: "en", new Dictionary<string, string>
+        {
+            ["programTitle"] = order.ProgramTitle,
+            ["price"] = MoneyText.Format(order.Amount, order.Currency),
+            ["earnings"] = MoneyText.Format(order.Amount - order.PlatformFee, order.Currency),
+            ["salesUrl"] = new Uri(publicUrl, $"/studio/{order.CoachSlug}").ToString(),
+        });
+    }
+
     private static async Task<Results<Ok, BadRequest, ProblemHttpResult>> Handle(
-        HttpRequest request, StripeWebhookVerifier verifier, TenantContext tenant, OrderingDbContext db, CancellationToken cancellationToken)
+        HttpRequest request, StripeWebhookVerifier verifier, TenantContext tenant, OrderingDbContext db, IConfiguration configuration,
+        CancellationToken cancellationToken)
     {
         if (!verifier.IsConfigured)
         {
@@ -88,6 +104,7 @@ public static class StripeWebhook
                 db.OutboxMessages.Add(OutboxMessage.For(OrderPaid.Queue, new OrderPaid(
                     order.Id, order.TenantId, order.CustomerId, order.CustomerEmail, order.ProgramId, order.ProgramTitle, order.CoachSlug,
                     order.Amount, order.Currency, order.PaidAt.Value)));
+                db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, SaleEmail(order, configuration)));
             }
 
             await db.SaveChangesAsync(cancellationToken);

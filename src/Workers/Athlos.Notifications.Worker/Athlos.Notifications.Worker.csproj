@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <ContainerRepository>athlos/notifications-worker</ContainerRepository>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Communication.Email" />
+    <PackageReference Include="Azure.Identity" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\Athlos.Messaging\Athlos.Messaging.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\Athlos.Tenancy\Athlos.Tenancy.csproj" />
+    <ProjectReference Include="..\..\ServiceDefaults\Athlos.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+  <!-- Email templates ship inside the assembly (design §5.3: kept in the repo). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Templates\*.html;Templates\*.txt" LogicalName="Templates.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

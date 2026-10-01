@@ -322,7 +322,9 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                tenantSlug: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -369,6 +371,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                tenantSlug: string;
                 programId: string;
             };
             cookie?: never;
@@ -398,6 +401,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                tenantSlug: string;
                 programId: string;
             };
             cookie?: never;
@@ -431,6 +435,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                tenantSlug: string;
                 programId: string;
             };
             cookie?: never;
@@ -458,6 +463,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                tenantSlug: string;
                 programId: string;
             };
             cookie?: never;
@@ -487,6 +493,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                tenantSlug: string;
                 programId: string;
             };
             cookie?: never;
@@ -516,6 +523,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                tenantSlug: string;
                 programId: string;
             };
             cookie?: never;
@@ -551,6 +559,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                tenantSlug: string;
                 programId: string;
             };
             cookie?: never;
@@ -578,6 +587,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                tenantSlug: string;
                 programId: string;
             };
             cookie?: never;
@@ -641,6 +651,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                tenantSlug: string;
                 programId: string;
                 workoutId: string;
             };
@@ -675,6 +686,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                tenantSlug: string;
                 programId: string;
                 workoutId: string;
             };

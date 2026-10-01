@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Athlos.Catalog.Api;
 using Athlos.Catalog.Api.Data;
 using Athlos.Catalog.Api.Features.Internal;
 using Athlos.Catalog.Api.Features.Marketplace;
@@ -32,10 +33,15 @@ builder.Services.AddHttpClient<IPayoutReadiness, TenancyPayoutReadiness>(http =>
     .AddSignedRequests();
 builder.Services.AddValidation();
 builder.Services.AddOpenApi(options =>
+{
     // Slices nest their Request/Response records; name schemas after the slice (CreateProgramRequest).
     options.CreateSchemaReferenceId = type => type.Type.IsNested
         ? type.Type.DeclaringType!.Name + type.Type.Name
-        : OpenApiOptions.CreateDefaultSchemaReferenceId(type));
+        : OpenApiOptions.CreateDefaultSchemaReferenceId(type);
+    // Studio handlers read the tenant from ITenantContext, not from {tenantSlug}, so the generator
+    // would leave it out and the SPA's typed client could not fill it in.
+    options.AddOperationTransformer<RouteParameterTransformer>();
+});
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 

@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import { useApp } from '../AppContext.tsx'
+import { StudioPrograms } from './StudioPrograms.tsx'
 
 // Coach dashboard. The gateway checks membership; another tenant's workspace is a plain 404.
 export function Studio() {
@@ -53,6 +54,7 @@ export function Studio() {
           {onboarding.error && <p role="alert">{onboarding.error.message}</p>}
         </>
       )}
+      <StudioPrograms slug={slug} />
     </section>
   )
 }

@@ -121,3 +121,9 @@ td {
   gap: 0.5rem;
   align-items: center;
 }
+
+.studio-programs {
+  display: grid;
+  gap: 1rem;
+  padding-left: 1.25rem;
+}

@@ -62,4 +62,4 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
 
 ## Current phase
 
-Keep this line updated as you go: **Phase 4, ordering + Stripe** (see §15 of the design). Connect onboarding, checkout, webhook, outbox and Service Bus are built; Stripe test keys go in with `python infra/stripe_setup.py` (run by the user). Released: `v0.1.0` (walking skeleton), `v0.2.0` (phases 2 and 3: Entra sign-in, tenancy, catalog with RLS, cover images). Entra External ID tenant `athlos` lives on a separate pay-as-you-go subscription (design §5).
+Keep this line updated as you go: **Phase 4, ordering + Stripe** (see §15 of the design). Connect onboarding, checkout, webhook, outbox, Service Bus and the SPA's Buy button and My orders are built; Stripe test keys are set for all three stages (`python infra/stripe_setup.py`, run by the user; staging and prod pick them up on their next deploy). Released: `v0.1.0` (walking skeleton), `v0.2.0` (phases 2 and 3: Entra sign-in, tenancy, catalog with RLS, cover images). Entra External ID tenant `athlos` lives on a separate pay-as-you-go subscription (design §5).

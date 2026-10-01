@@ -81,6 +81,9 @@ app.MapGroup("/internal")
     .UsePublicReadScope()
     .WithTenantTransaction<CatalogDbContext>()
     .MapGetProgramOffer();
+// Other services only (signed): one tenant's paid content; the handler enters that tenant itself
+app.MapGroup("/internal")
+    .MapGetProgramContent();
 studio.MapWorkouts();
 
 app.Run();

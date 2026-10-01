@@ -45,7 +45,7 @@ jobs:
       # duplicate output files) before merging, not in deploy-dev.
       - name: Publish deployables
         run: |
-          for project in src/Gateway src/Services/Athlos.Tenancy.Api src/Services/Athlos.Catalog.Api src/Services/Athlos.Ordering.Api src/Tools/Athlos.DbMigrator; do
+          for project in src/Gateway src/Services/Athlos.Tenancy.Api src/Services/Athlos.Catalog.Api src/Services/Athlos.Ordering.Api src/Services/Athlos.Enrollment.Api src/Tools/Athlos.DbMigrator; do
             dotnet publish "$project" --no-build --configuration Release --output "$RUNNER_TEMP/publish/$(basename "$project")"
           done
 

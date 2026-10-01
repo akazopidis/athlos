@@ -1,5 +1,6 @@
 using Athlos.Catalog.Api.Data;
 using Athlos.DbMigrator;
+using Athlos.Enrollment.Api.Data;
 using Athlos.Ordering.Api.Data;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Api.Data;
@@ -39,6 +40,7 @@ public sealed class AthlosDatabases : IAsyncLifetime
         await Prepare<TenancyDbContext>("tenancy", options => new TenancyDbContext(options, new TenantContext()));
         await Prepare<CatalogDbContext>("catalog", options => new CatalogDbContext(options, new TenantContext()));
         await Prepare<OrderingDbContext>("ordering", options => new OrderingDbContext(options, new TenantContext()));
+        await Prepare<EnrollmentDbContext>("enrollment", options => new EnrollmentDbContext(options, new TenantContext()));
     }
 
     private async Task Prepare<TContext>(string service, Func<DbContextOptions<TContext>, TContext> createContext)

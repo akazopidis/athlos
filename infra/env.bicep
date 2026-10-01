@@ -54,6 +54,8 @@ var catalogDatabase = 'athlos_catalog_${environmentName}'
 var catalogAppRole = 'athlos_catalog_${environmentName}_app'
 var orderingDatabase = 'athlos_ordering_${environmentName}'
 var orderingAppRole = 'athlos_ordering_${environmentName}_app'
+var enrollmentDatabase = 'athlos_enrollment_${environmentName}'
+var enrollmentAppRole = 'athlos_enrollment_${environmentName}_app'
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' existing = {
   name: workspaceName
@@ -119,14 +121,28 @@ module orderingAcrPull 'modules/acr-pull.bicep' = {
   params: { registryName: registryName, principalId: orderingIdentity.outputs.principalId }
 }
 
-// Events between services (design §2.2): ordering sends OrderPaid; enrollment receives it (phase 5).
+module enrollmentIdentity 'modules/identity.bicep' = {
+  name: 'id-enrollment-api'
+  params: { name: 'id-athlos-enrollment-api-${environmentName}', location: location }
+}
+
+module enrollmentAcrPull 'modules/acr-pull.bicep' = {
+  name: 'acr-pull-enrollment-api-${environmentName}'
+  scope: resourceGroup(sharedResourceGroup)
+  params: { registryName: registryName, principalId: enrollmentIdentity.outputs.principalId }
+}
+
+var serviceBusName = 'sb-athlos-${environmentName}'
+
+// Events between services (design §2.2): ordering sends OrderPaid; enrollment receives it.
 module serviceBus 'modules/servicebus.bicep' = {
   name: 'servicebus'
   params: {
-    name: 'sb-athlos-${environmentName}'
+    name: serviceBusName
     location: location
     queues: ['order-paid']
     senderPrincipalIds: [orderingIdentity.outputs.principalId]
+    receiverPrincipalIds: [enrollmentIdentity.outputs.principalId]
   }
 }
 
@@ -148,7 +164,7 @@ module keyVault 'modules/keyvault.bicep' = {
     name: 'kv-athlos-${environmentName}'
     location: location
     gatewaySigningKey: gatewaySigningKey
-    readerPrincipalIds: [tenancyIdentity.outputs.principalId, catalogIdentity.outputs.principalId, orderingIdentity.outputs.principalId, gatewayIdentity.outputs.principalId]
+    readerPrincipalIds: [tenancyIdentity.outputs.principalId, catalogIdentity.outputs.principalId, orderingIdentity.outputs.principalId, enrollmentIdentity.outputs.principalId, gatewayIdentity.outputs.principalId]
     deployerPrincipalId: deployer().objectId
   }
 }
@@ -188,6 +204,9 @@ module migrator 'modules/container-job.bicep' = {
       { name: 'ConnectionStrings__ordering-db-owner', value: 'Host=${postgresHost};Database=${orderingDatabase};Username=${migratorIdentity.name};SSL Mode=Require' }
       { name: 'Databases__Ordering__AppRole', value: orderingAppRole }
       { name: 'Databases__Ordering__AppPrincipalObjectId', value: orderingIdentity.outputs.principalId }
+      { name: 'ConnectionStrings__enrollment-db-owner', value: 'Host=${postgresHost};Database=${enrollmentDatabase};Username=${migratorIdentity.name};SSL Mode=Require' }
+      { name: 'Databases__Enrollment__AppRole', value: enrollmentAppRole }
+      { name: 'Databases__Enrollment__AppPrincipalObjectId', value: enrollmentIdentity.outputs.principalId }
       { name: 'AZURE_CLIENT_ID', value: migratorIdentity.properties.clientId }
       { name: 'APP_VERSION', value: appVersion }
       { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
@@ -284,6 +303,45 @@ module orderingApi 'modules/container-app.bicep' = if (deployApps) {
   }
 }
 
+module enrollmentApi 'modules/container-app.bicep' = if (deployApps) {
+  name: 'ca-enrollment-api'
+  dependsOn: [enrollmentAcrPull]
+  params: {
+    name: 'ca-athlos-enrollment-api-${environmentName}'
+    location: location
+    environmentId: acaEnvironment.id
+    identityId: enrollmentIdentity.outputs.id
+    registryServer: registryServer
+    image: '${registryServer}/athlos/enrollment-api:${imageTag}'
+    maxReplicas: 3
+    keyVaultSecrets: signingKeySecret
+    // Scales up from zero when OrderPaid messages wait, not only on HTTP traffic (design §4, row 4).
+    // KEDA reads the queue length with the app's own identity (Data Receiver on the namespace).
+    scaleRules: [
+      {
+        name: 'order-paid-queue'
+        custom: {
+          type: 'azure-servicebus'
+          identity: enrollmentIdentity.outputs.id
+          metadata: {
+            namespace: serviceBusName
+            queueName: 'order-paid'
+            messageCount: '5'
+          }
+        }
+      }
+    ]
+    env: concat(commonEnv, authEnv, [
+      { name: 'OTEL_SERVICE_NAME', value: 'enrollment-api' }
+      { name: 'AZURE_CLIENT_ID', value: enrollmentIdentity.outputs.clientId }
+      { name: 'ConnectionStrings__enrollment-db', value: 'Host=${postgresHost};Database=${enrollmentDatabase};Username=${enrollmentAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
+      // A namespace, no key: the client signs in with AZURE_CLIENT_ID's managed identity.
+      { name: 'ConnectionStrings__messaging', value: serviceBus.outputs.fullyQualifiedNamespace }
+      { name: 'services__catalog-api__https__0', value: 'https://${catalogApi!.outputs.fqdn}' }
+    ])
+  }
+}
+
 module gateway 'modules/container-app.bicep' = if (deployApps) {
   name: 'ca-gateway'
   dependsOn: [gatewayAcrPull]
@@ -311,6 +369,7 @@ module gateway 'modules/container-app.bicep' = if (deployApps) {
       { name: 'services__tenancy-api__https__0', value: 'https://${tenancyApi!.outputs.fqdn}' }
       { name: 'services__catalog-api__https__0', value: 'https://${catalogApi!.outputs.fqdn}' }
       { name: 'services__ordering-api__https__0', value: 'https://${orderingApi!.outputs.fqdn}' }
+      { name: 'services__enrollment-api__https__0', value: 'https://${enrollmentApi!.outputs.fqdn}' }
     ])
   }
 }
@@ -319,4 +378,5 @@ output gatewayUrl string = deployApps ? 'https://${gateway!.outputs.fqdn}' : ''
 output tenancyApiFqdn string = deployApps ? tenancyApi!.outputs.fqdn : ''
 output catalogApiFqdn string = deployApps ? catalogApi!.outputs.fqdn : ''
 output orderingApiFqdn string = deployApps ? orderingApi!.outputs.fqdn : ''
+output enrollmentApiFqdn string = deployApps ? enrollmentApi!.outputs.fqdn : ''
 output migratorJobName string = 'caj-athlos-migrator-${environmentName}'

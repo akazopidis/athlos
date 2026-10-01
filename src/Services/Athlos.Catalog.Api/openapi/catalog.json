@@ -667,6 +667,7 @@
       },
       "GetPublishedProgramResponse": {
         "required": [
+          "id",
           "coachSlug",
           "slug",
           "title",
@@ -679,6 +680,10 @@
         ],
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "coachSlug": {
             "type": "string"
           },

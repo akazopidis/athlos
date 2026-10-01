@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "preview": "vite preview",
-    "generate:api": "openapi-typescript ../Services/Athlos.Tenancy.Api/openapi/tenancy.json -o src/api/tenancy.ts"
+    "generate:api": "openapi-typescript ../Services/Athlos.Tenancy.Api/openapi/tenancy.json -o src/api/tenancy.ts && openapi-typescript ../Services/Athlos.Catalog.Api/openapi/catalog.json -o src/api/catalog.ts && openapi-typescript ../Services/Athlos.Ordering.Api/openapi/ordering.json -o src/api/ordering.ts"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.23.0",

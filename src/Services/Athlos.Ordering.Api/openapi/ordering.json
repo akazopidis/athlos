@@ -91,7 +91,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OrderListsPage`1"
+                  "$ref": "#/components/schemas/OrderListsMyOrdersPage"
                 }
               }
             }
@@ -151,7 +151,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OrderListsPage`1"
+                  "$ref": "#/components/schemas/OrderListsSalesPage"
                 }
               }
             }
@@ -217,10 +217,10 @@
           }
         }
       },
-      "OrderListsPage`1": {
+      "OrderListsMyOrdersPage": {
         "required": [
           "items",
-          "pageNumber",
+          "page",
           "pageSize",
           "totalCount"
         ],
@@ -232,7 +232,100 @@
               "$ref": "#/components/schemas/OrderListsMyOrder"
             }
           },
-          "pageNumber": {
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "OrderListsSale": {
+        "required": [
+          "id",
+          "programId",
+          "programTitle",
+          "customerEmail",
+          "amount",
+          "platformFee",
+          "currency",
+          "paidAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "programId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "programTitle": {
+            "type": "string"
+          },
+          "customerEmail": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "platformFee": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OrderListsSalesPage": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderListsSale"
+            }
+          },
+          "page": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",

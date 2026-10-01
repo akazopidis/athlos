@@ -371,7 +371,8 @@ module notificationsWorker 'modules/container-app.bicep' = if (deployApps) {
   name: 'ca-notifications-worker'
   dependsOn: [notificationsAcrPull]
   params: {
-    name: 'ca-athlos-notifications-worker-${environmentName}'
+    // Container app names are at most 32 characters: 'ca-athlos-notifications-worker-staging' would be 38.
+    name: 'ca-athlos-notifications-${environmentName}'
     location: location
     environmentId: acaEnvironment.id
     identityId: notificationsIdentity.outputs.id

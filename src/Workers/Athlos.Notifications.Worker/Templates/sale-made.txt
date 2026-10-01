@@ -1,0 +1,7 @@
+Subject: You made a sale: {{programTitle}}
+Good news: someone bought {{programTitle}} for {{price}}.
+
+Your share after the platform fee is {{earnings}}; Stripe pays it out to your account.
+See your sales: {{salesUrl}}
+
+Athlos

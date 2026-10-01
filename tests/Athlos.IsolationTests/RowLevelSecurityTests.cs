@@ -108,6 +108,23 @@ public sealed class RowLevelSecurityTests(AthlosDatabases database) : IAsyncLife
         Assert.Equal(0, visible);
     }
 
+    // tenant_members_read (for the sale email, design §5.3): inside tenant A, the profiles of A's
+    // members are readable, those of B's members are not, and none of them can be changed.
+    [Fact]
+    public async Task Inside_a_tenant_only_its_members_profiles_are_readable_and_none_are_writable()
+    {
+        await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, "/api/v1/me/profile"), _a.OwnerId);
+        await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, "/api/v1/me/profile"), _b.OwnerId);
+
+        var (aOwner, bOwner, changed) = await AsAppRole(_a.TenantId, null, async connection =>
+            (await Scalar<long>(connection, $"SELECT count(*) FROM user_profiles WHERE user_id = '{_a.OwnerId}'"),
+             await Scalar<long>(connection, $"SELECT count(*) FROM user_profiles WHERE user_id = '{_b.OwnerId}'"),
+             await new NpgsqlCommand($"UPDATE user_profiles SET email = 'x@y.z' WHERE user_id = '{_a.OwnerId}'", connection).ExecuteNonQueryAsync(Cancel)
+                + await new NpgsqlCommand($"DELETE FROM user_profiles WHERE user_id = '{_a.OwnerId}'", connection).ExecuteNonQueryAsync(Cancel)));
+
+        Assert.Equal((1L, 0L, 0), (aOwner, bOwner, changed));
+    }
+
     // Design §3.3: "turn layer 3 off and show layer 4 still blocks". The EF filter is bypassed
     // explicitly; RLS alone keeps tenant A's memberships out of tenant B's session.
     [Fact]

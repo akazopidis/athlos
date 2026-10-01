@@ -44,6 +44,7 @@ var enrollmentDb = ServiceDatabase("enrollment");
 // Service Bus emulator with the queues of design §7 (Basic tier in Azure: queues only).
 var messaging = builder.AddAzureServiceBus("messaging").RunAsEmulator();
 messaging.AddServiceBusQueue("order-paid");
+messaging.AddServiceBusQueue("notifications");
 
 // Entra External ID (design §5). Locally the dev app registrations are used; set them with
 // dotnet user-secrets in src/AppHost: Entra:Authority, Entra:ApiClientId, Entra:SpaClientId.
@@ -103,11 +104,22 @@ var enrollmentApi = builder.AddProject<Projects.Athlos_Enrollment_Api>("enrollme
     .WithEnvironment("Auth__Authority", entraAuthority)
     .WithEnvironment("Auth__Audience", entraApiClientId)
     .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)
+    .WithEnvironment("App__PublicUrl", "http://localhost:5173")
     .WithReference(enrollmentDb)
     .WithReference(messaging)
     .WithReference(catalogApi)
     .WaitFor(messaging)
     .WaitForCompletion(migrator);
+
+// Sends the emails of design §5.3. Locally nothing leaves the machine: emails are written to
+// src/AppHost/.emails (git-ignored) and the log names only the subject.
+builder.AddProject<Projects.Athlos_Notifications_Worker>("notifications-worker")
+    .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)
+    .WithEnvironment("Email__Mode", "Sink")
+    .WithEnvironment("Email__SinkFolder", Path.Combine(builder.AppHostDirectory, ".emails"))
+    .WithReference(messaging)
+    .WithReference(tenancyApi)
+    .WaitFor(messaging);
 
 var gateway = builder.AddProject<Projects.Athlos_Gateway>("gateway")
     .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)

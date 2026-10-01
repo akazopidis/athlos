@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Tools\Athlos.DbMigrator\Athlos.DbMigrator.csproj" />
+    <ProjectReference Include="..\..\src\Workers\Athlos.Notifications.Worker\Athlos.Notifications.Worker.csproj" />
   </ItemGroup>
 
 </Project>

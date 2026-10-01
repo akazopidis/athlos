@@ -1,3 +1,4 @@
+using Athlos.Messaging;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Data;
 using Microsoft.EntityFrameworkCore;
@@ -5,11 +6,13 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Enrollment.Api.Data;
 
 public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> options, ITenantContext tenant)
-    : TenantDbContext(options, tenant)
+    : TenantDbContext(options, tenant), IHasOutbox
 {
     public DbSet<ProgramEnrollment> Enrollments => Set<ProgramEnrollment>();
 
     public DbSet<WorkoutProgress> WorkoutProgress => Set<WorkoutProgress>();
+
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -37,6 +40,8 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
                 .HasPrincipalKey(e => new { e.Id, e.TenantId, e.CustomerId })
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        modelBuilder.ConfigureOutbox();
 
         base.OnModelCreating(modelBuilder);
     }

@@ -1,4 +1,7 @@
 using System.Net;
+using System.Text.Json;
+using Athlos.Messaging.Contracts;
+using Athlos.Notifications.Worker;
 using Athlos.Testing;
 using static Athlos.Testing.EnrollmentArrange;
 using static Athlos.Testing.OrderingArrange;
@@ -23,6 +26,26 @@ public sealed class EnrollmentTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal(("completed", "completed"), (first, again));
         var enrolled = Assert.Single((await _api.MyPrograms(_customer)).Items);
         Assert.Equal((program.ProgramId, program.Title, _coach.Slug, 0), (enrolled.ProgramId, enrolled.ProgramTitle, enrolled.CoachSlug, enrolled.CompletedWorkouts));
+    }
+
+    // Design §5.3: the purchase confirmation is queued with the enrollment, once, to the buyer.
+    [Fact]
+    public async Task The_purchase_confirmation_is_queued_once_with_the_enrollment()
+    {
+        var program = _api.Programs.Add(_coach.TenantId, _coach.Slug);
+        var paid = Paid(_customer, _coach.TenantId, _coach.Slug, program);
+        await _api.Deliver(paid);
+        await _api.Deliver(paid);
+
+        await _api.PublishOutbox();
+
+        var (queue, message) = Assert.Single(_api.Messages.Sent, m => m.Message.Payload.Contains(program.ProgramId.ToString(), StringComparison.Ordinal));
+        var email = JsonSerializer.Deserialize<EmailNotification>(message.Payload, EnrollmentArrange.Json)!;
+        Assert.Equal((EmailNotification.Queue, EmailTemplates.PurchaseConfirmation), (queue, email.Template));
+        Assert.Equal([paid.CustomerEmail], email.To);
+        Assert.Equal($"{TenancyApiFactory.PublicUrl}/me/programs/{program.ProgramId}", email.Data["programUrl"]);
+        // The worker can render it: producer and template agree on the data.
+        Assert.Contains(program.Title, new EmailRenderer().Render(email.Template, email.Data).Subject, StringComparison.Ordinal);
     }
 
     [Fact]

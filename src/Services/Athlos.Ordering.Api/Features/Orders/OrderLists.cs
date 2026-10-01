@@ -20,7 +20,11 @@ public static class OrderLists
 
     public sealed record Paging([property: Range(1, 10_000)] int Page = 1, [property: Range(1, MaxPageSize)] int PageSize = 20);
 
-    public sealed record Page<T>(List<T> Items, int PageNumber, int PageSize, int TotalCount);
+    // API convention for paged lists (design §7.1). Two concrete records, not a generic Page<T>: the
+    // OpenAPI generator names a generic schema after its definition, so both lists would share one schema.
+    public sealed record MyOrdersPage(List<MyOrder> Items, int Page, int PageSize, int TotalCount);
+
+    public sealed record SalesPage(List<Sale> Items, int Page, int PageSize, int TotalCount);
 
     // CROSS-TENANT SLICE (design §3.2, "a customer's own orders"): ignores the tenant filter and
     // relies on the customer filter below and on RLS, which reads orders where customer_id = app.user_id.
@@ -32,7 +36,7 @@ public static class OrderLists
                     .IgnoreQueryFilters([TenantDbContext.TenantFilter])
                     .Where(o => o.CustomerId == customerId && o.Status != OrderStatus.Failed);
 
-                return TypedResults.Ok(new Page<MyOrder>(
+                return TypedResults.Ok(new MyOrdersPage(
                     await orders.OrderByDescending(o => o.CreatedAt)
                         .Skip((paging.Page - 1) * paging.PageSize).Take(paging.PageSize)
                         .Select(o => new MyOrder(o.Id, o.ProgramId, o.ProgramTitle, o.CoachSlug, o.Amount, o.Currency, o.Status, o.CreatedAt, o.PaidAt))
@@ -49,7 +53,7 @@ public static class OrderLists
                 // The route's slug must match too, like tenancy's workspace endpoints: a mismatch is empty.
                 var sales = db.Orders.AsNoTracking().Where(o => o.Status == OrderStatus.Paid && o.CoachSlug == tenantSlug);
 
-                return TypedResults.Ok(new Page<Sale>(
+                return TypedResults.Ok(new SalesPage(
                     await sales.OrderByDescending(o => o.PaidAt)
                         .Skip((paging.Page - 1) * paging.PageSize).Take(paging.PageSize)
                         .Select(o => new Sale(o.Id, o.ProgramId, o.ProgramTitle, o.CustomerEmail, o.Amount, o.PlatformFee, o.Currency, o.PaidAt!.Value))

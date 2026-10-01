@@ -3,20 +3,17 @@ import { Link } from 'react-router'
 import { useApp } from '../AppContext.tsx'
 
 export function MyWorkspaces() {
-  const { api, msal } = useApp()
-  const signedIn = Boolean(msal?.getActiveAccount())
+  const { api } = useApp()
   const memberships = useQuery({
     queryKey: ['memberships'],
     queryFn: async () => (await api.GET('/api/v1/me/memberships')).data ?? [],
-    enabled: signedIn,
   })
 
-  if (!signedIn) return <p>Sign in to see your workspaces.</p>
   if (memberships.isPending) return <p>Loading…</p>
 
   return (
     <section>
-      <h1>My workspaces</h1>
+      <h2>My workspaces</h2>
       {memberships.data?.length ? (
         <ul>
           {memberships.data.map((m) => (

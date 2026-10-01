@@ -57,6 +57,18 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
     }
 
     [Fact]
+    public async Task Published_program_page_gives_the_id_checkout_needs()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach, publish: true);
+
+        var page = await Read<ProgramRow>(
+            await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{coach.Slug}/programs/{program.Slug}")));
+
+        Assert.Equal(program.Id, page.Id);
+    }
+
+    [Fact]
     public async Task Unpublishing_removes_it_from_the_marketplace()
     {
         var coach = NewCoach();

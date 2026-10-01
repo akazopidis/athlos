@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { useParams } from 'react-router'
+import { useParams, useSearchParams } from 'react-router'
 import { useApp } from '../AppContext.tsx'
+import { ProgramList } from './ProgramList.tsx'
 
 // The coach's public page, in their own colors (design §8).
 export function Storefront() {
   const { slug = '' } = useParams()
+  const [search] = useSearchParams()
   const { api } = useApp()
   const storefront = useQuery({
     queryKey: ['storefront', slug],
@@ -19,6 +21,10 @@ export function Storefront() {
     <section className="storefront" style={{ borderColor: branding.primaryColor ?? undefined }}>
       {branding.logoUrl && <img src={branding.logoUrl} alt="" height={48} />}
       <h1>{displayName}</h1>
+      {/* Stripe sends the customer back here when they leave the checkout page. */}
+      {search.get('checkout') === 'cancelled' && <p role="status">Checkout cancelled. You have not been charged.</p>}
+      <h2>Programs</h2>
+      <ProgramList coach={slug} />
     </section>
   )
 }

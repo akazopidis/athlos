@@ -31,6 +31,20 @@ public sealed class PayoutTests : IAsyncLifetime
         Assert.Contains(Uri.EscapeDataString($"{TenancyApiFactory.PublicUrl}/studio/{workspace.Slug}?payouts=return"), link!.Url, StringComparison.Ordinal);
     }
 
+    // Found on dev: Stripe refuses to create accounts until Connect is enabled on the platform account.
+    [Fact]
+    public async Task A_Stripe_refusal_is_a_502_with_a_message_the_studio_can_show()
+    {
+        var workspace = await _api.CreateWorkspace();
+        _stripe.Failure = new Stripe.StripeException("You can only create new accounts if you've signed up for Connect.");
+
+        var response = await AsOwner(workspace, HttpMethod.Post, "/payouts/onboarding");
+        var problem = await response.Content.ReadFromJsonAsync<Problem>(Cancel);
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Equal("Stripe could not handle the payout request. Please try again later.", problem!.Title);
+    }
+
     [Fact]
     public async Task Starting_onboarding_twice_reuses_the_Stripe_account()
     {
@@ -98,4 +112,6 @@ public sealed class PayoutTests : IAsyncLifetime
     private sealed record Status(bool Connected, bool OnboardingComplete, bool PayoutsEnabled);
 
     private sealed record PayoutAccount(Guid TenantId, string Slug, bool Active, string? StripeAccountId, bool OnboardingComplete);
+
+    private sealed record Problem(string Title, int Status);
 }

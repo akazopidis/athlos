@@ -12,8 +12,16 @@ public sealed class FakeStripeConnect : IStripeConnect
 
     public int AccountsCreated => _accounts.Count;
 
+    // Set to make Stripe refuse requests, as it does when Connect is not enabled on the platform.
+    public Stripe.StripeException? Failure { get; set; }
+
     public Task<string> CreateExpressAccountAsync(Guid tenantId, CancellationToken cancellationToken)
     {
+        if (Failure is not null)
+        {
+            throw Failure;
+        }
+
         var id = $"acct_test_{tenantId:N}";
         _accounts.TryAdd(id, new PayoutAccountStatus(false, false, false));
         return Task.FromResult(id);

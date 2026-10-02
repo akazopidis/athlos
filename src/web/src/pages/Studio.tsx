@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import { useApp } from '../AppContext.tsx'
+import { problemTitle } from '../problem.ts'
 import { StudioPrograms } from './StudioPrograms.tsx'
 
 // Coach dashboard. The gateway checks membership; another tenant's workspace is a plain 404.
@@ -23,10 +24,10 @@ export function Studio() {
 
   const onboarding = useMutation({
     mutationFn: async () => {
-      const { data, response } = await api.POST('/api/v1/studio/{tenantSlug}/payouts/onboarding', params)
+      const { data, error, response } = await api.POST('/api/v1/studio/{tenantSlug}/payouts/onboarding', params)
       if (response.status === 403) throw new Error('Only the owner can set up payouts.')
       if (response.status === 503) throw new Error('Payments are not available yet in this environment.')
-      if (!data) throw new Error('Could not start payout setup.')
+      if (!data) throw new Error(problemTitle(error) ?? 'Could not start payout setup.')
       return data
     },
     onSuccess: ({ url }) => window.location.assign(url),

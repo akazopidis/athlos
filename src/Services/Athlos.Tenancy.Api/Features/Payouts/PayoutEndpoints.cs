@@ -1,13 +1,14 @@
 using Athlos.Tenancy.Api.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Stripe;
 
 namespace Athlos.Tenancy.Api.Features.Payouts;
 
 // Getting a coach paid (design §5: "they are sent to Stripe Connect onboarding"). The owner starts
 // onboarding and comes back to the studio; the status is read from Stripe, which is the source of
 // truth, and cached on the tenant as stripe_onboarding_complete.
-public static class PayoutEndpoints
+public static partial class PayoutEndpoints
 {
     public sealed record OnboardingLink(string Url);
 
@@ -16,12 +17,34 @@ public static class PayoutEndpoints
     public static void MapPayouts(this IEndpointRouteBuilder studio)
     {
         studio.MapPost("/payouts/onboarding", StartOnboarding)
+            .AddEndpointFilter(StripeErrors)
             .WithName("StartPayoutOnboarding")
             .WithTags("Payouts");
         studio.MapGet("/payouts", GetStatus)
+            .AddEndpointFilter(StripeErrors)
             .WithName("GetPayoutStatus")
             .WithTags("Payouts");
     }
+
+    // Stripe said no (for example Connect not enabled on the platform account, found on dev) or is
+    // unreachable: 502 with a message the studio can show, and Stripe's reason in the log for us.
+    // Without this the error was an unhandled 500 and the coach saw only "Could not start payout setup."
+    private static async ValueTask<object?> StripeErrors(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    {
+        try
+        {
+            return await next(context);
+        }
+        catch (StripeException e)
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(PayoutEndpoints));
+            LogStripeFailed(logger, e, e.StripeError?.Code ?? "none");
+            return TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway, title: "Stripe could not handle the payout request. Please try again later.");
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Stripe refused a payout request (code {StripeCode})")]
+    private static partial void LogStripeFailed(ILogger logger, Exception exception, string stripeCode);
 
     // Owners only: this creates the Stripe account that receives the workspace's money.
     private static async Task<Results<Ok<OnboardingLink>, NotFound, ProblemHttpResult>> StartOnboarding(

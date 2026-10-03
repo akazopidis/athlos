@@ -34,13 +34,17 @@ const signedIn = {
   acquireTokenSilent: async () => ({ accessToken: 'token' }),
 } as unknown as PublicClientApplication
 
-function renderPage(checkout: (request: Request) => Response) {
+function renderPage(checkout: (request: Request) => Response, owned: string[] = []) {
   const requests: Request[] = []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (request: Request) => {
       requests.push(request.clone())
-      return request.method === 'POST' ? checkout(request) : Response.json(program)
+      if (request.method === 'POST') return checkout(request)
+      if (new URL(request.url).pathname === '/api/v1/me/programs') {
+        return Response.json({ items: owned.map((programId) => ({ programId })), page: 1, pageSize: 20, totalCount: owned.length })
+      }
+      return Response.json(program)
     }),
   )
 
@@ -82,4 +86,11 @@ test('shows why the server refused the checkout', async () => {
 
   expect(await screen.findByRole('alert')).toHaveTextContent('You already own this program.')
   expect(leaveTo).not.toHaveBeenCalled()
+})
+
+test('a customer who already owns the program gets Open program instead of Buy', async () => {
+  renderPage(() => Response.json({}), [program.id])
+
+  expect(await screen.findByRole('link', { name: 'Open program' })).toHaveAttribute('href', `/me/programs/${program.id}`)
+  expect(screen.queryByRole('button', { name: 'Buy' })).toBeNull()
 })

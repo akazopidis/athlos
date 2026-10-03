@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Loading } from '@/components/page'
 import { ProgramCover } from '@/components/program-cover'
 import { useApp } from '../AppContext.tsx'
+import { useTitle } from '../useTitle.ts'
 
 // A program the customer bought: its workouts (the paid content) and which are done.
 // enrollment-api answers 404 for a program the customer did not buy.
@@ -38,6 +39,8 @@ export function MyProgramPage() {
       queryClient.invalidateQueries({ queryKey: ['my-programs'] }),
     ]),
   })
+
+  useTitle(program.data?.title)
 
   if (!signedIn) return <p>Sign in to see your programs.</p>
   if (program.isPending) return <Loading lines={5} />

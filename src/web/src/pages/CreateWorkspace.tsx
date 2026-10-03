@@ -7,12 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useApp } from '../AppContext.tsx'
+import { useTitle } from '../useTitle.ts'
 import { slugFrom } from '../slug.ts'
 
 // Becoming a coach (design §5): the signed-in user creates a workspace and becomes its owner.
 export function CreateWorkspace() {
   const { msal, config, api } = useApp()
   const navigate = useNavigate()
+  useTitle('Open your workspace')
   const [displayName, setDisplayName] = useState('')
   const [slug, setSlug] = useState('')
   const [slugEdited, setSlugEdited] = useState(false)

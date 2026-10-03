@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useApp } from '../AppContext.tsx'
+import { useTitle } from '../useTitle.ts'
 
 const TokenKey = 'athlos.invite-token'
 
@@ -30,6 +31,7 @@ export function AcceptInvite() {
   const { api, msal, config } = useApp()
   const [token] = useState(readToken)
   const signedIn = Boolean(msal?.getActiveAccount())
+  useTitle('Join a workspace')
 
   const accept = useMutation({
     mutationFn: async () => {

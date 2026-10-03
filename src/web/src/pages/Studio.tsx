@@ -4,11 +4,14 @@ import { Button } from '@/components/ui/button'
 import { Loading, PageHeader } from '@/components/page'
 import { cn } from '@/lib/utils'
 import { useStudio } from './studio/useStudio.ts'
+import { useTitle } from '../useTitle.ts'
 
 // The coach dashboard (design §8, "/studio/{slug}": programs, sales, settings, Stripe onboarding).
 // A layout: the workspace header and tabs; the pages render in the outlet.
 export function Studio() {
   const { slug, workspace } = useStudio()
+
+  useTitle(workspace.data ? `${workspace.data.displayName} studio` : null)
 
   if (workspace.isPending) return <Loading lines={4} />
   if (!workspace.data) return <p>Workspace not found.</p>

@@ -11,6 +11,10 @@ import { MyProgramPage } from './pages/MyProgramPage.tsx'
 import { ProgramPage } from './pages/ProgramPage.tsx'
 import { Storefront } from './pages/Storefront.tsx'
 import { Studio } from './pages/Studio.tsx'
+import { StudioOverview } from './pages/studio/StudioOverview.tsx'
+import { StudioProgramEditor } from './pages/studio/StudioProgramEditor.tsx'
+import { StudioSales } from './pages/studio/StudioSales.tsx'
+import { StudioSettings } from './pages/studio/StudioSettings.tsx'
 
 // Four areas (design §8): marketplace, coach storefront, coach studio, customer area.
 export default function App() {
@@ -42,7 +46,12 @@ export default function App() {
           <Route path="/c/:slug/programs/:programSlug" element={<ProgramPage />} />
           <Route path="/invites/:slug" element={<AcceptInvite />} />
           <Route path="/studio/new" element={<CreateWorkspace />} />
-          <Route path="/studio/:slug" element={<Studio />} />
+          <Route path="/studio/:slug" element={<Studio />}>
+            <Route index element={<StudioOverview />} />
+            <Route path="programs/:programId" element={<StudioProgramEditor />} />
+            <Route path="sales" element={<StudioSales />} />
+            <Route path="settings" element={<StudioSettings />} />
+          </Route>
           <Route path="/me" element={<Me />} />
           <Route path="/me/programs/:programId" element={<MyProgramPage />} />
         </Routes>

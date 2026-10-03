@@ -4,7 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Athlos.Catalog.Api.Features.Programs;
 
-// Only drafts can be deleted; customers may have bought a published program. Unpublish first.
+// Only programs that were never on sale can be deleted: once published, customers may own it and keep
+// access even after it is unpublished (design §3.4). Those can be unpublished, not deleted.
 public static class DeleteProgram
 {
     public static void MapDeleteProgram(this IEndpointRouteBuilder app) =>
@@ -21,9 +22,10 @@ public static class DeleteProgram
             return TypedResults.NotFound();
         }
 
-        if (program.IsPublished)
+        if (program.FirstPublishedAt is not null)
         {
-            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Unpublish the program before deleting it.");
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "This program has been on sale, so customers may own it. Unpublish it instead of deleting it.");
         }
 
         db.Programs.Remove(program);

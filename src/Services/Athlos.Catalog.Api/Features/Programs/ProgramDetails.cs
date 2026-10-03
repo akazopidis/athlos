@@ -17,11 +17,13 @@ public sealed record ProgramDetails(
     DateTimeOffset? PublishedAt,
     DateTimeOffset UpdatedAt,
     // A read-only link valid for 15 minutes, or null without a cover.
-    string? CoverImageUrl)
+    string? CoverImageUrl,
+    // Has been on sale at some point, so it can no longer be deleted.
+    bool EverPublished)
 {
     public static async Task<ProgramDetails> FromAsync(TrainingProgram p, MediaStore media, CancellationToken cancellationToken) =>
         new(p.Id, p.Slug, p.Title, p.Description, p.Level, p.DurationWeeks, p.PriceAmount, p.Currency, p.IsPublished, p.PublishedAt, p.UpdatedAt,
-            await media.ReadLinkAsync(p.CoverImagePath, cancellationToken));
+            await media.ReadLinkAsync(p.CoverImagePath, cancellationToken), p.FirstPublishedAt is not null);
 }
 
 // Fields a coach sets when creating or editing a program. Validation attributes are enforced by

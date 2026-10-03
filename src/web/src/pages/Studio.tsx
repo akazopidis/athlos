@@ -3,6 +3,7 @@ import { useParams } from 'react-router'
 import { useApp } from '../AppContext.tsx'
 import { problemTitle } from '../problem.ts'
 import { StudioPrograms } from './StudioPrograms.tsx'
+import { StudioTeam } from './StudioTeam.tsx'
 
 // Coach dashboard. The gateway checks membership; another tenant's workspace is a plain 404.
 export function Studio() {
@@ -14,6 +15,13 @@ export function Studio() {
     queryKey: ['workspace', slug],
     queryFn: async () => (await api.GET('/api/v1/studio/{tenantSlug}/workspace', params)).data ?? null,
   })
+
+  // The caller's role here: the team is managed by owners only.
+  const memberships = useQuery({
+    queryKey: ['memberships'],
+    queryFn: async () => (await api.GET('/api/v1/me/memberships')).data ?? [],
+  })
+  const isOwner = memberships.data?.some((m) => m.slug === slug && m.role === 'Owner') ?? false
 
   // Read on every visit, including the return from Stripe's onboarding pages (?payouts=return).
   const payouts = useQuery({
@@ -56,6 +64,7 @@ export function Studio() {
         </>
       )}
       <StudioPrograms slug={slug} />
+      {isOwner && <StudioTeam slug={slug} />}
     </section>
   )
 }

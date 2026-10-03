@@ -2,6 +2,7 @@ import { Link, Route, Routes } from 'react-router'
 import { Footer } from './Footer.tsx'
 import { AccountMenu } from './pages/AccountMenu.tsx'
 import { CreateWorkspace } from './pages/CreateWorkspace.tsx'
+import { AcceptInvite } from './pages/AcceptInvite.tsx'
 import { Home } from './pages/Home.tsx'
 import { Me } from './pages/Me.tsx'
 import { MyProgramPage } from './pages/MyProgramPage.tsx'
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/c/:slug" element={<Storefront />} />
           <Route path="/c/:slug/programs/:programSlug" element={<ProgramPage />} />
+          <Route path="/invites/:slug" element={<AcceptInvite />} />
           <Route path="/studio/new" element={<CreateWorkspace />} />
           <Route path="/studio/:slug" element={<Studio />} />
           <Route path="/me" element={<Me />} />

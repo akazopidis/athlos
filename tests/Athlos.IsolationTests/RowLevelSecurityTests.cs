@@ -108,6 +108,19 @@ public sealed class RowLevelSecurityTests(AthlosDatabases database) : IAsyncLife
         Assert.Equal(0, visible);
     }
 
+    // Layer 4 for staff_invites: tenant B's session sees none of A's invites and cannot change them.
+    [Fact]
+    public async Task Tenant_B_sees_and_changes_none_of_As_invites()
+    {
+        await _api.Invite(_a, TenancyArrange.EmailOf(Guid.CreateVersion7()));
+
+        var (visible, changed) = await AsAppRole(_b.TenantId, _b.OwnerId, async connection =>
+            (await Scalar<long>(connection, $"SELECT count(*) FROM staff_invites WHERE tenant_id = '{_a.TenantId}'"),
+             await new NpgsqlCommand($"UPDATE staff_invites SET expires_at = now() + interval '1 year' WHERE tenant_id = '{_a.TenantId}'", connection).ExecuteNonQueryAsync(Cancel)));
+
+        Assert.Equal((0L, 0), (visible, changed));
+    }
+
     // tenant_members_read (for the sale email, design §5.3): inside tenant A, the profiles of A's
     // members are readable, those of B's members are not, and none of them can be changed.
     [Fact]

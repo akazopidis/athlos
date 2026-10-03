@@ -58,6 +58,49 @@
         }
       }
     },
+    "/api/v1/invites/{tenantSlug}/accept": {
+      "post": {
+        "tags": [
+          "Team"
+        ],
+        "operationId": "AcceptStaffInvite",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptInviteResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/v1/marketplace/coaches/{slug}": {
       "get": {
         "tags": [
@@ -266,10 +309,150 @@
           }
         }
       }
+    },
+    "/api/v1/studio/{tenantSlug}/invites": {
+      "get": {
+        "tags": [
+          "Team"
+        ],
+        "operationId": "ListStaffInvites",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StaffInvitesInvite"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Team"
+        ],
+        "operationId": "CreateStaffInvite",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffInvitesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffInvitesInvite"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/studio/{tenantSlug}/invites/{inviteId}": {
+      "delete": {
+        "tags": [
+          "Team"
+        ],
+        "operationId": "RevokeStaffInvite",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "inviteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AcceptInviteRequest": {
+        "required": [
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "AcceptInviteResponse": {
+        "required": [
+          "slug",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      },
       "Branding": {
         "type": "object",
         "properties": {
@@ -489,6 +672,44 @@
           "Pro"
         ]
       },
+      "StaffInvitesInvite": {
+        "required": [
+          "id",
+          "email",
+          "expiresAt",
+          "expired"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expired": {
+            "type": "boolean"
+          }
+        }
+      },
+      "StaffInvitesRequest": {
+        "required": [
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
       "TenantRole": {
         "enum": [
           "Owner",
@@ -556,6 +777,9 @@
     },
     {
       "name": "Tenants"
+    },
+    {
+      "name": "Team"
     },
     {
       "name": "Marketplace"

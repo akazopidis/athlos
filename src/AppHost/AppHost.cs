@@ -68,6 +68,8 @@ var tenancyApi = builder.AddProject<Projects.Athlos_Tenancy_Api>("tenancy-api")
     .WithEnvironment("Auth__Audience", entraApiClientId)
     .WithEnvironment("GatewaySignature__Key", gatewaySigningKey)
     .WithReference(tenancyDb)
+    .WithReference(messaging)
+    .WaitFor(messaging)
     .WaitForCompletion(migrator);
 
 // Program media in Azurite, the Blob Storage emulator (design §13).

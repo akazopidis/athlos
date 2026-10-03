@@ -1,0 +1,9 @@
+Subject: You're invited to join {{workspaceName}} on Athlos
+You're invited to join {{workspaceName}} as staff on Athlos.
+
+Accept the invite: {{acceptUrl}}
+
+Sign in (or sign up) with this email address to accept. The invite is valid until {{expiresOn}}.
+If you weren't expecting it, you can ignore this email.
+
+Athlos

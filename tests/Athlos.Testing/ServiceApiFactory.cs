@@ -57,10 +57,16 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
 {
     public const string PublicUrl = "https://athlos.test";
 
+    // The invite emails tenancy-api queues (design §5.2), as the outbox publisher would send them.
+    public CapturingMessageSender Messages { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
         builder.UseSetting("App:PublicUrl", PublicUrl);
+        // The client is never used: tests replace the sender. Aspire only needs a well-formed value.
+        builder.UseSetting("ConnectionStrings:messaging", "Endpoint=sb://localhost;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
+        builder.ConfigureTestServices(services => services.AddSingleton<IMessageSender>(Messages));
 
         // Without a fake, Stripe counts as not configured, as in an environment without a key.
         if (stripe is not null)

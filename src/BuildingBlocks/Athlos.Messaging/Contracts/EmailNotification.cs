@@ -25,6 +25,9 @@ public static class EmailTemplates
 
     // To the coach's owners, queued by ordering-api when the order is paid.
     public const string SaleMade = "sale-made";
+
+    // To the invitee, queued by tenancy-api with the invite (design §5.2).
+    public const string StaffInvite = "staff-invite";
 }
 
 // Money for display in emails: integer minor units plus a currency code, as everywhere (CLAUDE.md).

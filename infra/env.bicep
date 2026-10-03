@@ -145,8 +145,8 @@ module notificationsAcrPull 'modules/acr-pull.bicep' = {
 
 var serviceBusName = 'sb-athlos-${environmentName}'
 
-// Events between services (design §2.2): ordering sends OrderPaid, enrollment receives it; ordering
-// and enrollment queue emails, the notifications-worker receives them (design §5.3).
+// Events between services (design §2.2): ordering sends OrderPaid, enrollment receives it; ordering,
+// enrollment and tenancy queue emails, the notifications-worker receives them (design §5.3).
 // Roles are on the namespace: every identity here is one of this stage's own services.
 module serviceBus 'modules/servicebus.bicep' = {
   name: 'servicebus'
@@ -154,7 +154,7 @@ module serviceBus 'modules/servicebus.bicep' = {
     name: serviceBusName
     location: location
     queues: ['order-paid', 'notifications']
-    senderPrincipalIds: [orderingIdentity.outputs.principalId, enrollmentIdentity.outputs.principalId]
+    senderPrincipalIds: [orderingIdentity.outputs.principalId, enrollmentIdentity.outputs.principalId, tenancyIdentity.outputs.principalId]
     receiverPrincipalIds: [enrollmentIdentity.outputs.principalId, notificationsIdentity.outputs.principalId]
   }
 }
@@ -261,6 +261,8 @@ module tenancyApi 'modules/container-app.bicep' = if (deployApps) {
       { name: 'AZURE_CLIENT_ID', value: tenancyIdentity.outputs.clientId }
       // No password: the app signs in with its managed identity's token (PostgresEntraAuthentication).
       { name: 'ConnectionStrings__tenancy-db', value: 'Host=${postgresHost};Database=${tenancyDatabase};Username=${tenancyAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
+      // Staff invite emails leave through the outbox (design §5.2); a namespace, no key.
+      { name: 'ConnectionStrings__messaging', value: serviceBus.outputs.fullyQualifiedNamespace }
     ], stripeConfigured ? [{ name: 'Stripe__SecretKey', secretRef: 'stripe-secret-key' }] : [])
   }
 }

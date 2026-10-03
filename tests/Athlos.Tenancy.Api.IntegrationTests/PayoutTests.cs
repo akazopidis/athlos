@@ -45,6 +45,21 @@ public sealed class PayoutTests : IAsyncLifetime
         Assert.Equal("Stripe could not handle the payout request. Please try again later.", problem!.Title);
     }
 
+    // Stripe replays the stored response of an idempotency key for 24 hours, errors included.
+    [Fact]
+    public void The_account_idempotency_key_absorbs_double_clicks_but_not_later_retries()
+    {
+        var tenant = Guid.CreateVersion7();
+        var at = new DateTimeOffset(2026, 10, 3, 10, 34, 5, TimeSpan.Zero);
+
+        var first = Athlos.Tenancy.Api.Features.Payouts.StripeConnect.AccountIdempotencyKey(tenant, at);
+        var doubleClick = Athlos.Tenancy.Api.Features.Payouts.StripeConnect.AccountIdempotencyKey(tenant, at.AddSeconds(20));
+        var retry = Athlos.Tenancy.Api.Features.Payouts.StripeConnect.AccountIdempotencyKey(tenant, at.AddMinutes(1));
+
+        Assert.Equal(first, doubleClick);
+        Assert.NotEqual(first, retry);
+    }
+
     [Fact]
     public async Task Starting_onboarding_twice_reuses_the_Stripe_account()
     {

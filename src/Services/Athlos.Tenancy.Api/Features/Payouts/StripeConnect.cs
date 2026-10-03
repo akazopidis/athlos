@@ -21,9 +21,16 @@ public sealed record PayoutAccountStatus(bool DetailsSubmitted, bool ChargesEnab
     public bool OnboardingComplete => DetailsSubmitted && ChargesEnabled;
 }
 
-public sealed class StripeConnect(IStripeClient stripe) : IStripeConnect
+public sealed class StripeConnect(IStripeClient stripe, TimeProvider time) : IStripeConnect
 {
     public bool IsConfigured => true;
+
+    // Guards against a double click creating two accounts. Stripe keeps the response to a key for 24
+    // hours, refusals included, so a fixed key would replay one refusal (found on dev: "not signed up
+    // for Connect", long after Connect was set up). The key changes every minute: duplicates within a
+    // minute are absorbed, and a refused attempt can be retried a minute later.
+    public static string AccountIdempotencyKey(Guid tenantId, DateTimeOffset now) =>
+        $"express-account-{tenantId}-{now.UtcDateTime:yyyyMMddHHmm}";
 
     public async Task<string> CreateExpressAccountAsync(Guid tenantId, CancellationToken cancellationToken)
     {
@@ -37,7 +44,7 @@ public sealed class StripeConnect(IStripeClient stripe) : IStripeConnect
             },
             // Lets the Stripe dashboard and webhooks be traced back to the workspace.
             Metadata = new Dictionary<string, string> { ["athlos_tenant_id"] = tenantId.ToString() },
-        }, new RequestOptions { IdempotencyKey = $"express-account-{tenantId}" }, cancellationToken);
+        }, new RequestOptions { IdempotencyKey = AccountIdempotencyKey(tenantId, time.GetUtcNow()) }, cancellationToken);
 
         return account.Id;
     }

@@ -34,6 +34,10 @@ public sealed class TrainingProgram : ITenantOwned, IHasTimestamps
 
     public DateTimeOffset? PublishedAt { get; set; }
 
+    // Set the first time the program is published and never cleared: once a program has been on sale,
+    // customers may own it, so it can be unpublished but not deleted (design §3.4).
+    public DateTimeOffset? FirstPublishedAt { get; set; }
+
     public string? CoverImagePath { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }

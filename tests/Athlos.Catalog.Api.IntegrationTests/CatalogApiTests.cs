@@ -131,6 +131,22 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal(HttpStatusCode.Conflict, delete.StatusCode);
     }
 
+    // Design §3.4: customers keep what they bought, so a program that was ever on sale stays, even
+    // after it is unpublished; the coach can only unpublish it.
+    [Fact]
+    public async Task A_program_that_was_on_sale_cannot_be_deleted_after_unpublishing()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach, publish: true);
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/unpublish");
+
+        var delete = await _api.AsCoach(coach, HttpMethod.Delete, $"/programs/{program.Id}");
+        var details = await Read<PublishHistory>(await _api.AsCoach(coach, HttpMethod.Get, $"/programs/{program.Id}"));
+
+        Assert.Equal(HttpStatusCode.Conflict, delete.StatusCode);
+        Assert.True(details.EverPublished);
+    }
+
     [Fact]
     public async Task A_draft_can_be_deleted_with_its_workouts()
     {
@@ -187,6 +203,8 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
     public ValueTask DisposeAsync() => _api.DisposeAsync();
 
     private sealed record ProgramRow(Guid Id, string Slug, bool IsPublished);
+
+    private sealed record PublishHistory(bool IsPublished, bool EverPublished);
 
     private sealed record ProgramContent(Guid ProgramId, string CoachSlug, List<WorkoutRow> Workouts);
 

@@ -833,7 +833,8 @@
           "isPublished",
           "publishedAt",
           "updatedAt",
-          "coverImageUrl"
+          "coverImageUrl",
+          "everPublished"
         ],
         "type": "object",
         "properties": {
@@ -891,6 +892,9 @@
               "null",
               "string"
             ]
+          },
+          "everPublished": {
+            "type": "boolean"
           }
         }
       },

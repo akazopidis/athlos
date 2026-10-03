@@ -54,6 +54,7 @@ public static class PublishProgram
         {
             program.IsPublished = publish;
             program.PublishedAt = publish ? DateTimeOffset.UtcNow : null;
+            program.FirstPublishedAt ??= program.PublishedAt;
             await db.SaveChangesAsync(cancellationToken);
         }
 

@@ -1,5 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Empty, Loading, Section } from '@/components/page'
 import { useApp } from '../AppContext.tsx'
 import { useMyOrders } from './useMyOrders.ts'
 
@@ -20,25 +23,39 @@ export function MyPrograms() {
   const waiting = returned?.status === 'Paid' && programs.data && !programs.data.items.some((p) => p.programId === returned.programId)
 
   return (
-    <section>
-      <h1>My programs</h1>
-      {waiting && <p role="status">Setting up your access to {returned.programTitle}…</p>}
+    <Section title="My programs">
+      {waiting && (
+        <Alert>
+          <AlertDescription>Setting up your access to {returned.programTitle}…</AlertDescription>
+        </Alert>
+      )}
       {programs.isPending ? (
-        <p>Loading…</p>
+        <Loading />
       ) : programs.data?.items.length ? (
-        <ul>
+        <ul className="grid gap-4 sm:grid-cols-2">
           {programs.data.items.map((p) => (
             <li key={p.programId}>
-              <Link to={`/me/programs/${p.programId}`}>{p.programTitle}</Link> by <Link to={`/c/${p.coachSlug}`}>{p.coachSlug}</Link> ·{' '}
-              {Number(p.completedWorkouts)} {Number(p.completedWorkouts) === 1 ? 'workout' : 'workouts'} done
+              <Link to={`/me/programs/${p.programId}`} className="group block">
+                <Card className="transition-shadow group-hover:shadow-md">
+                  <CardHeader>
+                    <CardTitle className="group-hover:underline">{p.programTitle}</CardTitle>
+                    <CardDescription>
+                      by {p.coachSlug} · {Number(p.completedWorkouts)} {Number(p.completedWorkouts) === 1 ? 'workout' : 'workouts'} done
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              </Link>
             </li>
           ))}
         </ul>
       ) : (
-        <p>
-          No programs yet. <Link to="/">Browse programs</Link>
-        </p>
+        <Empty>
+          No programs yet.{' '}
+          <Link to="/" className="underline">
+            Browse programs
+          </Link>
+        </Empty>
       )}
-    </section>
+    </Section>
   )
 }

@@ -1,3 +1,5 @@
+import path from 'node:path'
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
@@ -7,7 +9,10 @@ const gateway = process.env.services__gateway__https__0 ?? process.env.services_
 const toGateway = { target: gateway, changeOrigin: true, secure: false }
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: { '@': path.resolve(import.meta.dirname, './src') },
+  },
   server: {
     port: process.env.PORT ? Number(process.env.PORT) : undefined,
     proxy: {

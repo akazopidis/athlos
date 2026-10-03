@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/page'
 import { useApp } from '../AppContext.tsx'
 import { MyOrders } from './MyOrders.tsx'
 import { MyPrograms } from './MyPrograms.tsx'
@@ -9,10 +10,11 @@ export function Me() {
   if (!msal?.getActiveAccount()) return <p>Sign in to see your programs, orders and workspaces.</p>
 
   return (
-    <>
+    <div className="space-y-12">
+      <PageHeader title="My account" />
       <MyPrograms />
       <MyOrders />
       <MyWorkspaces />
-    </>
+    </div>
   )
 }

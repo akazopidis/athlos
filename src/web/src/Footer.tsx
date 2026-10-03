@@ -11,5 +11,9 @@ async function fetchVersion(): Promise<string> {
 export function Footer() {
   const { data: version } = useQuery({ queryKey: ['version'], queryFn: fetchVersion, staleTime: Infinity })
 
-  return <footer>Athlos {version ?? ''}</footer>
+  return (
+    <footer className="border-t">
+      <div className="mx-auto max-w-5xl px-4 py-6 text-xs text-muted-foreground">Athlos {version ?? ''}</div>
+    </footer>
+  )
 }

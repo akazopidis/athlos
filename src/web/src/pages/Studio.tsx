@@ -1,5 +1,11 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useParams } from 'react-router'
+import { CircleCheck } from 'lucide-react'
+import { Link, useParams } from 'react-router'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Loading, PageHeader, Section } from '@/components/page'
 import { useApp } from '../AppContext.tsx'
 import { problemTitle } from '../problem.ts'
 import { StudioPrograms } from './StudioPrograms.tsx'
@@ -41,30 +47,45 @@ export function Studio() {
     onSuccess: ({ url }) => window.location.assign(url),
   })
 
-  if (workspace.isPending) return <p>Loading…</p>
+  if (workspace.isPending) return <Loading lines={4} />
   if (!workspace.data) return <p>Workspace not found.</p>
 
   const { displayName, plan, status } = workspace.data
   return (
-    <section>
-      <h1>{displayName}</h1>
-      <p>
-        Plan: {plan} · Status: {status}
-      </p>
-      <h2>Payouts</h2>
-      {payouts.data?.onboardingComplete ? (
-        <p>Payouts are set up. You can publish programs.</p>
-      ) : (
-        <>
-          <p>Set up payouts with Stripe before publishing programs.</p>
-          <button type="button" onClick={() => onboarding.mutate()} disabled={onboarding.isPending}>
-            {payouts.data?.connected ? 'Continue payout setup' : 'Set up payouts'}
-          </button>
-          {onboarding.error && <p role="alert">{onboarding.error.message}</p>}
-        </>
-      )}
+    <div className="space-y-12">
+      <PageHeader title={displayName} description="Studio">
+        <div className="flex gap-2">
+          <Badge variant="outline">{plan} plan</Badge>
+          <Badge variant={status === 'Active' ? 'secondary' : 'destructive'}>{status}</Badge>
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/c/${slug}`}>View storefront</Link>
+          </Button>
+        </div>
+      </PageHeader>
+      <Section title="Payouts">
+        {payouts.data?.onboardingComplete ? (
+          <Alert>
+            <CircleCheck aria-hidden />
+            <AlertDescription>Payouts are set up. You can publish programs.</AlertDescription>
+          </Alert>
+        ) : (
+          <Card>
+            <CardContent className="flex flex-wrap items-center justify-between gap-4">
+              <p className="text-sm text-muted-foreground">Set up payouts with Stripe before publishing programs.</p>
+              <Button onClick={() => onboarding.mutate()} disabled={onboarding.isPending}>
+                {payouts.data?.connected ? 'Continue payout setup' : 'Set up payouts'}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        {onboarding.error && (
+          <Alert variant="destructive">
+            <AlertDescription>{onboarding.error.message}</AlertDescription>
+          </Alert>
+        )}
+      </Section>
       <StudioPrograms slug={slug} />
       {isOwner && <StudioTeam slug={slug} />}
-    </section>
+    </div>
   )
 }

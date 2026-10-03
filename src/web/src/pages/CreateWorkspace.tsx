@@ -1,6 +1,11 @@
 import { useMutation } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useApp } from '../AppContext.tsx'
 import { slugFrom } from '../slug.ts'
 
@@ -22,61 +27,70 @@ export function CreateWorkspace() {
     onSuccess: (created) => navigate(`/studio/${created.slug}`),
   })
 
-  if (!msal?.getActiveAccount()) {
-    return (
-      <section>
-        <h1>Open your workspace</h1>
-        <p>Sign in or create an account first.</p>
-        {msal && (
-          <button type="button" onClick={() => msal.loginRedirect({ scopes: [config.apiScope!], redirectStartPage: '/studio/new' })}>
-            Sign in
-          </button>
-        )}
-      </section>
-    )
-  }
-
   const submit = (event: FormEvent) => {
     event.preventDefault()
     create.mutate()
   }
 
   return (
-    <section>
-      <h1>Open your workspace</h1>
-      <form onSubmit={submit}>
-        <label>
-          Name
-          <input
-            required
-            maxLength={100}
-            value={displayName}
-            onChange={(e) => {
-              setDisplayName(e.target.value)
-              if (!slugEdited) setSlug(slugFrom(e.target.value))
-            }}
-          />
-        </label>
-        <label>
-          Address
-          <span className="hint">athlos/c/</span>
-          <input
-            required
-            minLength={3}
-            maxLength={40}
-            pattern="[a-z0-9]+(-[a-z0-9]+)*"
-            value={slug}
-            onChange={(e) => {
-              setSlugEdited(true)
-              setSlug(e.target.value)
-            }}
-          />
-        </label>
-        <button type="submit" disabled={create.isPending}>
-          Create workspace
-        </button>
-        {create.error && <p role="alert">{create.error.message}</p>}
-      </form>
-    </section>
+    <Card className="mx-auto max-w-lg">
+      <CardHeader>
+        <CardTitle className="text-2xl">Open your workspace</CardTitle>
+        <CardDescription>Sell your training programs on Athlos. Payments go straight to your Stripe account.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!msal?.getActiveAccount() ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Sign in or create an account first.</p>
+            {msal && (
+              <Button onClick={() => msal.loginRedirect({ scopes: [config.apiScope!], redirectStartPage: '/studio/new' })}>Sign in</Button>
+            )}
+          </div>
+        ) : (
+          <form onSubmit={submit} className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="displayName">Name</Label>
+              <Input
+                id="displayName"
+                required
+                maxLength={100}
+                value={displayName}
+                onChange={(e) => {
+                  setDisplayName(e.target.value)
+                  if (!slugEdited) setSlug(slugFrom(e.target.value))
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="slug">Address</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">athlos/c/</span>
+                <Input
+                  id="slug"
+                  required
+                  minLength={3}
+                  maxLength={40}
+                  pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                  value={slug}
+                  onChange={(e) => {
+                    setSlugEdited(true)
+                    setSlug(e.target.value)
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Lowercase letters, digits and dashes. It can't be changed later.</p>
+            </div>
+            <Button type="submit" disabled={create.isPending}>
+              Create workspace
+            </Button>
+            {create.error && (
+              <Alert variant="destructive">
+                <AlertDescription>{create.error.message}</AlertDescription>
+              </Alert>
+            )}
+          </form>
+        )}
+      </CardContent>
+    </Card>
   )
 }

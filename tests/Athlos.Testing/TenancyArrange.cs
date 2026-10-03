@@ -1,10 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Athlos.Messaging;
 using Athlos.Messaging.Contracts;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Api.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
@@ -70,24 +70,24 @@ public static class TenancyArrange
         return new Uri(invite.Data["acceptUrl"]).Fragment.TrimStart('#');
     }
 
-    // The newest invite email sent to the address (the outbox publisher also runs in the background).
+    // The newest invite email queued for the address. Read from the outbox table, where it is written
+    // with the invite: every tenancy test app shares that table and runs a background publisher, so
+    // which app's sender ends up sending it is a race, but the row is always there.
     public static async Task<EmailNotification> InviteEmail(this TenancyApiFactory api, string email)
     {
-        for (var attempt = 0; attempt < 50; attempt++)
-        {
-            await OutboxDelivery.PublishPendingAsync<TenancyDbContext>(api.Services.GetRequiredService<IServiceScopeFactory>(), TestContext.Current.CancellationToken);
-            var sent = api.Messages.Sent
-                .Select(m => JsonSerializer.Deserialize<EmailNotification>(m.Message.Payload, JsonSerializerOptions.Web)!)
-                .LastOrDefault(e => e.Template == EmailTemplates.StaffInvite && e.To.Contains(email));
-            if (sent is not null)
-            {
-                return sent;
-            }
+        await using var scope = api.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        var queued = await db.OutboxMessages.AsNoTracking()
+            .Where(m => m.Queue == EmailNotification.Queue)
+            .OrderByDescending(m => m.OccurredAt)
+            .Select(m => m.Payload)
+            .Take(500)
+            .ToListAsync(TestContext.Current.CancellationToken);
 
-            await Task.Delay(100, TestContext.Current.CancellationToken);
-        }
-
-        throw new InvalidOperationException($"No invite email was sent to {email}.");
+        return queued
+            .Select(payload => JsonSerializer.Deserialize<EmailNotification>(payload, JsonSerializerOptions.Web)!)
+            .FirstOrDefault(e => e.Template == EmailTemplates.StaffInvite && e.To.Contains(email))
+            ?? throw new InvalidOperationException($"No invite email was queued for {email}.");
     }
 
     public static Task<HttpResponseMessage> Accept(this TenancyApiFactory api, string slug, string token, Guid userId) =>

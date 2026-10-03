@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { selectClassName } from '@/components/field'
+import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/page'
 import { ProgramList } from './ProgramList.tsx'
 import { Levels, useProgramSearch, type Level } from './useProgramSearch.ts'
@@ -42,7 +43,7 @@ export function Home() {
         </div>
         <select
           aria-label="Level"
-          className={`${selectClassName} w-auto`}
+          className={cn(selectClassName, 'w-auto')}
           value={search.level ?? ''}
           onChange={(e) => update({ level: (e.target.value || null) as Level | null })}
         >

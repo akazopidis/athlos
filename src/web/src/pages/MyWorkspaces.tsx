@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardAction, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, Loading, Section } from '@/components/page'
 import { useApp } from '../AppContext.tsx'
 
@@ -30,9 +30,11 @@ export function MyWorkspaces() {
             <li key={m.tenantId}>
               <Link to={`/studio/${m.slug}`} className="group block">
                 <Card className="transition-shadow group-hover:shadow-md">
-                  <CardHeader className="flex-row items-center justify-between">
+                  <CardHeader>
                     <CardTitle className="group-hover:underline">{m.displayName}</CardTitle>
-                    <Badge variant="outline">{m.role}</Badge>
+                    <CardAction>
+                      <Badge variant="outline">{m.role}</Badge>
+                    </CardAction>
                   </CardHeader>
                 </Card>
               </Link>

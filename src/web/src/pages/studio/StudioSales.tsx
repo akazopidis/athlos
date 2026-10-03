@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Empty, Loading, Section } from '@/components/page'
+import { Empty, Loading } from '@/components/page'
 import { useApp } from '../../AppContext.tsx'
 import { formatMoney } from '../../money.ts'
 import { useStudio } from './useStudio.ts'
@@ -36,7 +36,7 @@ export function StudioSales() {
   }
 
   return (
-    <Section title="Sales">
+    <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader>
@@ -92,6 +92,6 @@ export function StudioSales() {
           </Button>
         </nav>
       )}
-    </Section>
+    </div>
   )
 }

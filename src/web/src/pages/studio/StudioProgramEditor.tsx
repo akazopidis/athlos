@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Field, selectClassName } from '@/components/field'
@@ -284,15 +284,15 @@ function Workouts({ slug, programId, workouts }: { slug: string; programId: stri
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <div className="space-y-1">
-          <CardTitle>Workouts</CardTitle>
-          <CardDescription>The paid content: buyers see it, nobody else does.</CardDescription>
-        </div>
+      <CardHeader>
+        <CardTitle>Workouts</CardTitle>
+        <CardDescription>The paid content: buyers see it, nobody else does.</CardDescription>
         {!adding && (
-          <Button size="sm" onClick={() => setAdding(true)}>
-            Add workout
-          </Button>
+          <CardAction>
+            <Button size="sm" onClick={() => setAdding(true)}>
+              Add workout
+            </Button>
+          </CardAction>
         )}
       </CardHeader>
       <CardContent className="space-y-3">

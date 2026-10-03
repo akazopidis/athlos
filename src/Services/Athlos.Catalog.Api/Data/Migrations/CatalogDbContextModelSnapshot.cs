@@ -61,6 +61,10 @@ namespace Athlos.Catalog.Api.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("duration_weeks");
 
+                    b.Property<DateTimeOffset?>("FirstPublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_published_at");
+
                     b.Property<bool>("IsPublished")
                         .HasColumnType("boolean")
                         .HasColumnName("is_published");

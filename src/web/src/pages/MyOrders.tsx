@@ -1,4 +1,8 @@
 import { Link } from 'react-router'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Empty, Loading, Section } from '@/components/page'
 import { formatMoney } from '../money.ts'
 import { useMyOrders } from './useMyOrders.ts'
 
@@ -7,40 +11,51 @@ export function MyOrders() {
   const { orders, returned } = useMyOrders()
 
   return (
-    <section>
-      <h2>My orders</h2>
-      {returned?.status === 'Pending' && <p role="status">Payment received. Confirming your order…</p>}
-      {returned?.status === 'Paid' && <p role="status">Thank you! Your purchase of {returned.programTitle} is confirmed.</p>}
-      {orders.isPending ? (
-        <p>Loading…</p>
-      ) : orders.data?.items.length ? (
-        <table>
-          <thead>
-            <tr>
-              <th>Program</th>
-              <th>Price</th>
-              <th>Status</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.data.items.map((o) => (
-              <tr key={o.id}>
-                <td>
-                  {o.programTitle} <Link to={`/c/${o.coachSlug}`}>({o.coachSlug})</Link>
-                </td>
-                <td>{formatMoney(o.amount, o.currency)}</td>
-                <td>{o.status}</td>
-                <td>{new Date(o.paidAt ?? o.createdAt).toLocaleDateString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p>
-          No orders yet. <Link to="/">Browse programs</Link>
-        </p>
+    <Section title="My orders">
+      {returned?.status === 'Pending' && (
+        <Alert>
+          <AlertDescription>Payment received. Confirming your order…</AlertDescription>
+        </Alert>
       )}
-    </section>
+      {returned?.status === 'Paid' && (
+        <Alert>
+          <AlertDescription>Thank you! Your purchase of {returned.programTitle} is confirmed.</AlertDescription>
+        </Alert>
+      )}
+      {orders.isPending ? (
+        <Loading />
+      ) : orders.data?.items.length ? (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Program</TableHead>
+              <TableHead>Price</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Date</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {orders.data.items.map((o) => (
+              <TableRow key={o.id}>
+                <TableCell>
+                  {o.programTitle}{' '}
+                  <Link to={`/c/${o.coachSlug}`} className="text-muted-foreground underline-offset-4 hover:underline">
+                    {o.coachSlug}
+                  </Link>
+                </TableCell>
+                <TableCell>{formatMoney(o.amount, o.currency)}</TableCell>
+                <TableCell>
+                  {/* An unpaid checkout stays Pending until Stripe expires it (24 hours), then disappears. */}
+                  <Badge variant={o.status === 'Paid' ? 'default' : 'secondary'}>{o.status === 'Pending' ? 'Awaiting payment' : o.status}</Badge>
+                </TableCell>
+                <TableCell>{new Date(o.paidAt ?? o.createdAt).toLocaleDateString()}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <Empty>No orders yet.</Empty>
+      )}
+    </Section>
   )
 }

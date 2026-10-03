@@ -1,15 +1,24 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { ChevronRight } from 'lucide-react'
+import type { FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Field, selectClassName } from '@/components/field'
+import { Empty, Loading, Section } from '@/components/page'
+import { ProgramCover } from '@/components/program-cover'
 import { useApp } from '../AppContext.tsx'
 import { formatMoney } from '../money.ts'
 import { problemTitle } from '../problem.ts'
 
-// The coach's programs (design §8, "/studio/{slug}": programs). A minimal version: create a program,
-// add workouts, publish. Editing and covers come with the full studio in phase 6.
+// The coach's programs (design §8, "/studio/{slug}": programs): the list, each opening its editor,
+// and a form to create one.
 export function StudioPrograms({ slug }: { slug: string }) {
   const { api } = useApp()
-  const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const tenant = { tenantSlug: slug }
 
   const programs = useQuery({
@@ -36,180 +45,88 @@ export function StudioPrograms({ slug }: { slug: string }) {
       if (!data) throw new Error(problemTitle(error) ?? 'Could not create the program.')
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['studio-programs', slug] }),
+    // Straight to the editor: workouts and a cover come next.
+    onSuccess: (created) => navigate(`programs/${created.id}`),
   })
 
   const onCreate = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const form = e.currentTarget
-    create.mutate(new FormData(form), { onSuccess: () => form.reset() })
+    create.mutate(new FormData(e.currentTarget))
   }
 
   return (
-    <section>
-      <h2>Programs</h2>
+    <Section title="Programs">
       {programs.isPending ? (
-        <p>Loading…</p>
+        <Loading />
       ) : programs.data?.length ? (
-        <ul className="studio-programs">
+        <ul className="space-y-3">
           {programs.data.map((p) => (
-            <StudioProgram key={p.id} slug={slug} program={p} />
+            <li key={p.id}>
+              <Link to={`programs/${p.id}`} className="group block">
+                <Card className="transition-shadow group-hover:shadow-md">
+                  <CardContent className="flex items-center gap-4">
+                    <ProgramCover url={p.coverImageUrl} className="w-28 shrink-0 rounded-md" />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="truncate font-medium group-hover:underline">{p.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatMoney(p.priceAmount, p.currency)} · {p.level} · {Number(p.durationWeeks)} weeks
+                      </p>
+                    </div>
+                    <Badge variant={p.isPublished ? 'default' : 'secondary'}>{p.isPublished ? 'Published' : 'Draft'}</Badge>
+                    <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+                  </CardContent>
+                </Card>
+              </Link>
+            </li>
           ))}
         </ul>
       ) : (
-        <p>No programs yet.</p>
+        <Empty>No programs yet. Create your first one below.</Empty>
       )}
 
-      <h3>New program</h3>
-      <form onSubmit={onCreate}>
-        <label>
-          Title
-          <input name="title" required maxLength={120} />
-        </label>
-        <label>
-          Address
-          <input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="strong-start" />
-          <span className="hint">Lowercase letters, digits and dashes; part of the program's link.</span>
-        </label>
-        <label>
-          Description
-          <textarea name="description" rows={3} />
-        </label>
-        <label>
-          Level
-          <select name="level" defaultValue="Beginner">
-            <option>Beginner</option>
-            <option>Intermediate</option>
-            <option>Advanced</option>
-          </select>
-        </label>
-        <label>
-          Weeks
-          <input name="durationWeeks" type="number" min={1} max={52} defaultValue={4} required />
-        </label>
-        <label>
-          Price (EUR)
-          <input name="price" type="number" min={0.5} step={0.01} defaultValue={19} required />
-        </label>
-        <button type="submit" disabled={create.isPending}>
-          Create program
-        </button>
-        {create.error && <p role="alert">{create.error.message}</p>}
-      </form>
-    </section>
-  )
-}
-
-interface ProgramSummary {
-  id: string
-  slug: string
-  title: string
-  priceAmount: number | string
-  currency: string
-  isPublished: boolean
-}
-
-function StudioProgram({ slug, program }: { slug: string; program: ProgramSummary }) {
-  const { api } = useApp()
-  const queryClient = useQueryClient()
-  const [adding, setAdding] = useState(false)
-  const path = { tenantSlug: slug, programId: program.id }
-
-  const workouts = useQuery({
-    queryKey: ['studio-workouts', slug, program.id],
-    queryFn: async () => (await api.GET('/api/v1/studio/{tenantSlug}/programs/{programId}/workouts', { params: { path } })).data ?? [],
-  })
-
-  const publish = useMutation({
-    mutationFn: async () => {
-      const { data, error } = program.isPublished
-        ? await api.POST('/api/v1/studio/{tenantSlug}/programs/{programId}/unpublish', { params: { path } })
-        : await api.POST('/api/v1/studio/{tenantSlug}/programs/{programId}/publish', { params: { path } })
-      if (!data) throw new Error(problemTitle(error) ?? 'Could not change the program.')
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['studio-programs', slug] }),
-  })
-
-  const addWorkout = useMutation({
-    mutationFn: async (form: FormData) => {
-      const text = (name: string) => String(form.get(name) ?? '').trim()
-      const { data, error } = await api.POST('/api/v1/studio/{tenantSlug}/programs/{programId}/workouts', {
-        params: { path },
-        body: {
-          week: Number(text('week')),
-          day: Number(text('day')),
-          title: text('title'),
-          content: text('content'),
-          videoUrl: text('videoUrl') || null,
-        },
-      })
-      if (!data) throw new Error(problemTitle(error) ?? 'Could not add the workout.')
-    },
-    onSuccess: () => {
-      setAdding(false)
-      return queryClient.invalidateQueries({ queryKey: ['studio-workouts', slug, program.id] })
-    },
-  })
-
-  const onAdd = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    addWorkout.mutate(new FormData(e.currentTarget))
-  }
-
-  return (
-    <li>
-      <strong>{program.title}</strong> · {formatMoney(program.priceAmount, program.currency)} ·{' '}
-      {program.isPublished ? (
-        <>
-          published (<Link to={`/c/${slug}/programs/${program.slug}`}>view</Link>)
-        </>
-      ) : (
-        'draft'
-      )}
-      <ol>
-        {workouts.data?.map((w) => (
-          <li key={w.id}>
-            Week {Number(w.week)}, day {Number(w.day)}: {w.title}
-          </li>
-        ))}
-      </ol>
-      <p>
-        <button type="button" onClick={() => publish.mutate()} disabled={publish.isPending}>
-          {program.isPublished ? 'Unpublish' : 'Publish'}
-        </button>{' '}
-        <button type="button" onClick={() => setAdding(!adding)}>
-          Add workout
-        </button>
-      </p>
-      {publish.error && <p role="alert">{publish.error.message}</p>}
-      {adding && (
-        <form onSubmit={onAdd}>
-          <label>
-            Week
-            <input name="week" type="number" min={1} max={52} defaultValue={1} required />
-          </label>
-          <label>
-            Day
-            <input name="day" type="number" min={1} max={7} defaultValue={(workouts.data?.length ?? 0) + 1} required />
-          </label>
-          <label>
-            Title
-            <input name="title" required maxLength={120} />
-          </label>
-          <label>
-            Instructions
-            <textarea name="content" rows={3} />
-          </label>
-          <label>
-            Video link (optional)
-            <input name="videoUrl" type="url" />
-          </label>
-          <button type="submit" disabled={addWorkout.isPending}>
-            Save workout
-          </button>
-          {addWorkout.error && <p role="alert">{addWorkout.error.message}</p>}
-        </form>
-      )}
-    </li>
+      <Card>
+        <CardHeader>
+          <CardTitle>New program</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onCreate} className="grid gap-4 sm:grid-cols-2">
+            <Field id="new-title" label="Title">
+              <Input id="new-title" name="title" required maxLength={120} />
+            </Field>
+            <Field id="new-slug" label="Address" hint="Lowercase letters, digits and dashes; part of the program's link.">
+              <Input id="new-slug" name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="strong-start" />
+            </Field>
+            <Field id="new-description" label="Description" className="sm:col-span-2">
+              <Textarea id="new-description" name="description" rows={3} />
+            </Field>
+            <Field id="new-level" label="Level">
+              <select id="new-level" name="level" defaultValue="Beginner" className={selectClassName}>
+                <option>Beginner</option>
+                <option>Intermediate</option>
+                <option>Advanced</option>
+              </select>
+            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field id="new-weeks" label="Weeks">
+                <Input id="new-weeks" name="durationWeeks" type="number" min={1} max={52} defaultValue={4} required />
+              </Field>
+              <Field id="new-price" label="Price (EUR)">
+                <Input id="new-price" name="price" type="number" min={0.5} step={0.01} defaultValue={19} required />
+              </Field>
+            </div>
+            <div className="flex items-center gap-4 sm:col-span-2">
+              <Button type="submit" disabled={create.isPending}>
+                Create program
+              </Button>
+              {create.error && (
+                <p className="text-sm text-destructive" role="alert">
+                  {create.error.message}
+                </p>
+              )}
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </Section>
   )
 }

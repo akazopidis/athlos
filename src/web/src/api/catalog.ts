@@ -198,6 +198,7 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
             coverImageUrl: null | string;
+            everPublished: boolean;
         };
         /** @enum {unknown} */
         ProgramLevel: "Beginner" | "Intermediate" | "Advanced";

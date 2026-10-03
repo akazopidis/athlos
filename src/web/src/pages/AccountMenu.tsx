@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
+import { Button } from '@/components/ui/button'
 import { useApp } from '../AppContext.tsx'
 
 export function AccountMenu() {
@@ -18,19 +19,21 @@ export function AccountMenu() {
 
   if (!account) {
     return (
-      <button type="button" onClick={() => msal.loginRedirect({ scopes: [config.apiScope!] })}>
+      <Button size="sm" onClick={() => msal.loginRedirect({ scopes: [config.apiScope!] })}>
         Sign in
-      </button>
+      </Button>
     )
   }
 
   return (
-    <nav>
-      <Link to="/me">My account</Link>
-      <span>{account.name ?? account.username}</span>
-      <button type="button" onClick={() => msal.logoutRedirect()}>
+    <nav className="flex items-center gap-3 text-sm">
+      <Button asChild variant="ghost" size="sm">
+        <Link to="/me">My account</Link>
+      </Button>
+      <span className="hidden text-muted-foreground md:inline">{account.name ?? account.username}</span>
+      <Button variant="outline" size="sm" onClick={() => msal.logoutRedirect()}>
         Sign out
-      </button>
+      </Button>
     </nav>
   )
 }

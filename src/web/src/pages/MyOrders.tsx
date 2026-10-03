@@ -45,7 +45,8 @@ export function MyOrders() {
                 </TableCell>
                 <TableCell>{formatMoney(o.amount, o.currency)}</TableCell>
                 <TableCell>
-                  <Badge variant={o.status === 'Paid' ? 'default' : 'secondary'}>{o.status}</Badge>
+                  {/* An unpaid checkout stays Pending until Stripe expires it (24 hours), then disappears. */}
+                  <Badge variant={o.status === 'Paid' ? 'default' : 'secondary'}>{o.status === 'Pending' ? 'Awaiting payment' : o.status}</Badge>
                 </TableCell>
                 <TableCell>{new Date(o.paidAt ?? o.createdAt).toLocaleDateString()}</TableCell>
               </TableRow>

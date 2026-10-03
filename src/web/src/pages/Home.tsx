@@ -1,3 +1,4 @@
+import { useTitle } from '../useTitle.ts'
 import { Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
@@ -12,6 +13,7 @@ import { Levels, useProgramSearch, type Level } from './useProgramSearch.ts'
 // The marketplace (design §8, "/"): browse and search all coaches' published programs.
 export function Home() {
   const { search, update } = useProgramSearch()
+  useTitle('Programs')
   const [text, setText] = useState(search.q ?? '')
 
   // Search as the visitor types, once they pause.

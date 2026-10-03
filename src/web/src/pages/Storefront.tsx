@@ -5,6 +5,7 @@ import { Loading, Section } from '@/components/page'
 import { useApp } from '../AppContext.tsx'
 import { ProgramList } from './ProgramList.tsx'
 import { useProgramSearch } from './useProgramSearch.ts'
+import { useTitle } from '../useTitle.ts'
 
 // The coach's public page, in their own colors (design §8): the visible "your own workspace" part
 // of the thesis. Logo and color come from the workspace settings (studio).
@@ -17,6 +18,8 @@ export function Storefront() {
     queryKey: ['storefront', slug],
     queryFn: async () => (await api.GET('/api/v1/marketplace/coaches/{slug}', { params: { path: { slug } } })).data ?? null,
   })
+
+  useTitle(storefront.data?.displayName)
 
   if (storefront.isPending) return <Loading />
   if (!storefront.data) return <p>Coach not found.</p>

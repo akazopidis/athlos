@@ -12,6 +12,7 @@ import { useApp } from '../AppContext.tsx'
 import { formatMoney } from '../money.ts'
 import { leaveTo } from '../navigation.ts'
 import { problemTitle } from '../problem.ts'
+import { useTitle } from '../useTitle.ts'
 
 // A published program's public page with its Buy button. Buying sends the customer to Stripe
 // Checkout; Stripe returns them to /me (paid) or to the storefront (cancelled).
@@ -32,6 +33,15 @@ export function ProgramPage() {
         })
       ).data ?? null,
   })
+
+  // A customer who already bought it gets the way in, not a second checkout (which would be a 409).
+  const owned = useQuery({
+    queryKey: ['my-programs'],
+    queryFn: async () => (await api.GET('/api/v1/me/programs')).data ?? null,
+    enabled: signedIn,
+  })
+  const ownsIt = Boolean(program.data && owned.data?.items.some((o) => o.programId === program.data?.id))
+  useTitle(program.data?.title)
 
   const buy = useMutation({
     mutationFn: async (programId: string) => {
@@ -73,7 +83,14 @@ export function ProgramPage() {
           <CardContent className="space-y-4">
             <p className="text-3xl font-semibold">{formatMoney(p.priceAmount, p.currency)}</p>
             <p className="text-sm text-muted-foreground">One payment. All workouts, yours to keep.</p>
-            {signedIn ? (
+            {ownsIt ? (
+              <>
+                <p className="text-sm font-medium">You own this program.</p>
+                <Button asChild className="w-full" size="lg">
+                  <Link to={`/me/programs/${p.id}`}>Open program</Link>
+                </Button>
+              </>
+            ) : signedIn ? (
               <Button className="w-full" size="lg" onClick={() => buy.mutate(p.id)} disabled={buy.isPending || buy.isSuccess}>
                 {buy.isPending || buy.isSuccess ? 'Opening checkout…' : 'Buy'}
               </Button>

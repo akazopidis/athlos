@@ -1,20 +1,27 @@
 import { Dumbbell } from 'lucide-react'
+import { lazy, Suspense, type ComponentType } from 'react'
 import { Link, NavLink, Route, Routes } from 'react-router'
 import { cn } from '@/lib/utils'
 import { Footer } from './Footer.tsx'
-import { AcceptInvite } from './pages/AcceptInvite.tsx'
+import { Loading } from '@/components/page'
 import { AccountMenu } from './pages/AccountMenu.tsx'
-import { CreateWorkspace } from './pages/CreateWorkspace.tsx'
 import { Home } from './pages/Home.tsx'
-import { Me } from './pages/Me.tsx'
-import { MyProgramPage } from './pages/MyProgramPage.tsx'
 import { ProgramPage } from './pages/ProgramPage.tsx'
 import { Storefront } from './pages/Storefront.tsx'
-import { Studio } from './pages/Studio.tsx'
-import { StudioOverview } from './pages/studio/StudioOverview.tsx'
-import { StudioProgramEditor } from './pages/studio/StudioProgramEditor.tsx'
-import { StudioSales } from './pages/studio/StudioSales.tsx'
-import { StudioSettings } from './pages/studio/StudioSettings.tsx'
+
+// The public pages a visitor lands on are in the main bundle; the signed-in areas (studio, account,
+// invites) load when first opened, so a marketplace visitor does not download the studio.
+const lazyPage = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
+  lazy(async () => ({ default: (await load())[name] }))
+const AcceptInvite = lazyPage(() => import('./pages/AcceptInvite.tsx'), 'AcceptInvite')
+const CreateWorkspace = lazyPage(() => import('./pages/CreateWorkspace.tsx'), 'CreateWorkspace')
+const Me = lazyPage(() => import('./pages/Me.tsx'), 'Me')
+const MyProgramPage = lazyPage(() => import('./pages/MyProgramPage.tsx'), 'MyProgramPage')
+const Studio = lazyPage(() => import('./pages/Studio.tsx'), 'Studio')
+const StudioOverview = lazyPage(() => import('./pages/studio/StudioOverview.tsx'), 'StudioOverview')
+const StudioProgramEditor = lazyPage(() => import('./pages/studio/StudioProgramEditor.tsx'), 'StudioProgramEditor')
+const StudioSales = lazyPage(() => import('./pages/studio/StudioSales.tsx'), 'StudioSales')
+const StudioSettings = lazyPage(() => import('./pages/studio/StudioSettings.tsx'), 'StudioSettings')
 
 // Four areas (design §8): marketplace, coach storefront, coach studio, customer area.
 export default function App() {
@@ -40,7 +47,8 @@ export default function App() {
         </div>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
-        <Routes>
+        <Suspense fallback={<Loading lines={4} />}>
+          <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/c/:slug" element={<Storefront />} />
           <Route path="/c/:slug/programs/:programSlug" element={<ProgramPage />} />
@@ -54,7 +62,8 @@ export default function App() {
           </Route>
           <Route path="/me" element={<Me />} />
           <Route path="/me/programs/:programId" element={<MyProgramPage />} />
-        </Routes>
+          </Routes>
+        </Suspense>
       </main>
       <Footer />
     </div>

@@ -1,12 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Field, selectClassName } from '@/components/field'
+import { Empty, Loading, Section } from '@/components/page'
 import { useApp } from '../AppContext.tsx'
 import { formatMoney } from '../money.ts'
 import { problemTitle } from '../problem.ts'
 
 // The coach's programs (design §8, "/studio/{slug}": programs). A minimal version: create a program,
-// add workouts, publish. Editing and covers come with the full studio in phase 6.
+// add workouts, publish. Editing and covers come next (phase 6).
 export function StudioPrograms({ slug }: { slug: string }) {
   const { api } = useApp()
   const queryClient = useQueryClient()
@@ -46,57 +54,59 @@ export function StudioPrograms({ slug }: { slug: string }) {
   }
 
   return (
-    <section>
-      <h2>Programs</h2>
+    <Section title="Programs">
       {programs.isPending ? (
-        <p>Loading…</p>
+        <Loading />
       ) : programs.data?.length ? (
-        <ul className="studio-programs">
+        <ul className="space-y-4">
           {programs.data.map((p) => (
             <StudioProgram key={p.id} slug={slug} program={p} />
           ))}
         </ul>
       ) : (
-        <p>No programs yet.</p>
+        <Empty>No programs yet. Create your first one below.</Empty>
       )}
 
-      <h3>New program</h3>
-      <form onSubmit={onCreate}>
-        <label>
-          Title
-          <input name="title" required maxLength={120} />
-        </label>
-        <label>
-          Address
-          <input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="strong-start" />
-          <span className="hint">Lowercase letters, digits and dashes; part of the program's link.</span>
-        </label>
-        <label>
-          Description
-          <textarea name="description" rows={3} />
-        </label>
-        <label>
-          Level
-          <select name="level" defaultValue="Beginner">
-            <option>Beginner</option>
-            <option>Intermediate</option>
-            <option>Advanced</option>
-          </select>
-        </label>
-        <label>
-          Weeks
-          <input name="durationWeeks" type="number" min={1} max={52} defaultValue={4} required />
-        </label>
-        <label>
-          Price (EUR)
-          <input name="price" type="number" min={0.5} step={0.01} defaultValue={19} required />
-        </label>
-        <button type="submit" disabled={create.isPending}>
-          Create program
-        </button>
-        {create.error && <p role="alert">{create.error.message}</p>}
-      </form>
-    </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>New program</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onCreate} className="grid gap-4 sm:grid-cols-2">
+            <Field id="new-title" label="Title">
+              <Input id="new-title" name="title" required maxLength={120} />
+            </Field>
+            <Field id="new-slug" label="Address" hint="Lowercase letters, digits and dashes; part of the program's link.">
+              <Input id="new-slug" name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="strong-start" />
+            </Field>
+            <Field id="new-description" label="Description" className="sm:col-span-2">
+              <Textarea id="new-description" name="description" rows={3} />
+            </Field>
+            <Field id="new-level" label="Level">
+              <select id="new-level" name="level" defaultValue="Beginner" className={selectClassName}>
+                <option>Beginner</option>
+                <option>Intermediate</option>
+                <option>Advanced</option>
+              </select>
+            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field id="new-weeks" label="Weeks">
+                <Input id="new-weeks" name="durationWeeks" type="number" min={1} max={52} defaultValue={4} required />
+              </Field>
+              <Field id="new-price" label="Price (EUR)">
+                <Input id="new-price" name="price" type="number" min={0.5} step={0.01} defaultValue={19} required />
+              </Field>
+            </div>
+            <div className="flex items-center gap-4 sm:col-span-2">
+              <Button type="submit" disabled={create.isPending}>
+                Create program
+              </Button>
+              {create.error && <p className="text-sm text-destructive" role="alert">{create.error.message}</p>}
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </Section>
   )
 }
 
@@ -158,58 +168,78 @@ function StudioProgram({ slug, program }: { slug: string; program: ProgramSummar
 
   return (
     <li>
-      <strong>{program.title}</strong> · {formatMoney(program.priceAmount, program.currency)} ·{' '}
-      {program.isPublished ? (
-        <>
-          published (<Link to={`/c/${slug}/programs/${program.slug}`}>view</Link>)
-        </>
-      ) : (
-        'draft'
-      )}
-      <ol>
-        {workouts.data?.map((w) => (
-          <li key={w.id}>
-            Week {Number(w.week)}, day {Number(w.day)}: {w.title}
-          </li>
-        ))}
-      </ol>
-      <p>
-        <button type="button" onClick={() => publish.mutate()} disabled={publish.isPending}>
-          {program.isPublished ? 'Unpublish' : 'Publish'}
-        </button>{' '}
-        <button type="button" onClick={() => setAdding(!adding)}>
-          Add workout
-        </button>
-      </p>
-      {publish.error && <p role="alert">{publish.error.message}</p>}
-      {adding && (
-        <form onSubmit={onAdd}>
-          <label>
-            Week
-            <input name="week" type="number" min={1} max={52} defaultValue={1} required />
-          </label>
-          <label>
-            Day
-            <input name="day" type="number" min={1} max={7} defaultValue={(workouts.data?.length ?? 0) + 1} required />
-          </label>
-          <label>
-            Title
-            <input name="title" required maxLength={120} />
-          </label>
-          <label>
-            Instructions
-            <textarea name="content" rows={3} />
-          </label>
-          <label>
-            Video link (optional)
-            <input name="videoUrl" type="url" />
-          </label>
-          <button type="submit" disabled={addWorkout.isPending}>
-            Save workout
-          </button>
-          {addWorkout.error && <p role="alert">{addWorkout.error.message}</p>}
-        </form>
-      )}
+      <Card>
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
+          <div className="space-y-1">
+            <CardTitle>{program.title}</CardTitle>
+            <p className="text-sm text-muted-foreground">{formatMoney(program.priceAmount, program.currency)}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {program.isPublished ? (
+              <Button asChild variant="link" size="sm">
+                <Link to={`/c/${slug}/programs/${program.slug}`}>View</Link>
+              </Button>
+            ) : null}
+            <Badge variant={program.isPublished ? 'default' : 'secondary'}>{program.isPublished ? 'Published' : 'Draft'}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {workouts.data?.length ? (
+            <ol className="space-y-1 text-sm">
+              {workouts.data.map((w) => (
+                <li key={w.id}>
+                  <span className="text-muted-foreground">
+                    Week {Number(w.week)}, day {Number(w.day)}:
+                  </span>{' '}
+                  {w.title}
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-sm text-muted-foreground">No workouts yet. Add at least one before publishing.</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant={program.isPublished ? 'outline' : 'default'} onClick={() => publish.mutate()} disabled={publish.isPending}>
+              {program.isPublished ? 'Unpublish' : 'Publish'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setAdding(!adding)}>
+              Add workout
+            </Button>
+          </div>
+          {publish.error && (
+            <Alert variant="destructive">
+              <AlertDescription>{publish.error.message}</AlertDescription>
+            </Alert>
+          )}
+          {adding && (
+            <form onSubmit={onAdd} className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
+              <div className="grid grid-cols-2 gap-4">
+                <Field id={`week-${program.id}`} label="Week">
+                  <Input id={`week-${program.id}`} name="week" type="number" min={1} max={52} defaultValue={1} required />
+                </Field>
+                <Field id={`day-${program.id}`} label="Day">
+                  <Input id={`day-${program.id}`} name="day" type="number" min={1} max={7} defaultValue={(workouts.data?.length ?? 0) + 1} required />
+                </Field>
+              </div>
+              <Field id={`title-${program.id}`} label="Title">
+                <Input id={`title-${program.id}`} name="title" required maxLength={120} />
+              </Field>
+              <Field id={`content-${program.id}`} label="Instructions" className="sm:col-span-2">
+                <Textarea id={`content-${program.id}`} name="content" rows={3} />
+              </Field>
+              <Field id={`video-${program.id}`} label="Video link (optional)" className="sm:col-span-2">
+                <Input id={`video-${program.id}`} name="videoUrl" type="url" />
+              </Field>
+              <div className="flex items-center gap-4 sm:col-span-2">
+                <Button type="submit" size="sm" disabled={addWorkout.isPending}>
+                  Save workout
+                </Button>
+                {addWorkout.error && <p className="text-sm text-destructive" role="alert">{addWorkout.error.message}</p>}
+              </div>
+            </form>
+          )}
+        </CardContent>
+      </Card>
     </li>
   )
 }

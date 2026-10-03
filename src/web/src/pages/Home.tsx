@@ -1,15 +1,18 @@
 import { Link } from 'react-router'
+import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/page'
 import { ProgramList } from './ProgramList.tsx'
 
-// The marketplace (design §8, "/"). Search and filters come with the full UI in phase 6.
+// The marketplace (design §8, "/"): every coach's published programs. Search and filters come next.
 export function Home() {
   return (
-    <section>
-      <h1>Training programs from independent coaches</h1>
+    <>
+      <PageHeader title="Training programs from independent coaches" description="Buy a program once, train at your own pace.">
+        <Button asChild variant="outline">
+          <Link to="/studio/new">Are you a coach? Open your workspace</Link>
+        </Button>
+      </PageHeader>
       <ProgramList />
-      <p>
-        <Link to="/studio/new">Are you a coach? Open your workspace</Link>
-      </p>
-    </section>
+    </>
   )
 }

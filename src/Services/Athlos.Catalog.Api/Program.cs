@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
+using Athlos.Catalog.Api;
 using Athlos.Catalog.Api.Data;
+using Athlos.Catalog.Api.Features.Internal;
 using Athlos.Catalog.Api.Features.Marketplace;
 using Athlos.Catalog.Api.Features.Programs;
 using Athlos.Catalog.Api.Features.Workouts;
@@ -26,12 +28,20 @@ builder.Services.AddTenantDbContext<CatalogDbContext>(options => options
 builder.AddAzureBlobServiceClient("media");
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<MediaStore>();
+// Service-to-service: tenancy-api tells catalog whether a workspace may sell (publish rule, §3.4).
+builder.Services.AddHttpClient<IPayoutReadiness, TenancyPayoutReadiness>(http => http.BaseAddress = new Uri("https+http://tenancy-api"))
+    .AddSignedRequests();
 builder.Services.AddValidation();
 builder.Services.AddOpenApi(options =>
+{
     // Slices nest their Request/Response records; name schemas after the slice (CreateProgramRequest).
     options.CreateSchemaReferenceId = type => type.Type.IsNested
         ? type.Type.DeclaringType!.Name + type.Type.Name
-        : OpenApiOptions.CreateDefaultSchemaReferenceId(type));
+        : OpenApiOptions.CreateDefaultSchemaReferenceId(type);
+    // Studio handlers read the tenant from ITenantContext, not from {tenantSlug}, so the generator
+    // would leave it out and the SPA's typed client could not fill it in.
+    options.AddOperationTransformer<RouteParameterTransformer>();
+});
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
@@ -71,6 +81,15 @@ studio.MapUpdateProgram();
 studio.MapDeleteProgram();
 studio.MapPublishProgram();
 studio.MapProgramCover();
+
+// Other services only (signed): published programs, public-read scope
+app.MapGroup("/internal")
+    .UsePublicReadScope()
+    .WithTenantTransaction<CatalogDbContext>()
+    .MapGetProgramOffer();
+// Other services only (signed): one tenant's paid content; the handler enters that tenant itself
+app.MapGroup("/internal")
+    .MapGetProgramContent();
 studio.MapWorkouts();
 
 app.Run();

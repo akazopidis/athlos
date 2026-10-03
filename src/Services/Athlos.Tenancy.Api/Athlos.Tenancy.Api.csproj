@@ -14,9 +14,11 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Scalar.AspNetCore" />
+    <PackageReference Include="Stripe.net" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\Athlos.Messaging\Athlos.Messaging.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\Athlos.Tenancy\Athlos.Tenancy.csproj" />
     <ProjectReference Include="..\..\ServiceDefaults\Athlos.ServiceDefaults.csproj" />
   </ItemGroup>

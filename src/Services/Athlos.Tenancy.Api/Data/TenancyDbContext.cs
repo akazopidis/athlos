@@ -1,16 +1,21 @@
+using Athlos.Messaging;
 using Athlos.Tenancy.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Athlos.Tenancy.Api.Data;
 
 public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options, ITenantContext tenant)
-    : TenantDbContext(options, tenant)
+    : TenantDbContext(options, tenant), IHasOutbox
 {
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
     public DbSet<Membership> Memberships => Set<Membership>();
 
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+
+    public DbSet<StaffInvite> StaffInvites => Set<StaffInvite>();
+
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -39,6 +44,18 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
             profile.Property(p => p.Email).HasMaxLength(320);
             profile.Property(p => p.DisplayName).HasMaxLength(100);
         });
+
+        modelBuilder.Entity<StaffInvite>(invite =>
+        {
+            invite.HasIndex(i => new { i.TenantId, i.TokenHash }).IsUnique();
+            // One open invite per address and workspace; inviting again replaces it.
+            invite.HasIndex(i => new { i.TenantId, i.Email }).IsUnique().HasFilter("accepted_at IS NULL");
+            invite.Property(i => i.Email).HasMaxLength(320);
+            invite.Property(i => i.TokenHash).HasMaxLength(64).IsFixedLength();
+            invite.HasOne<Tenant>().WithMany().HasForeignKey(i => i.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.ConfigureOutbox();
 
         base.OnModelCreating(modelBuilder);
     }

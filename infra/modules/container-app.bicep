@@ -9,12 +9,18 @@ param image string
 @description('true only for the gateway; every other app is reachable only inside the environment (design §2).')
 param external bool = false
 
+@description('false for a worker without an HTTP API (notifications-worker): no ingress, no HTTP probes, no HTTP scale rule.')
+param ingress bool = true
+
 param minReplicas int = 0
 param maxReplicas int = 3
 param env array = []
 
 @description('Key Vault secrets as { name, keyVaultUrl }, read with the app identity; reference them from env with secretRef.')
 param keyVaultSecrets array = []
+
+@description('Extra KEDA scale rules next to the HTTP rule, for example a Service Bus queue-length rule (design §4).')
+param scaleRules array = []
 
 resource app 'Microsoft.App/containerApps@2025-01-01' = {
   name: name
@@ -28,12 +34,12 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
     workloadProfileName: 'Consumption'
     configuration: {
       activeRevisionsMode: 'Single'
-      ingress: {
+      ingress: ingress ? {
         external: external
         targetPort: 8080
         transport: 'auto'
         allowInsecure: false
-      }
+      } : null
       registries: [
         { server: registryServer, identity: identityId }
       ]
@@ -50,7 +56,7 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
           image: image
           resources: { cpu: json('0.25'), memory: '0.5Gi' }
           env: env
-          probes: [
+          probes: !ingress ? [] : [
             {
               type: 'Liveness'
               httpGet: { path: '/health/live', port: 8080 }
@@ -67,12 +73,12 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
       scale: {
         minReplicas: minReplicas
         maxReplicas: maxReplicas
-        rules: [
+        rules: concat(ingress ? [
           { name: 'http', http: { metadata: { concurrentRequests: '50' } } }
-        ]
+        ] : [], scaleRules)
       }
     }
   }
 }
 
-output fqdn string = app.properties.configuration.ingress.fqdn
+output fqdn string = ingress ? app.properties.configuration.ingress.fqdn : ''

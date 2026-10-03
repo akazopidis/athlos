@@ -65,3 +65,65 @@ label {
   border-top: 6px solid #1a1a1a;
   padding-top: 1rem;
 }
+
+.programs {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 1rem;
+}
+
+.programs li {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.programs img,
+.program .cover {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 0.25rem;
+}
+
+.program {
+  max-width: 40rem;
+}
+
+.program .description {
+  white-space: pre-line;
+}
+
+.program .price {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.25rem 1rem 0.25rem 0;
+}
+
+.workouts {
+  display: grid;
+  gap: 1rem;
+  padding-left: 1.25rem;
+}
+
+.workouts label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.studio-programs {
+  display: grid;
+  gap: 1rem;
+  padding-left: 1.25rem;
+}

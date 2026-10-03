@@ -26,7 +26,7 @@ export function AccountMenu() {
 
   return (
     <nav>
-      <Link to="/me">My workspaces</Link>
+      <Link to="/me">My account</Link>
       <span>{account.name ?? account.username}</span>
       <button type="button" onClick={() => msal.logoutRedirect()}>
         Sign out

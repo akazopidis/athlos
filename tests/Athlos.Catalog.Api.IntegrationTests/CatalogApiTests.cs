@@ -43,6 +43,47 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
     }
 
     [Fact]
+    public async Task A_workspace_without_finished_payouts_cannot_publish()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach);
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/workouts", new { week = 1, day = 1, title = "Day one" });
+        _api.Payouts.NotReady(coach.TenantId);
+
+        var published = await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/publish");
+
+        Assert.Equal(HttpStatusCode.Conflict, published.StatusCode);
+        Assert.Equal(0, (await Search($"?coach={coach.Slug}")).TotalCount);
+    }
+
+    [Fact]
+    public async Task Published_program_page_gives_the_id_checkout_needs()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach, publish: true);
+
+        var page = await Read<ProgramRow>(
+            await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{coach.Slug}/programs/{program.Slug}")));
+
+        Assert.Equal(program.Id, page.Id);
+    }
+
+    // Customers keep what they bought (design §3.4), so the content outlives publishing.
+    [Fact]
+    public async Task Program_content_includes_the_workouts_even_after_unpublishing()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach, publish: true);
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/unpublish");
+
+        var content = await Read<ProgramContent>(
+            await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{coach.TenantId}/programs/{program.Id}/content")));
+
+        Assert.Equal((program.Id, coach.Slug), (content.ProgramId, content.CoachSlug));
+        Assert.Equal("Squat day", Assert.Single(content.Workouts).Title);
+    }
+
+    [Fact]
     public async Task Unpublishing_removes_it_from_the_marketplace()
     {
         var coach = NewCoach();
@@ -146,6 +187,10 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
     public ValueTask DisposeAsync() => _api.DisposeAsync();
 
     private sealed record ProgramRow(Guid Id, string Slug, bool IsPublished);
+
+    private sealed record ProgramContent(Guid ProgramId, string CoachSlug, List<WorkoutRow> Workouts);
+
+    private sealed record WorkoutRow(Guid Id, string Title);
 
     private sealed record SearchItem(string CoachSlug, string Slug, string Title);
 

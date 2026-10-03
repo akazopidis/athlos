@@ -125,6 +125,16 @@
           "Programs"
         ],
         "operationId": "ListPrograms",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -188,6 +198,14 @@
         "operationId": "GetProgram",
         "parameters": [
           {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "programId",
             "in": "path",
             "required": true,
@@ -219,6 +237,14 @@
         ],
         "operationId": "UpdateProgram",
         "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "programId",
             "in": "path",
@@ -262,6 +288,14 @@
         "operationId": "DeleteProgram",
         "parameters": [
           {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "programId",
             "in": "path",
             "required": true,
@@ -288,6 +322,14 @@
         ],
         "operationId": "PublishProgram",
         "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "programId",
             "in": "path",
@@ -323,6 +365,14 @@
         "operationId": "UnpublishProgram",
         "parameters": [
           {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "programId",
             "in": "path",
             "required": true,
@@ -356,6 +406,14 @@
         ],
         "operationId": "UploadProgramCover",
         "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "programId",
             "in": "path",
@@ -409,6 +467,14 @@
         "operationId": "DeleteProgramCover",
         "parameters": [
           {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "programId",
             "in": "path",
             "required": true,
@@ -435,6 +501,14 @@
         ],
         "operationId": "ListWorkouts",
         "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "programId",
             "in": "path",
@@ -523,6 +597,14 @@
         "operationId": "UpdateWorkout",
         "parameters": [
           {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "programId",
             "in": "path",
             "required": true,
@@ -573,6 +655,14 @@
         ],
         "operationId": "DeleteWorkout",
         "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "programId",
             "in": "path",
@@ -667,6 +757,7 @@
       },
       "GetPublishedProgramResponse": {
         "required": [
+          "id",
           "coachSlug",
           "slug",
           "title",
@@ -679,6 +770,10 @@
         ],
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "coachSlug": {
             "type": "string"
           },

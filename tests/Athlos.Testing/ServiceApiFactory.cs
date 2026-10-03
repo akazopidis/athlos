@@ -1,9 +1,15 @@
 using System.Net.Http.Headers;
 using Athlos.Catalog.Api.Data;
+using Athlos.Messaging;
+using Athlos.Ordering.Api.Data;
+using Athlos.Ordering.Api.Features.Checkout;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Api.Data;
+using Athlos.Tenancy.Api.Features.Payouts;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Athlos.Testing;
@@ -46,9 +52,41 @@ public abstract class ServiceApiFactory<TAnchor>(AthlosDatabases databases, stri
     }
 }
 
-public sealed class TenancyApiFactory(AthlosDatabases databases) : ServiceApiFactory<TenancyDbContext>(databases, "tenancy");
+public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConnect? stripe = null)
+    : ServiceApiFactory<TenancyDbContext>(databases, "tenancy")
+{
+    public const string PublicUrl = "https://athlos.test";
 
-public sealed class CatalogApiFactory(AthlosDatabases databases, AthlosStorage storage) : ServiceApiFactory<CatalogDbContext>(databases, "catalog", storage);
+    // The invite emails tenancy-api queues (design §5.2), as the outbox publisher would send them.
+    public CapturingMessageSender Messages { get; } = new();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("App:PublicUrl", PublicUrl);
+        // The client is never used: tests replace the sender. Aspire only needs a well-formed value.
+        builder.UseSetting("ConnectionStrings:messaging", "Endpoint=sb://localhost;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
+        builder.ConfigureTestServices(services => services.AddSingleton<IMessageSender>(Messages));
+
+        // Without a fake, Stripe counts as not configured, as in an environment without a key.
+        if (stripe is not null)
+        {
+            builder.ConfigureTestServices(services => services.AddSingleton<IStripeConnect>(stripe));
+        }
+    }
+}
+
+public sealed class CatalogApiFactory(AthlosDatabases databases, AthlosStorage storage)
+    : ServiceApiFactory<CatalogDbContext>(databases, "catalog", storage)
+{
+    public FakePayoutReadiness Payouts { get; } = new();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.ConfigureTestServices(services => services.AddSingleton<Athlos.Catalog.Api.Features.Programs.IPayoutReadiness>(Payouts));
+    }
+}
 
 // The signing key the services under test trust, standing in for the gateway's.
 public static class TestGateway
@@ -57,4 +95,36 @@ public static class TestGateway
 
     public static GatewaySignature Signer(TimeProvider time) =>
         new(Options.Create(new GatewaySignatureOptions { Key = SigningKey }), time);
+}
+
+public sealed class OrderingApiFactory(AthlosDatabases databases) : ServiceApiFactory<OrderingDbContext>(databases, "ordering")
+{
+    public FakeSellerDirectory Sellers { get; } = new();
+
+    public FakeCheckoutSessions CheckoutSessions { get; } = new();
+
+    public CapturingMessageSender Messages { get; } = new();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("App:PublicUrl", TenancyApiFactory.PublicUrl);
+        builder.UseSetting("Stripe:WebhookSecret", StripeEvents.SigningSecret);
+        // The client is never used: tests replace the sender. Aspire only needs a well-formed value.
+        builder.UseSetting("ConnectionStrings:messaging", "Endpoint=sb://localhost;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<ISellerDirectory>(Sellers);
+            services.AddSingleton<ICheckoutSessions>(CheckoutSessions);
+            services.AddSingleton<IMessageSender>(Messages);
+        });
+    }
+
+    // Sends a Stripe webhook the way Stripe (through the gateway) would.
+    public Task<HttpResponseMessage> SendWebhook(string payload, string? signature = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/webhooks/stripe") { Content = new StringContent(payload) };
+        request.Headers.Add("Stripe-Signature", signature ?? StripeEvents.Signature(payload));
+        return SendAsGateway(request);
+    }
 }

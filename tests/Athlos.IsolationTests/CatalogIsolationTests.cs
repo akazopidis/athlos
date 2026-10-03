@@ -79,6 +79,8 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         { "DELETE", $"/api/v1/studio/some-coach/programs/{Guid.Empty}/workouts/{Guid.Empty}" },
         { "PUT", $"/api/v1/studio/some-coach/programs/{Guid.Empty}/cover" },
         { "DELETE", $"/api/v1/studio/some-coach/programs/{Guid.Empty}/cover" },
+        { "GET", $"/internal/programs/{Guid.Empty}/offer" },
+        { "GET", $"/internal/tenants/{Guid.Empty}/programs/{Guid.Empty}/content" },
     };
 
     [Theory]
@@ -93,6 +95,17 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         var response = await _api.CreateClient().SendAsync(request, Cancel);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // enrollment-api names the tenant from the customer's enrollment; naming another tenant finds
+    // nothing, because catalog reads inside that tenant only.
+    [Fact]
+    public async Task As_paid_content_is_not_found_under_Bs_tenant()
+    {
+        var underB = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{_b.TenantId}/programs/{_aPublished.Id}/content"));
+        var underA = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{_a.TenantId}/programs/{_aPublished.Id}/content"));
+
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.OK), (underB.StatusCode, underA.StatusCode));
     }
 
     [Fact]

@@ -34,7 +34,7 @@ export function MyWorkspaces() {
                 to={`/studio/${m.slug}`}
                 className="group flex items-center gap-4 rounded-2xl border bg-card p-4 transition-shadow outline-none hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-ink font-heading text-lg font-extrabold text-ink-foreground" aria-hidden>
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary font-heading text-lg font-extrabold text-primary-foreground" aria-hidden>
                   {m.displayName.slice(0, 1).toUpperCase()}
                 </span>
                 <span className="min-w-0 flex-1">

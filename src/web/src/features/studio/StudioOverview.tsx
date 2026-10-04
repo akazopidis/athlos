@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Section } from '@/components/page'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useApp } from '@/lib/AppContext'
 import { problemTitle } from '@/lib/problem'
 import { StudioPrograms } from './StudioPrograms.tsx'
@@ -36,7 +37,10 @@ export function StudioOverview() {
   return (
     <div className="space-y-12">
       <Section title="Payouts">
-        {payouts.data?.onboardingComplete ? (
+        {/* Nothing until the status is known: a call to action that then disappears would mislead. */}
+        {payouts.isPending ? (
+          <Skeleton className="h-20 w-full rounded-xl" />
+        ) : payouts.data?.onboardingComplete ? (
           <Alert>
             <CircleCheck aria-hidden />
             <AlertDescription>Payouts are set up. You can publish programs.</AlertDescription>

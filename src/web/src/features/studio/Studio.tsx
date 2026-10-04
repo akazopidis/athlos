@@ -29,7 +29,7 @@ export function Studio() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-center gap-4">
         <span
-          className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-ink font-heading text-2xl font-extrabold text-ink-foreground"
+          className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary font-heading text-2xl font-extrabold text-primary-foreground"
           style={branding.primaryColor ? { backgroundColor: branding.primaryColor, color: readableOn(branding.primaryColor) } : undefined}
           aria-hidden
         >
@@ -49,7 +49,7 @@ export function Studio() {
           </Button>
         </div>
       </div>
-      <nav className="-mx-4 overflow-x-auto border-b px-4 sm:mx-0 sm:px-0" aria-label="Studio">
+      <nav className="-mx-4 overflow-x-auto overflow-y-hidden border-b px-4 [scrollbar-width:none] sm:mx-0 sm:px-0" aria-label="Studio">
         <div className="flex gap-1">
           {tabs.map((tab) => (
             <NavLink

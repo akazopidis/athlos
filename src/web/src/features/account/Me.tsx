@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/page'
-import { useApp } from '../AppContext.tsx'
-import { useTitle } from '../useTitle.ts'
+import { useApp } from '@/lib/AppContext'
+import { useTitle } from '@/lib/useTitle'
 import { MyOrders } from './MyOrders.tsx'
 import { MyPrograms } from './MyPrograms.tsx'
 import { MyWorkspaces } from './MyWorkspaces.tsx'

@@ -4,8 +4,8 @@ import { Link, useParams } from 'react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useApp } from '../AppContext.tsx'
-import { useTitle } from '../useTitle.ts'
+import { useApp } from '@/lib/AppContext'
+import { useTitle } from '@/lib/useTitle'
 
 const TokenKey = 'athlos.invite-token'
 

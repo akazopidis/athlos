@@ -10,9 +10,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Field, selectClassName } from '@/components/field'
 import { Empty, Loading, Section } from '@/components/page'
 import { ProgramCover } from '@/components/program-cover'
-import { useApp } from '../AppContext.tsx'
-import { formatMoney } from '../money.ts'
-import { problemTitle } from '../problem.ts'
+import { useApp } from '@/lib/AppContext'
+import { formatMoney } from '@/lib/money'
+import { problemTitle } from '@/lib/problem'
 
 // The coach's programs (design §8, "/studio/{slug}": programs): the list, each opening its editor,
 // and a form to create one.

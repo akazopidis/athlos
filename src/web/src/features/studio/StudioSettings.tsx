@@ -6,9 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/field'
 import { Section } from '@/components/page'
-import { useApp } from '../../AppContext.tsx'
-import { problemTitle } from '../../problem.ts'
-import { StudioTeam } from '../StudioTeam.tsx'
+import { useApp } from '@/lib/AppContext'
+import { problemTitle } from '@/lib/problem'
+import { StudioTeam } from './StudioTeam.tsx'
 import { useStudio } from './useStudio.ts'
 
 const DefaultColor = '#18181b'

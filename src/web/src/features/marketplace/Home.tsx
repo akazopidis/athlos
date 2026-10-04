@@ -1,4 +1,4 @@
-import { useTitle } from '../useTitle.ts'
+import { useTitle } from '@/lib/useTitle'
 import { Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'

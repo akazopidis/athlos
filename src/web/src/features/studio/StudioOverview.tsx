@@ -4,9 +4,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Section } from '@/components/page'
-import { useApp } from '../../AppContext.tsx'
-import { problemTitle } from '../../problem.ts'
-import { StudioPrograms } from '../StudioPrograms.tsx'
+import { useApp } from '@/lib/AppContext'
+import { problemTitle } from '@/lib/problem'
+import { StudioPrograms } from './StudioPrograms.tsx'
 import { useStudio } from './useStudio.ts'
 
 // The studio's first tab: payout setup (needed before publishing, design §3.4) and the programs.

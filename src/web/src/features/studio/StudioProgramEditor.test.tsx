@@ -3,8 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
-import { createApi } from '../../api/client.ts'
-import { AppContext } from '../../AppContext.tsx'
+import { createApi } from '@/api/client'
+import { AppContext } from '@/lib/AppContext'
 import { StudioProgramEditor } from './StudioProgramEditor.tsx'
 
 afterEach(() => vi.unstubAllGlobals())

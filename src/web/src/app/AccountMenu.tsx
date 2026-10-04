@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
-import { useApp } from '../AppContext.tsx'
+import { useApp } from '@/lib/AppContext'
 
 export function AccountMenu() {
   const { msal, config, api } = useApp()

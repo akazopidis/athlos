@@ -2,10 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams, useSearchParams } from 'react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loading, Section } from '@/components/page'
-import { useApp } from '../AppContext.tsx'
+import { useApp } from '@/lib/AppContext'
 import { ProgramList } from './ProgramList.tsx'
 import { useProgramSearch } from './useProgramSearch.ts'
-import { useTitle } from '../useTitle.ts'
+import { useTitle } from '@/lib/useTitle'
 
 // The coach's public page, in their own colors (design §8): the visible "your own workspace" part
 // of the thesis. Logo and color come from the workspace settings (studio).

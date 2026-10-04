@@ -3,7 +3,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Empty, Loading, Section } from '@/components/page'
-import { formatMoney } from '../money.ts'
+import { formatMoney } from '@/lib/money'
 import { useMyOrders } from './useMyOrders.ts'
 
 // The customer's orders across all coaches (design §8, "/me").

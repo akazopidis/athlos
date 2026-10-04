@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router'
-import { useApp } from '../AppContext.tsx'
+import { useApp } from '@/lib/AppContext'
 
 // The customer's orders, and the one Stripe just returned them from (?checkout=success&order=<id>).
 // The order turns Paid only when Stripe's webhook arrives, usually a moment later, so the list is

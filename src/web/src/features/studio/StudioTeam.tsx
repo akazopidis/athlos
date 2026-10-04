@@ -7,8 +7,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/field'
 import { Section } from '@/components/page'
-import { useApp } from '../AppContext.tsx'
-import { problemTitle } from '../problem.ts'
+import { useApp } from '@/lib/AppContext'
+import { problemTitle } from '@/lib/problem'
 
 // The owner's team (design §5.2): invite staff by email, see open invites, revoke one.
 // Shown to owners only; tenancy-api answers 403 to staff anyway.

@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, Loading } from '@/components/page'
 import { ProgramCover } from '@/components/program-cover'
-import { useApp } from '../AppContext.tsx'
-import { formatMoney } from '../money.ts'
+import { useApp } from '@/lib/AppContext'
+import { formatMoney } from '@/lib/money'
 import { PageSize, type ProgramSearch } from './useProgramSearch.ts'
 
 // Published programs, newest first (catalog's SearchPrograms, design §8): every coach's on the

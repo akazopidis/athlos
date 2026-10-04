@@ -1,6 +1,6 @@
 import type { PublicClientApplication } from '@azure/msal-browser'
 import createClient, { type Middleware } from 'openapi-fetch'
-import { getAccessToken } from '../auth.ts'
+import { getAccessToken } from '@/lib/auth'
 import type { paths as catalogPaths } from './catalog.ts'
 import type { paths as enrollmentPaths } from './enrollment.ts'
 import type { paths as orderingPaths } from './ordering.ts'

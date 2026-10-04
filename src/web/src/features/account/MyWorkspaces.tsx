@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
+import { ChevronRight, Plus, Store } from 'lucide-react'
 import { Link } from 'react-router'
+import { Empty, Loading, Section } from '@/components/page'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardAction, CardHeader, CardTitle } from '@/components/ui/card'
-import { Empty, Loading, Section } from '@/components/page'
 import { useApp } from '@/lib/AppContext'
 
 export function MyWorkspaces() {
@@ -18,31 +18,37 @@ export function MyWorkspaces() {
       title="My workspaces"
       action={
         <Button asChild variant="outline" size="sm">
-          <Link to="/studio/new">Open a workspace</Link>
+          <Link to="/studio/new">
+            <Plus aria-hidden /> Open a workspace
+          </Link>
         </Button>
       }
     >
       {memberships.isPending ? (
         <Loading />
       ) : memberships.data?.length ? (
-        <ul className="grid gap-4 sm:grid-cols-2">
+        <ul className="grid gap-3 sm:grid-cols-2">
           {memberships.data.map((m) => (
             <li key={m.tenantId}>
-              <Link to={`/studio/${m.slug}`} className="group block">
-                <Card className="transition-shadow group-hover:shadow-md">
-                  <CardHeader>
-                    <CardTitle className="group-hover:underline">{m.displayName}</CardTitle>
-                    <CardAction>
-                      <Badge variant="outline">{m.role}</Badge>
-                    </CardAction>
-                  </CardHeader>
-                </Card>
+              <Link
+                to={`/studio/${m.slug}`}
+                className="group flex items-center gap-4 rounded-2xl border bg-card p-4 transition-shadow outline-none hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-ink font-heading text-lg font-extrabold text-ink-foreground" aria-hidden>
+                  {m.displayName.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold underline-offset-4 group-hover:underline">{m.displayName}</span>
+                  <span className="text-sm text-muted-foreground">Studio</span>
+                </span>
+                <Badge variant="outline">{m.role}</Badge>
+                <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
               </Link>
             </li>
           ))}
         </ul>
       ) : (
-        <Empty>You don't coach in a workspace yet.</Empty>
+        <Empty icon={<Store />}>You don't coach in a workspace yet. Open one to sell your own programs.</Empty>
       )}
     </Section>
   )

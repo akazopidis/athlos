@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { CircleCheck } from 'lucide-react'
+import { CircleCheck, Wallet } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -42,9 +42,15 @@ export function StudioOverview() {
             <AlertDescription>Payouts are set up. You can publish programs.</AlertDescription>
           </Alert>
         ) : (
-          <Card>
-            <CardContent className="flex flex-wrap items-center justify-between gap-4">
-              <p className="text-sm text-muted-foreground">Set up payouts with Stripe before publishing programs.</p>
+          <Card className="border-volt bg-volt/15">
+            <CardContent className="flex flex-wrap items-center gap-4">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-volt text-volt-foreground">
+                <Wallet className="size-5" aria-hidden />
+              </span>
+              <div className="min-w-0 flex-1 basis-56">
+                <p className="font-semibold">Get paid for your programs</p>
+                <p className="text-sm text-muted-foreground">Set up payouts with Stripe before publishing programs. Payments go straight to your account.</p>
+              </div>
               <Button onClick={() => onboarding.mutate()} disabled={onboarding.isPending}>
                 {payouts.data?.connected ? 'Continue payout setup' : 'Set up payouts'}
               </Button>

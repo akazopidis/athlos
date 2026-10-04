@@ -59,7 +59,7 @@ test('ticking a workout marks it done', async () => {
     </AppContext.Provider>,
   )
 
-  expect(await screen.findByText('Workouts (1 of 2 done)')).toBeInTheDocument()
+  expect(await screen.findByText('1 of 2 workouts done')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('checkbox', { name: /Day 2/ }))
 
   await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true))

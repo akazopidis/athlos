@@ -455,6 +455,8 @@ athlos/
 
 **Code layout: feature folders**, the frontend's counterpart of the backend's vertical slices. Each area of the SPA is one folder under `src/features/` with its pages, hooks and tests. A feature imports only its own files and the shared `components/`, `lib/` and `api/`; never another feature. `src/app/` is the only place that composes features (the routes). ESLint's `no-restricted-imports` enforces both rules.
 
+**Look and responsiveness:** Athlos' own colors are ink (near-black) and volt (a sporty yellow-green), with Archivo for headings and Geist for text, both bundled (the CSP allows only self-hosted fonts). Dark mode follows the operating system. Inside a storefront and its program pages, the coach's brand color replaces the primary color, with black or white text picked by contrast. Mobile-first Tailwind breakpoints, touch targets of at least 40 px, and no UI library in the first page load beyond the shadcn copies (the menus are plain disclosures).
+
 One SPA with four areas:
 - `/` marketplace: browse and search all coaches' published programs.
 - `/c/{slug}` coach storefront: the tenant's branded page (logo, colors from workspace settings). This is the visible "configure your dedicated workspace" part of the thesis.

@@ -248,7 +248,7 @@ function CoverCard({ slug, programId, coverImageUrl, onChanged }: { slug: string
         <CardDescription>JPEG, PNG or WebP, up to 2 MB.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ProgramCover url={coverImageUrl} className="rounded-lg" />
+        <ProgramCover url={coverImageUrl} className="rounded-xl" />
         <input
           ref={input}
           type="file"

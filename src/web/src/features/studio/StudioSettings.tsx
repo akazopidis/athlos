@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { StorefrontBanner } from '@/components/brand'
 import { Field } from '@/components/field'
 import { Section } from '@/components/page'
 import { useApp } from '@/lib/AppContext'
@@ -75,7 +76,7 @@ export function StudioSettings() {
                         type="color"
                         value={color}
                         onChange={(e) => setColor(e.target.value)}
-                        className="h-9 w-14 cursor-pointer rounded-md border bg-transparent p-1"
+                        className="h-10 w-16 cursor-pointer rounded-lg border bg-transparent p-1"
                       />
                       <span className="font-mono text-sm text-muted-foreground">{color}</span>
                     </div>
@@ -105,22 +106,7 @@ export function StudioSettings() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div
-                className="relative overflow-hidden rounded-xl border px-5 py-8"
-                style={{ backgroundColor: `color-mix(in oklab, ${color} 14%, transparent)`, borderColor: color }}
-              >
-                <div className="absolute inset-x-0 top-0 h-1.5" style={{ backgroundColor: color }} aria-hidden />
-                <div className="flex items-center gap-4">
-                  {logo ? (
-                    <img src={logo} alt="" className="size-12 rounded-lg bg-background object-cover shadow-sm" />
-                  ) : (
-                    <div className="flex size-12 items-center justify-center rounded-lg text-xl font-semibold text-white" style={{ backgroundColor: color }} aria-hidden>
-                      {(name || '?').slice(0, 1).toUpperCase()}
-                    </div>
-                  )}
-                  <p className="text-xl font-semibold tracking-tight">{name || 'Your workspace'}</p>
-                </div>
-              </div>
+              <StorefrontBanner name={name} logoUrl={logo || null} color={color} heading="p" className="rounded-2xl" innerClassName="px-5 py-8" />
             </CardContent>
           </Card>
         </div>

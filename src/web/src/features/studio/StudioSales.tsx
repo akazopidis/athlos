@@ -25,7 +25,7 @@ export function StudioSales() {
   })
 
   if (sales.isPending) return <Loading />
-  if (!sales.data?.items.length) return <Empty>No sales yet. They appear here once a customer pays.</Empty>
+  if (!sales.data?.items.length) return <Empty title="No sales yet">They appear here once a customer pays.</Empty>
 
   const total = Number(sales.data.totalCount)
   const pages = Math.max(1, Math.ceil(total / PageSize))
@@ -41,13 +41,13 @@ export function StudioSales() {
         <Card>
           <CardHeader>
             <CardDescription>Sales</CardDescription>
-            <CardTitle className="text-3xl">{total}</CardTitle>
+            <CardTitle className="font-heading text-4xl font-black tabular-nums">{total}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader>
             <CardDescription>Your share{pages > 1 ? ' (this page)' : ''}, after the platform fee</CardDescription>
-            <CardTitle className="text-3xl">
+            <CardTitle className="font-heading text-4xl font-black tabular-nums">
               {[...earnings].map(([currency, amount]) => formatMoney(amount, currency)).join(' + ')}
             </CardTitle>
           </CardHeader>
@@ -60,8 +60,8 @@ export function StudioSales() {
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Program</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead className="text-right">Price</TableHead>
+                <TableHead className="hidden md:table-cell">Customer</TableHead>
+                <TableHead className="hidden text-right sm:table-cell">Price</TableHead>
                 <TableHead className="text-right">Your share</TableHead>
               </TableRow>
             </TableHeader>
@@ -69,10 +69,10 @@ export function StudioSales() {
               {sales.data.items.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell>{new Date(s.paidAt).toLocaleDateString()}</TableCell>
-                  <TableCell>{s.programTitle}</TableCell>
-                  <TableCell className="text-muted-foreground">{s.customerEmail}</TableCell>
-                  <TableCell className="text-right">{formatMoney(s.amount, s.currency)}</TableCell>
-                  <TableCell className="text-right">{formatMoney(Number(s.amount) - Number(s.platformFee), s.currency)}</TableCell>
+                  <TableCell className="max-w-48 truncate">{s.programTitle}</TableCell>
+                  <TableCell className="hidden text-muted-foreground md:table-cell">{s.customerEmail}</TableCell>
+                  <TableCell className="hidden text-right tabular-nums sm:table-cell">{formatMoney(s.amount, s.currency)}</TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">{formatMoney(Number(s.amount) - Number(s.platformFee), s.currency)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -81,13 +81,13 @@ export function StudioSales() {
       </Card>
       {pages > 1 && (
         <nav className="flex items-center justify-center gap-4" aria-label="Pages">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+          <Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>
             Previous
           </Button>
           <span className="text-sm text-muted-foreground">
             Page {page} of {pages}
           </span>
-          <Button variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>
+          <Button variant="outline" disabled={page >= pages} onClick={() => setPage(page + 1)}>
             Next
           </Button>
         </nav>

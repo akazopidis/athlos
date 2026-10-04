@@ -41,6 +41,9 @@ function renderPage(checkout: (request: Request) => Response, owned: string[] = 
     vi.fn(async (request: Request) => {
       requests.push(request.clone())
       if (request.method === 'POST') return checkout(request)
+      if (new URL(request.url).pathname === '/api/v1/marketplace/coaches/anna') {
+        return Response.json({ slug: 'anna', displayName: 'Anna Coaching', branding: { logoUrl: null, primaryColor: '#1d4ed8' } })
+      }
       if (new URL(request.url).pathname === '/api/v1/me/programs') {
         return Response.json({ items: owned.map((programId) => ({ programId })), page: 1, pageSize: 20, totalCount: owned.length })
       }
@@ -67,6 +70,8 @@ test('Buy starts checkout for the program and leaves for Stripe', async () => {
   const requests = renderPage(() => Response.json({ orderId: 'order', checkoutUrl: 'https://checkout.stripe.test/s' }))
 
   expect(await screen.findByText('€49.00')).toBeInTheDocument()
+  // The coach's name, from the storefront, links back to it (the back link and the byline).
+  for (const link of await screen.findAllByRole('link', { name: 'Anna Coaching' })) expect(link).toHaveAttribute('href', '/c/anna')
   fireEvent.click(screen.getByRole('button', { name: 'Buy' }))
 
   await waitFor(() => expect(leaveTo).toHaveBeenCalledWith('https://checkout.stripe.test/s'))

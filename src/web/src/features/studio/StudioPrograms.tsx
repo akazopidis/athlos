@@ -63,17 +63,22 @@ export function StudioPrograms({ slug }: { slug: string }) {
           {programs.data.map((p) => (
             <li key={p.id}>
               <Link to={`programs/${p.id}`} className="group block">
-                <Card className="transition-shadow group-hover:shadow-md">
-                  <CardContent className="flex items-center gap-4">
-                    <ProgramCover url={p.coverImageUrl} className="w-28 shrink-0 rounded-md" />
+                <Card className="py-3 transition-shadow group-hover:shadow-md">
+                  <CardContent className="flex items-center gap-3 px-3 sm:gap-4">
+                    <ProgramCover url={p.coverImageUrl} title={p.title} className="w-20 shrink-0 rounded-xl sm:w-28" />
                     <div className="min-w-0 flex-1 space-y-1">
-                      <p className="truncate font-medium group-hover:underline">{p.title}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="truncate font-semibold underline-offset-4 group-hover:underline">{p.title}</p>
+                      <p className="truncate text-sm text-muted-foreground">
                         {formatMoney(p.priceAmount, p.currency)} · {p.level} · {Number(p.durationWeeks)} weeks
                       </p>
+                      <Badge variant={p.isPublished ? 'default' : 'secondary'} className="sm:hidden">
+                        {p.isPublished ? 'Published' : 'Draft'}
+                      </Badge>
                     </div>
-                    <Badge variant={p.isPublished ? 'default' : 'secondary'}>{p.isPublished ? 'Published' : 'Draft'}</Badge>
-                    <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+                    <Badge variant={p.isPublished ? 'default' : 'secondary'} className="hidden sm:inline-flex">
+                      {p.isPublished ? 'Published' : 'Draft'}
+                    </Badge>
+                    <ChevronRight className="hidden size-4 text-muted-foreground sm:block" aria-hidden />
                   </CardContent>
                 </Card>
               </Link>
@@ -81,7 +86,7 @@ export function StudioPrograms({ slug }: { slug: string }) {
           ))}
         </ul>
       ) : (
-        <Empty>No programs yet. Create your first one below.</Empty>
+        <Empty title="No programs yet">Create your first one below; workouts and a cover come next.</Empty>
       )}
 
       <Card>

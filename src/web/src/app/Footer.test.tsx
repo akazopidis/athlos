@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
 import { Footer } from './Footer.tsx'
 
@@ -10,7 +11,9 @@ test('shows the version reported by the gateway', async () => {
 
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <Footer />
+      <MemoryRouter>
+        <Footer />
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 

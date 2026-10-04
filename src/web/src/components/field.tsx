@@ -15,4 +15,4 @@ export function Field({ id, label, hint, className, children }: { id: string; la
 
 // A native select styled like the inputs; it keeps working with FormData.
 export const selectClassName =
-  'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
+  'h-10 w-full rounded-lg border border-input bg-transparent px-3 text-base md:text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'

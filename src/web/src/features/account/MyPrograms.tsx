@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, Loading, Section } from '@/components/page'
-import { useApp } from '../AppContext.tsx'
+import { useApp } from '@/lib/AppContext'
 import { useMyOrders } from './useMyOrders.ts'
 
 // The programs the customer bought (design §8, "/me": purchased programs and progress).

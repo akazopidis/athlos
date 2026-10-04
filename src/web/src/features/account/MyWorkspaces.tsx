@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, Loading, Section } from '@/components/page'
-import { useApp } from '../AppContext.tsx'
+import { useApp } from '@/lib/AppContext'
 
 export function MyWorkspaces() {
   const { api } = useApp()

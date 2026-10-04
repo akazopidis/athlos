@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useApp } from '../AppContext.tsx'
-import { useTitle } from '../useTitle.ts'
-import { slugFrom } from '../slug.ts'
+import { useApp } from '@/lib/AppContext'
+import { useTitle } from '@/lib/useTitle'
+import { slugFrom } from '@/lib/slug'
 
 // Becoming a coach (design §5): the signed-in user creates a workspace and becomes its owner.
 export function CreateWorkspace() {

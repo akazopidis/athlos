@@ -388,7 +388,12 @@ athlos/
 │  │  └─ Athlos.Enrollment.Api/
 │  ├─ Workers/Athlos.Notifications.Worker/  # email sender, templates
 │  ├─ Tools/Athlos.DbMigrator/ # EF migrations + roles + RLS policies, deployed as ACA Job
-│  └─ web/                     # React SPA (Vite)
+│  └─ web/src/                 # React SPA (Vite), feature folders (§8)
+│     ├─ app/                  # shell: routes, header, footer
+│     ├─ features/             # marketplace/, account/, studio/: one folder per area
+│     ├─ components/           # shared UI; ui/ holds the shadcn/ui copies
+│     ├─ lib/                  # app services (config, MSAL, API context), money, helpers
+│     └─ api/                  # client generated from the OpenAPI documents
 ├─ tests/
 │  ├─ *.UnitTests/
 │  ├─ *.IntegrationTests/      # Testcontainers
@@ -447,6 +452,8 @@ athlos/
 | UI | Tailwind CSS + shadcn/ui (copy-in components, no heavy UI framework) |
 | API client | `openapi-typescript` + `openapi-fetch`, generated from the services' OpenAPI docs, so the client is typed end to end |
 | Tests | Vitest + Testing Library; Playwright for 2–3 end-to-end happy paths (optional) |
+
+**Code layout: feature folders**, the frontend's counterpart of the backend's vertical slices. Each area of the SPA is one folder under `src/features/` with its pages, hooks and tests. A feature imports only its own files and the shared `components/`, `lib/` and `api/`; never another feature. `src/app/` is the only place that composes features (the routes). ESLint's `no-restricted-imports` enforces both rules.
 
 One SPA with four areas:
 - `/` marketplace: browse and search all coaches' published programs.

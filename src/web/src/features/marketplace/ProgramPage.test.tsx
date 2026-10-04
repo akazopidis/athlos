@@ -3,12 +3,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
-import { createApi } from '../api/client.ts'
-import { AppContext } from '../AppContext.tsx'
-import { leaveTo } from '../navigation.ts'
+import { createApi } from '@/api/client'
+import { AppContext } from '@/lib/AppContext'
+import { leaveTo } from '@/lib/navigation'
 import { ProgramPage } from './ProgramPage.tsx'
 
-vi.mock('../navigation.ts', () => ({ leaveTo: vi.fn() }))
+vi.mock('@/lib/navigation', () => ({ leaveTo: vi.fn() }))
 
 afterEach(() => {
   vi.unstubAllGlobals()

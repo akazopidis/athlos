@@ -8,11 +8,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Loading } from '@/components/page'
 import { ProgramCover } from '@/components/program-cover'
-import { useApp } from '../AppContext.tsx'
-import { formatMoney } from '../money.ts'
-import { leaveTo } from '../navigation.ts'
-import { problemTitle } from '../problem.ts'
-import { useTitle } from '../useTitle.ts'
+import { useApp } from '@/lib/AppContext'
+import { formatMoney } from '@/lib/money'
+import { leaveTo } from '@/lib/navigation'
+import { problemTitle } from '@/lib/problem'
+import { useTitle } from '@/lib/useTitle'
 
 // A published program's public page with its Buy button. Buying sends the customer to Stripe
 // Checkout; Stripe returns them to /me (paid) or to the storefront (cancelled).

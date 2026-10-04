@@ -9,8 +9,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Loading } from '@/components/page'
 import { ProgramCover } from '@/components/program-cover'
-import { useApp } from '../AppContext.tsx'
-import { useTitle } from '../useTitle.ts'
+import { useApp } from '@/lib/AppContext'
+import { useTitle } from '@/lib/useTitle'
 
 // A program the customer bought: its workouts (the paid content) and which are done.
 // enrollment-api answers 404 for a program the customer did not buy.

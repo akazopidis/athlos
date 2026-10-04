@@ -3,8 +3,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Loading, PageHeader } from '@/components/page'
 import { cn } from '@/lib/utils'
-import { useStudio } from './studio/useStudio.ts'
-import { useTitle } from '../useTitle.ts'
+import { useStudio } from './useStudio.ts'
+import { useTitle } from '@/lib/useTitle'
 
 // The coach dashboard (design §8, "/studio/{slug}": programs, sales, settings, Stripe onboarding).
 // A layout: the workspace header and tabs; the pages render in the outlet.

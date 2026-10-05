@@ -53,6 +53,12 @@ public static class AcceptInvite
 
         if (!await db.Memberships.AnyAsync(m => m.UserId == userId, cancellationToken))
         {
+            // The invite held a place; it still must fit if the plan was lowered since (design §4).
+            if (await StaffInvites.StaffPlacesTakenAsync(db, now, exceptEmail: invite.Email, cancellationToken) >= Plans.Plans.For(workspace.Plan).MaxStaff)
+            {
+                return StaffInvites.StaffQuotaReached(workspace);
+            }
+
             db.Memberships.Add(new Membership { UserId = userId, Role = TenantRole.Staff });
         }
 

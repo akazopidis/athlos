@@ -16,7 +16,7 @@ import { problemTitle } from '@/lib/problem'
 
 // The coach's programs (design §8, "/studio/{slug}": programs): the list, each opening its editor,
 // and a form to create one.
-export function StudioPrograms({ slug }: { slug: string }) {
+export function StudioPrograms({ slug, plan }: { slug: string; plan?: string }) {
   const { api } = useApp()
   const navigate = useNavigate()
   const tenant = { tenantSlug: slug }
@@ -25,6 +25,14 @@ export function StudioPrograms({ slug }: { slug: string }) {
     queryKey: ['studio-programs', slug],
     queryFn: async () => (await api.GET('/api/v1/studio/{tenantSlug}/programs', { params: { path: tenant } })).data ?? [],
   })
+
+  // The plan's program quota (design §4), so the coach sees it before the server refuses one more.
+  const plans = useQuery({
+    queryKey: ['plans'],
+    queryFn: async () => (await api.GET('/api/v1/plans')).data ?? [],
+    staleTime: Infinity,
+  })
+  const maxPrograms = plans.data?.find((p) => p.name === plan)?.maxPrograms
 
   const create = useMutation({
     mutationFn: async (form: FormData) => {
@@ -55,7 +63,17 @@ export function StudioPrograms({ slug }: { slug: string }) {
   }
 
   return (
-    <Section title="Programs">
+    <Section
+      title="Programs"
+      action={
+        maxPrograms !== undefined &&
+        programs.data && (
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {programs.data.length} of {Number(maxPrograms)} programs · {plan} plan
+          </span>
+        )
+      }
+    >
       {programs.isPending ? (
         <Loading />
       ) : programs.data?.length ? (

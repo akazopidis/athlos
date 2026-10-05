@@ -81,6 +81,7 @@ studio.MapStaffInvites();
 
 // Gateway only
 app.MapLookupMembership();
+app.MapGetTenantPlan();
 app.MapGetPayoutAccount();
 // The notifications-worker (signed): where a workspace's sale email goes
 app.MapGetOwnerEmails();

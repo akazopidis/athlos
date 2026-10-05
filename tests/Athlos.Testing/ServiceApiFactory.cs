@@ -81,10 +81,16 @@ public sealed class CatalogApiFactory(AthlosDatabases databases, AthlosStorage s
 {
     public FakePayoutReadiness Payouts { get; } = new();
 
+    public FakeProgramQuota Quota { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
-        builder.ConfigureTestServices(services => services.AddSingleton<Athlos.Catalog.Api.Features.Programs.IPayoutReadiness>(Payouts));
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<Athlos.Catalog.Api.Features.Programs.IPayoutReadiness>(Payouts);
+            services.AddSingleton<Athlos.Catalog.Api.Features.Programs.IProgramQuota>(Quota);
+        });
     }
 }
 

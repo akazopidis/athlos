@@ -1,13 +1,15 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Catalog.Api.Data;
 using Athlos.Catalog.Api.Media;
+using Athlos.Tenancy;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace Athlos.Catalog.Api.Features.Programs;
 
-// A new program starts as a private draft of the current tenant.
+// A new program starts as a private draft of the current tenant, within the plan's program quota
+// (design §4: drafts count too).
 public static class CreateProgram
 {
     public sealed record Request(
@@ -25,8 +27,22 @@ public static class CreateProgram
             .WithTags("Programs");
 
     private static async Task<Results<Created<ProgramDetails>, ProblemHttpResult>> Handle(
-        string tenantSlug, Request request, CatalogDbContext db, MediaStore media, CancellationToken cancellationToken)
+        string tenantSlug, Request request, ITenantContext tenant, CatalogDbContext db, IProgramQuota quota, MediaStore media,
+        CancellationToken cancellationToken)
     {
+        var maxPrograms = await quota.MaxProgramsAsync(tenantSlug, tenant.TenantId!.Value, cancellationToken);
+        if (maxPrograms is null)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status404NotFound);
+        }
+
+        if (await db.Programs.CountAsync(cancellationToken) >= maxPrograms)
+        {
+            return TypedResults.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: $"Your plan allows {maxPrograms} {(maxPrograms == 1 ? "program" : "programs")}. Delete a draft or move to a bigger plan.");
+        }
+
         var program = new TrainingProgram
         {
             CoachSlug = tenantSlug,

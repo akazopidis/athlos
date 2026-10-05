@@ -22,9 +22,12 @@ public sealed class RateLimitTests : IAsyncLifetime
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         _backend = builder.Build();
-        _backend.MapGet("/internal/tenants/{slug}/plan", (string slug) => slug is "coach-a" or "coach-b"
-            ? Results.Ok(new { tenantId = Guid.CreateVersion7(), plan = new { name = "Free", requestsPerSecond = PlanRate } })
-            : Results.NotFound());
+        _backend.MapGet("/internal/tenants/{slug}/plan", (string slug) => slug switch
+        {
+            "coach-a" or "coach-b" => Results.Ok(new { tenantId = Guid.CreateVersion7(), plan = new { name = "Free", requestsPerSecond = PlanRate } }),
+            "coach-broken" => Results.StatusCode(StatusCodes.Status503ServiceUnavailable),
+            _ => Results.NotFound(),
+        });
         _backend.MapGet("/api/v1/marketplace/coaches/{slug}", () => Results.Ok());
         _backend.MapGet("/api/v1/marketplace/programs", () => Results.Ok());
         await _backend.StartAsync(TestContext.Current.CancellationToken);
@@ -73,6 +76,14 @@ public sealed class RateLimitTests : IAsyncLifetime
         var responses = await Send(Gateway(), "/api/v1/marketplace/programs", times: 6);
 
         Assert.Contains(responses, r => r.StatusCode == HttpStatusCode.TooManyRequests);
+    }
+
+    [Fact]
+    public async Task A_failed_plan_lookup_does_not_fail_the_request()
+    {
+        var response = await Send(Gateway(), "/api/v1/marketplace/coaches/coach-broken", times: 1);
+
+        Assert.Equal(HttpStatusCode.OK, response.Single().StatusCode);
     }
 
     [Fact]

@@ -280,6 +280,8 @@ Goal: one tenant's spike must not degrade others. Layered, cheapest first:
 2. Tenant A floods at 300 req/s. Run once with limits off and once with limits on.
 3. Report tenant B's p95 and error rate in both runs, and tenant A's 429 rate. Graph it from App Insights.
 
+First run (5 October 2026): [docs/evaluation/noisy-neighbor.md](evaluation/noisy-neighbor.md). With limits off, tenant B's p95 went from 133 ms to 11 s with 27.5% errors (catalog-api's connection pool exhausted); with limits on, B had no errors and a p95 of 193 ms (+45%, over the 20% target, explained there).
+
 The shared B1ms database is itself a noisy-neighbor story: without limits, tenant A's flood exhausts connections and CPU credits for everyone. That makes the "limits on" result more convincing.
 
 ---

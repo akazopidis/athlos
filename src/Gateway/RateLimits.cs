@@ -119,8 +119,7 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
             return null;
         }
 
-        if (slug is not null && Slug().IsMatch(slug)
-            && await context.RequestServices.GetRequiredService<TenantPlans>().FindAsync(slug, context.RequestAborted) is { } plan)
+        if (slug is not null && Slug().IsMatch(slug) && await FindPlanAsync(context, slug) is { } plan)
         {
             return new Partition($"tenant:{plan.TenantId}:{plan.RequestsPerSecond}", plan.RequestsPerSecond, "tenant", plan.TenantId.ToString(), plan.Plan);
         }
@@ -128,6 +127,25 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
         var client = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         return new Partition($"client:{client}:{options.PerClientRequestsPerSecond}", options.PerClientRequestsPerSecond, "client", Tenant: null, Plan: null);
     }
+
+    // The limiter never fails a request itself: if tenancy-api cannot answer (for example while it
+    // starts from zero replicas), the request is limited per client instead and goes on, and the
+    // answer is not cached, so the next request asks again.
+    private static async Task<TenantPlans.Limits?> FindPlanAsync(HttpContext context, string slug)
+    {
+        try
+        {
+            return await context.RequestServices.GetRequiredService<TenantPlans>().FindAsync(slug, context.RequestAborted);
+        }
+        catch (Exception e) when (!context.RequestAborted.IsCancellationRequested)
+        {
+            LogPlanLookupFailed(context.RequestServices.GetRequiredService<ILogger<RateLimits>>(), slug, e);
+            return null;
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Plan lookup for {Slug} failed; limiting per client instead")]
+    private static partial void LogPlanLookupFailed(ILogger logger, string slug, Exception exception);
 
     // Cover uploads and text searches do the most work per request.
     private static bool IsHeavy(HttpRequest request) =>

@@ -12,5 +12,6 @@ public static class Slugs
         "settings", "studio", "support", "webhooks", "www",
     ];
 
-    public static bool IsReserved(string slug) => Reserved.Contains(slug);
+    // demo-* belongs to the seeded demo coaches (design §15.2).
+    public static bool IsReserved(string slug) => Reserved.Contains(slug) || slug.StartsWith("demo-", StringComparison.Ordinal);
 }

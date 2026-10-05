@@ -1,0 +1,19 @@
+{
+  "label": "flood-limits-on",
+  "mode": "flood",
+  "duration": "2m",
+  "floodRate": 300,
+  "finishedAt": "2026-10-05T17:41:55.784Z",
+  "tenantB": {
+    "requests": 1201,
+    "p50Ms": 57.6441,
+    "p95Ms": 192.6385,
+    "p99Ms": 341.8383,
+    "errorRate": 0
+  },
+  "tenantA": {
+    "requests": 36001,
+    "rejectedRate": 0.9005860948306992,
+    "errorRate": 0
+  }
+}

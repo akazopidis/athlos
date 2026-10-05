@@ -14,7 +14,9 @@ var postgres = builder.AddPostgres("postgres")
     .WithDataVolume("athlos-postgres")
     .WithLifetime(ContainerLifetime.Persistent);
 
-var migrator = builder.AddProject<Projects.Athlos_DbMigrator>("db-migrator");
+// Locally the migrator also adds the demo data (design §15.2), as in dev and staging.
+var migrator = builder.AddProject<Projects.Athlos_DbMigrator>("db-migrator")
+    .WithEnvironment("Seed__DemoData", "true");
 
 // Each service gets its own database. The migrator connects as the owner; the service connects as
 // its own non-owner role, so RLS applies to it exactly as in Azure. statement_timeout: design §4.

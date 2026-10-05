@@ -690,7 +690,18 @@ Stripe in tests: unit and integration tests use a fake `IPaymentGateway`; the re
 
 ### 15.2 Seed data
 
-A `--seed` mode in the db-migrator (dev and staging only) creates 3 demo coaches on different plans, about 20 programs, and 2 customers with purchases. The k6 scripts and demos use these fixed tenants, so results are repeatable.
+The db-migrator adds demo data when `Seed:DemoData` is true: in dev and staging (the `seedDemoData` Bicep parameter) and locally, never in prod. It creates 3 demo coaches on different plans, 20 published programs, and 2 customers with purchases. The k6 scripts and demos use these fixed tenants, so results are repeatable.
+
+| Coach | Plan | Programs |
+|---|---|---|
+| `demo-forge` (Forge Strength) | Pro | 10 |
+| `demo-stride` (Stride Running Club) | Free | 5 |
+| `demo-flow` (Flow Mobility) | Free | 5 |
+
+- Every id is derived from a name, so each deploy's re-run adds only what is missing.
+- It writes through RLS like the services: one transaction per coach and database, tagged with that coach's tenant.
+- `demo-*` addresses are reserved, so no real workspace can take one; a demo coach whose address an older workspace already holds is skipped, never overwritten.
+- Demo coaches and customers are not Entra users (nobody signs in as them), and the coaches have no Stripe account: their programs can be browsed and load-tested, not bought.
 
 ### 15.3 Targets for the evaluation chapter
 

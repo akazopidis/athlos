@@ -34,6 +34,21 @@ public sealed class StaffInviteTests(AthlosDatabases databases) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_free_plan_holds_one_staff_place_and_an_open_invite_takes_it()
+    {
+        var workspace = await _api.CreateWorkspace();
+        var first = EmailOf(Guid.CreateVersion7());
+        await _api.Invite(workspace, first);
+
+        var second = await _api.AsOwner(workspace, HttpMethod.Post, "/invites", new { email = EmailOf(Guid.CreateVersion7()) });
+        var again = await _api.AsOwner(workspace, HttpMethod.Post, "/invites", new { email = first });
+
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        Assert.Contains("allows 1 staff member", await second.Content.ReadAsStringAsync(Cancel), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Created, again.StatusCode);
+    }
+
+    [Fact]
     public async Task The_invite_email_links_to_the_SPA_with_the_token_in_the_fragment()
     {
         var workspace = await _api.CreateWorkspace();

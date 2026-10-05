@@ -264,6 +264,15 @@ Goal: one tenant's spike must not degrade others. Layered, cheapest first:
 | 6 | Resilience between services | all | `Microsoft.Extensions.Http.Resilience` standard handler: timeouts, retries with jitter, circuit breaker |
 | 7 | Database protection | all | Indexes leading with `tenant_id`, `statement_timeout` of 5 s per service (in the connection string, `Options=-c statement_timeout=5000`: roles created through Entra cannot be altered by the migrator), a small connection pool per service (B1ms allows about 50 connections in total), hard page-size caps (max 50) |
 
+**As built (phase 7):**
+- *Whose budget a request spends.* A coach's studio routes count once the caller is confirmed a member; their storefront (`/api/v1/marketplace/coaches/{slug}/...`, and the program list with `?coach={slug}`) counts for everyone. Both share one token bucket per coach, sized by the plan's requests per second. The cross-coach marketplace search and unknown addresses are limited per client IP instead (`RateLimits:PerClientRequestsPerSecond`, 20). Signed-in customer routes (`/me`, orders) are not rate limited.
+- *How the gateway knows the plan.* `GET /internal/tenants/{slug}/plan` on tenancy-api (signed, like the membership lookup), cached for 60 s, so plan limits live only in tenancy's `Plans`.
+- *Concurrency.* Cover uploads and text searches also take one of `RateLimits:ConcurrentHeavyRequests` (4) slots per coach or client.
+- *Rejections.* 429 with `Retry-After` and a ProblemDetails body, counted by `athlos.ratelimit.rejected` (tags: `scope`, `tenant`, `plan`, `reason`). `RateLimits:Enabled=false` turns the limits off for the experiment's "limits off" run.
+- *Quotas, checked on write (409).* Programs: catalog asks tenancy for the plan before creating one, and drafts count. Staff: tenancy counts staff members plus open invites, so an invite holds a place until it is accepted or expires. Media: not enforced separately, because it cannot be reached: one cover per program, at most 2 MB, times the program quota is 10 MB on Free (1 GB allowed) and 200 MB on Pro (20 GB).
+
+**Known limitation (write it down):** a flood of one coach's public storefront spends that coach's budget, so their own visitors also get 429s while every other coach stays unaffected. That is the point of the experiment, but it also means one abusive client can do it on purpose. A per-client limit on storefront traffic would stop a single client, not a distributed one; it is future work, together with a CDN in front of the gateway (§8.1).
+
 **Known limitation (write it down):** the gateway's rate limiter is in memory, so with N gateway replicas each tenant effectively gets N × the limit. The fixes are a distributed limiter on Redis (about €13+/month, over budget) or dividing the limit by the replica count. For the thesis, keep the gateway at `maxReplicas: 2` and document the trade-off.
 
 **Experiment for the evaluation chapter** (k6, open source, run from your machine or a GitHub Actions job, against the **staging** environment, so results are not disturbed by work in progress on dev):
@@ -690,7 +699,18 @@ Stripe in tests: unit and integration tests use a fake `IPaymentGateway`; the re
 
 ### 15.2 Seed data
 
-A `--seed` mode in the db-migrator (dev and staging only) creates 3 demo coaches on different plans, about 20 programs, and 2 customers with purchases. The k6 scripts and demos use these fixed tenants, so results are repeatable.
+The db-migrator adds demo data when `Seed:DemoData` is true: in dev and staging (the `seedDemoData` Bicep parameter) and locally, never in prod. It creates 3 demo coaches on different plans, 20 published programs, and 2 customers with purchases. The k6 scripts and demos use these fixed tenants, so results are repeatable.
+
+| Coach | Plan | Programs |
+|---|---|---|
+| `demo-forge` (Forge Strength) | Pro | 10 |
+| `demo-stride` (Stride Running Club) | Free | 5 |
+| `demo-flow` (Flow Mobility) | Free | 5 |
+
+- Every id is derived from a name, so each deploy's re-run adds only what is missing.
+- It writes through RLS like the services: one transaction per coach and database, tagged with that coach's tenant.
+- `demo-*` addresses are reserved, so no real workspace can take one; a demo coach whose address an older workspace already holds is skipped, never overwritten.
+- Demo coaches and customers are not Entra users (nobody signs in as them), and the coaches have no Stripe account: their programs can be browsed and load-tested, not bought.
 
 ### 15.3 Targets for the evaluation chapter
 

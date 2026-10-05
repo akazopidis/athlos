@@ -67,7 +67,7 @@ export function StudioOverview() {
           </Alert>
         )}
       </Section>
-      <StudioPrograms slug={slug} />
+      <StudioPrograms slug={slug} plan={workspace.data?.plan} />
     </div>
   )
 }

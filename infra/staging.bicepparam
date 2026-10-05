@@ -10,3 +10,4 @@ param authAudience = readEnvironmentVariable('AUTH_AUDIENCE', '')
 param spaClientId = readEnvironmentVariable('SPA_CLIENT_ID', '')
 param apiScope = readEnvironmentVariable('API_SCOPE', '')
 param stripeConfigured = bool(readEnvironmentVariable('STRIPE_CONFIGURED', 'false'))
+param seedDemoData = true

@@ -31,6 +31,9 @@ builder.Services.AddSingleton<MediaStore>();
 // Service-to-service: tenancy-api tells catalog whether a workspace may sell (publish rule, §3.4).
 builder.Services.AddHttpClient<IPayoutReadiness, TenancyPayoutReadiness>(http => http.BaseAddress = new Uri("https+http://tenancy-api"))
     .AddSignedRequests();
+// ... and how many programs its plan allows (quota, design §4).
+builder.Services.AddHttpClient<IProgramQuota, TenancyProgramQuota>(http => http.BaseAddress = new Uri("https+http://tenancy-api"))
+    .AddSignedRequests();
 builder.Services.AddValidation();
 builder.Services.AddOpenApi(options =>
 {

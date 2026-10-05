@@ -34,6 +34,9 @@ param apiScope string = ''
 @description('true once the stage Key Vault holds stripe-secret-key (infra/stripe_setup.py). Referencing a missing Key Vault secret would fail the deploy.')
 param stripeConfigured bool = false
 
+@description('true in dev and staging: the migrator adds the demo coaches, programs and purchases (design §15.2). Never in prod.')
+param seedDemoData bool = false
+
 @secure()
 @description('Gateway signing key (GatewaySignature). The deploy workflow passes the stored value, or a new one on the first deploy.')
 param gatewaySigningKey string
@@ -231,6 +234,7 @@ module migrator 'modules/container-job.bicep' = {
       { name: 'Databases__Enrollment__AppRole', value: enrollmentAppRole }
       { name: 'Databases__Enrollment__AppPrincipalObjectId', value: enrollmentIdentity.outputs.principalId }
       { name: 'AZURE_CLIENT_ID', value: migratorIdentity.properties.clientId }
+      { name: 'Seed__DemoData', value: string(seedDemoData) }
       { name: 'APP_VERSION', value: appVersion }
       { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
       { name: 'OTEL_SERVICE_NAME', value: 'db-migrator' }

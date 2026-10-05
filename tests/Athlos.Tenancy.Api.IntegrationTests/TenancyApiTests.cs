@@ -40,6 +40,7 @@ public sealed class TenancyApiTests(AthlosDatabases database) : IAsyncLifetime
 
     [Theory]
     [InlineData("admin", HttpStatusCode.Conflict)]
+    [InlineData("demo-forge", HttpStatusCode.Conflict)]
     [InlineData("Not A Slug", HttpStatusCode.BadRequest)]
     [InlineData("-leading-dash", HttpStatusCode.BadRequest)]
     [InlineData("ab", HttpStatusCode.BadRequest)]

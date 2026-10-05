@@ -16,4 +16,6 @@ public static class Plans
     public static readonly Plan Pro = new(PlanName.Pro, RequestsPerSecond: 100, MaxPrograms: 100, MaxStaff: 10, MaxMediaGigabytes: 20);
 
     public static IReadOnlyList<Plan> All { get; } = [Free, Pro];
+
+    public static Plan For(PlanName name) => All.Single(p => p.Name == name);
 }

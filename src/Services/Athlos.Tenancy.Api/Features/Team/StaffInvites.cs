@@ -65,14 +65,22 @@ public static class StaffInvites
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This person is already a member of the workspace.");
         }
 
+        // The plan's staff quota (design §4): staff members plus open invites, each of which holds a
+        // place until it is accepted or expires. Inviting the same address again does not count twice.
+        var workspace = await db.Tenants.AsNoTracking().SingleAsync(t => t.Id == tenant.TenantId, cancellationToken);
+        var now = time.GetUtcNow();
+        if (await StaffPlacesTakenAsync(db, now, exceptEmail: email, cancellationToken) >= Plans.Plans.For(workspace.Plan).MaxStaff)
+        {
+            return StaffQuotaReached(workspace);
+        }
+
         // Inviting again replaces the open invite (and its token).
         await db.StaffInvites.Where(i => i.Email == email && i.AcceptedAt == null).ExecuteDeleteAsync(cancellationToken);
 
         var token = NewToken();
-        var invite = new StaffInvite { Email = email, TokenHash = Hash(token), ExpiresAt = time.GetUtcNow() + Validity };
+        var invite = new StaffInvite { Email = email, TokenHash = Hash(token), ExpiresAt = now + Validity };
         db.StaffInvites.Add(invite);
 
-        var workspace = await db.Tenants.AsNoTracking().SingleAsync(t => t.Id == tenant.TenantId, cancellationToken);
         db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, InviteEmail(workspace, invite, token, configuration)));
         await db.SaveChangesAsync(cancellationToken);
 
@@ -89,6 +97,19 @@ public static class StaffInvites
 
         var deleted = await db.StaffInvites.Where(i => i.Id == inviteId && i.AcceptedAt == null).ExecuteDeleteAsync(cancellationToken);
         return deleted == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
+    }
+
+    // Staff members, plus open invites that have not expired (other than one for exceptEmail).
+    public static async Task<int> StaffPlacesTakenAsync(TenancyDbContext db, DateTimeOffset now, string? exceptEmail, CancellationToken cancellationToken) =>
+        await db.Memberships.CountAsync(m => m.Role == TenantRole.Staff, cancellationToken)
+        + await db.StaffInvites.CountAsync(i => i.AcceptedAt == null && i.ExpiresAt > now && i.Email != exceptEmail, cancellationToken);
+
+    public static ProblemHttpResult StaffQuotaReached(Tenant workspace)
+    {
+        var limit = Plans.Plans.For(workspace.Plan).MaxStaff;
+        return TypedResults.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: $"The {workspace.Plan} plan allows {limit} staff {(limit == 1 ? "member" : "members")}, open invites included.");
     }
 
     // The link goes to the SPA with the token in the fragment: browsers never send a fragment to a

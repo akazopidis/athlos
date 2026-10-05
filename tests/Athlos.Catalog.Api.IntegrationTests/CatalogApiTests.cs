@@ -27,6 +27,28 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
     }
 
     [Fact]
+    public async Task The_plan_quota_counts_drafts_and_refuses_one_more()
+    {
+        var coach = NewCoach();
+        _api.Quota.Limit(coach.TenantId, 2);
+        await _api.CreateProgram(coach);
+        await _api.CreateProgram(coach);
+
+        var third = await _api.AsCoach(coach, HttpMethod.Post, "/programs", new
+        {
+            slug = TenancyArrange.NewSlug("program"),
+            title = "One too many",
+            level = "Beginner",
+            durationWeeks = 4,
+            priceAmount = 1900,
+            currency = "EUR",
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, third.StatusCode);
+        Assert.Contains("allows 2 programs", await third.Content.ReadAsStringAsync(Cancel), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Publishing_needs_a_workout_and_puts_the_program_in_the_marketplace()
     {
         var coach = NewCoach();

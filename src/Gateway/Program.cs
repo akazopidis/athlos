@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using Athlos.Gateway;
 using Athlos.Tenancy;
 using Yarp.ReverseProxy.Transforms;
@@ -9,6 +10,19 @@ builder.Services.AddGatewaySignature(builder.Configuration);
 builder.Services.AddAthlosAuthentication(builder.Configuration);
 builder.Services.AddHybridCache();
 builder.Services.AddHttpClient<MembershipLookup>(http => http.BaseAddress = new Uri("https+http://tenancy-api"));
+builder.Services.AddHttpClient<TenantPlans>(http => http.BaseAddress = new Uri("https+http://tenancy-api"));
+builder.Services.Configure<RateLimits.Options>(builder.Configuration.GetSection("RateLimits"));
+builder.Services.AddSingleton<RateLimits>();
+
+// Container Apps' ingress forwards the client's address; per-client limits need it (design §4).
+// The ingress appends the address it saw, and only that last entry is used, so a client cannot
+// pick its own by sending X-Forwarded-For.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
@@ -31,6 +45,7 @@ builder.Services.AddReverseProxy()
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
@@ -44,7 +59,11 @@ app.UseAuthentication();
 
 app.MapDefaultEndpoints();
 app.MapSpaConfig();
-app.MapReverseProxy(proxy => proxy.Use(StudioAccess.ResolveMembership));
+app.MapReverseProxy(proxy =>
+{
+    proxy.Use(StudioAccess.ResolveMembership);
+    proxy.Use(RateLimits.Apply);
+});
 app.MapSpa();
 
 app.Run();

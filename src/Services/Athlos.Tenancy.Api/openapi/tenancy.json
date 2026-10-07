@@ -242,6 +242,40 @@
             "description": "Not Found"
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "Workspace"
+        ],
+        "operationId": "DeleteWorkspace",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteWorkspaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
       }
     },
     "/api/v1/studio/{tenantSlug}/payouts/onboarding": {
@@ -506,6 +540,17 @@
             "type": "string"
           },
           "displayName": {
+            "type": "string"
+          }
+        }
+      },
+      "DeleteWorkspaceRequest": {
+        "required": [
+          "confirmSlug"
+        ],
+        "type": "object",
+        "properties": {
+          "confirmSlug": {
             "type": "string"
           }
         }

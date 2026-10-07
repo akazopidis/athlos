@@ -267,6 +267,10 @@ module tenancyApi 'modules/container-app.bicep' = if (deployApps) {
       { name: 'ConnectionStrings__tenancy-db', value: 'Host=${postgresHost};Database=${tenancyDatabase};Username=${tenancyAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
       // Staff invite emails leave through the outbox (design §5.2); a namespace, no key.
       { name: 'ConnectionStrings__messaging', value: serviceBus.outputs.fullyQualifiedNamespace }
+      // Deleting a workspace calls catalog and enrollment (design §3.4). Their internal addresses are
+      // built from the environment's domain, not module outputs: those apps already depend on tenancy.
+      { name: 'services__catalog-api__https__0', value: 'https://ca-athlos-catalog-api-${environmentName}.internal.${acaEnvironment.properties.defaultDomain}' }
+      { name: 'services__enrollment-api__https__0', value: 'https://ca-athlos-enrollment-api-${environmentName}.internal.${acaEnvironment.properties.defaultDomain}' }
     ], stripeConfigured ? [{ name: 'Stripe__SecretKey', secretRef: 'stripe-secret-key' }] : [])
   }
 }

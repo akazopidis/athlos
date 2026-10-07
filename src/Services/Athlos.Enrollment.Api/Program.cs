@@ -67,4 +67,7 @@ me.MapGroup("")
 me.MapGetMyProgram();
 me.MapWorkoutCompletion();
 
+// Tenancy-api only (signed): erase one deleted workspace's enrollments (design §3.4)
+app.MapEraseTenant();
+
 app.Run();

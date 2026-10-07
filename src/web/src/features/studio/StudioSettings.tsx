@@ -9,6 +9,7 @@ import { Field } from '@/components/field'
 import { Section } from '@/components/page'
 import { useApp } from '@/lib/AppContext'
 import { problemTitle } from '@/lib/problem'
+import { DeleteWorkspace } from './DeleteWorkspace.tsx'
 import { StudioTeam } from './StudioTeam.tsx'
 import { useStudio } from './useStudio.ts'
 
@@ -112,6 +113,7 @@ export function StudioSettings() {
         </div>
       </Section>
       {isOwner && <StudioTeam slug={slug} />}
+      {isOwner && <DeleteWorkspace slug={slug} />}
     </div>
   )
 }

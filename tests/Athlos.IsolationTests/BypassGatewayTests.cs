@@ -25,6 +25,7 @@ public sealed class BypassGatewayTests(AthlosDatabases database) : IAsyncLifetim
         { "PUT", "/api/v1/me/profile" },
         { "GET", "/api/v1/studio/some-coach/workspace" },
         { "PUT", "/api/v1/studio/some-coach/workspace" },
+        { "DELETE", "/api/v1/studio/some-coach/workspace" },
         { "GET", $"/internal/tenants/some-coach/members/{TenantB}" },
         { "GET", "/internal/tenants/some-coach/plan" },
         { "POST", "/api/v1/studio/some-coach/payouts/onboarding" },

@@ -38,6 +38,11 @@ public sealed class WorkspaceDeletionTests(AthlosDatabases databases) : IAsyncLi
         Assert.Equal(HttpStatusCode.NotFound, storefront.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, membership.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, reused.StatusCode);
+
+        // The gateway caches memberships for a minute, so studio requests may still arrive with the
+        // old tenant headers; the workspace is gone for them too.
+        Assert.Equal(HttpStatusCode.NotFound, (await _api.AsOwner(workspace, HttpMethod.Get, "/workspace")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _api.AsOwner(workspace, HttpMethod.Get, "/invites")).StatusCode);
     }
 
     [Fact]

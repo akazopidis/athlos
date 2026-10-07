@@ -128,7 +128,7 @@ public static class StaffInvites
     // 404 for another tenant's slug (design §3.3), 403 for staff inside their own workspace.
     private static async Task<Refusal?> Check(string tenantSlug, ITenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
     {
-        if (!await db.Tenants.AnyAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug, cancellationToken))
+        if (!await db.Tenants.AnyAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug && t.Status != TenantStatus.Deleted, cancellationToken))
         {
             return new Refusal(TypedResults.NotFound());
         }

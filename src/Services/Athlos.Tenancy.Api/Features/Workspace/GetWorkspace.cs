@@ -21,7 +21,7 @@ public static class GetWorkspace
     {
         var workspace = await db.Tenants
             .AsNoTracking()
-            .Where(t => t.Id == tenant.TenantId && t.Slug == tenantSlug)
+            .Where(t => t.Id == tenant.TenantId && t.Slug == tenantSlug && t.Status != TenantStatus.Deleted)
             .Select(t => new Response(t.Id, t.Slug, t.DisplayName, t.Status, t.Plan, t.Branding, t.StripeOnboardingComplete))
             .SingleOrDefaultAsync(cancellationToken);
 

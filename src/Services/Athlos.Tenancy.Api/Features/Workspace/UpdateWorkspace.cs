@@ -21,7 +21,7 @@ public static class UpdateWorkspace
     private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> Handle(
         string tenantSlug, Request request, ITenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
     {
-        var workspace = await db.Tenants.SingleOrDefaultAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug, cancellationToken);
+        var workspace = await db.Tenants.SingleOrDefaultAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug && t.Status != TenantStatus.Deleted, cancellationToken);
         if (workspace is null)
         {
             return TypedResults.NotFound();

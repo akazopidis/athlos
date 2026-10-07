@@ -117,7 +117,7 @@ public static class StripeWebhook
         // Counted once the order is committed as Paid; a retried event never reaches this point.
         if (paid)
         {
-            OrderMetrics.OrderPaid(order!.TenantId, order.Currency);
+            OrderMetrics.OrderPaid(order!.TenantId, order.CoachSlug, order.Currency);
         }
 
         return TypedResults.Ok();

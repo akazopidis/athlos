@@ -37,6 +37,9 @@ param stripeConfigured bool = false
 @description('true in dev and staging: the migrator adds the demo coaches, programs and purchases (design §15.2). Never in prod.')
 param seedDemoData bool = false
 
+@description('Prod only: who gets the gateway 5xx alert (design §6). Empty: no alert is created.')
+param alertEmail string = ''
+
 @secure()
 @description('Gateway signing key (GatewaySignature). The deploy workflow passes the stored value, or a new one on the first deploy.')
 param gatewaySigningKey string
@@ -446,6 +449,27 @@ module gateway 'modules/container-app.bicep' = if (deployApps) {
       { name: 'services__ordering-api__https__0', value: 'https://${orderingApi!.outputs.fqdn}' }
       { name: 'services__enrollment-api__https__0', value: 'https://${enrollmentApi!.outputs.fqdn}' }
     ])
+  }
+}
+
+// The tenant-aware workbook (design §6): per coach traffic, latency, errors, 429s and paid orders.
+module workbook 'modules/workbook.bicep' = {
+  name: 'workbook'
+  params: {
+    location: location
+    environmentName: environmentName
+    appInsightsId: appInsights.id
+  }
+}
+
+// The gateway 5xx alert (design §6): prod only, once ALERT_EMAIL names a recipient.
+module alerts 'modules/alerts.bicep' = if (deployApps && environmentName == 'prod' && !empty(alertEmail)) {
+  name: 'alerts'
+  dependsOn: [gateway]
+  params: {
+    environmentName: environmentName
+    gatewayAppId: resourceId('Microsoft.App/containerApps', 'ca-athlos-gateway-${environmentName}')
+    email: alertEmail
   }
 }
 

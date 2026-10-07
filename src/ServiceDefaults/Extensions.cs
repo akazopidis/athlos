@@ -69,6 +69,9 @@ public static class Extensions
             })
             .WithTracing(tracing =>
             {
+                // The release on every span (design §6). App Insights fills application_Version with
+                // the Container Apps revision, not service.version, so the workbook filters on this.
+                tracing.AddProcessor(new ReleaseTagProcessor(version));
                 tracing.AddSource(builder.Environment.ApplicationName)
                     .AddSource("Athlos.*")
                     .AddAspNetCoreInstrumentation(options =>

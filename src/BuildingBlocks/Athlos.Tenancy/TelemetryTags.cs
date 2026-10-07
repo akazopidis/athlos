@@ -5,6 +5,9 @@ namespace Athlos.Tenancy;
 public static class TelemetryTags
 {
     public const string TenantId = "tenant.id";
+
+    // The coach's public storefront address: readable in charts, and not personal data.
+    public const string TenantSlug = "tenant.slug";
     public const string TenantPlan = "tenant.plan";
     public const string UserRole = "user.role";
 }

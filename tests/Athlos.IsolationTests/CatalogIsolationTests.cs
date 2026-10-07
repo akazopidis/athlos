@@ -81,6 +81,7 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         { "DELETE", $"/api/v1/studio/some-coach/programs/{Guid.Empty}/cover" },
         { "GET", $"/internal/programs/{Guid.Empty}/offer" },
         { "GET", $"/internal/tenants/{Guid.Empty}/programs/{Guid.Empty}/content" },
+        { "DELETE", $"/internal/tenants/{Guid.Empty}" },
     };
 
     [Theory]
@@ -106,6 +107,45 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         var underA = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{_a.TenantId}/programs/{_aPublished.Id}/content"));
 
         Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.OK), (underB.StatusCode, underA.StatusCode));
+    }
+
+    // Deleting a workspace (design §3.4): one tenant id erases that tenant's programs, workouts and
+    // media, and nothing of another tenant's. Counted as the superuser, so RLS cannot hide a leftover.
+    [Fact]
+    public async Task Erasing_A_removes_its_programs_workouts_and_media_and_nothing_of_Bs()
+    {
+        Assert.Equal(HttpStatusCode.OK, (await _api.UploadCover(_a, _aPublished.Id, Png())).StatusCode);
+        var bProgram = await _api.CreateProgram(_b, publish: true);
+        Assert.Equal(HttpStatusCode.OK, (await _api.UploadCover(_b, bProgram.Id, Png())).StatusCode);
+
+        var erased = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/tenants/{_a.TenantId}"));
+        var again = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/tenants/{_a.TenantId}"));
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (erased.StatusCode, again.StatusCode));
+        Assert.Equal((0L, 0L), (await RowsOf("programs", _a.TenantId), await RowsOf("workouts", _a.TenantId)));
+        Assert.Equal((1L, 1L), (await RowsOf("programs", _b.TenantId), await RowsOf("workouts", _b.TenantId)));
+        Assert.Equal((0, 1), (await BlobsOf(_a.TenantId), await BlobsOf(_b.TenantId)));
+    }
+
+    private async Task<long> RowsOf(string table, Guid tenantId)
+    {
+        await using var connection = new NpgsqlConnection(databases.OwnerConnectionString("catalog"));
+        await connection.OpenAsync(Cancel);
+        await using var command = new NpgsqlCommand($"SELECT count(*) FROM {table} WHERE tenant_id = @tenant", connection);
+        command.Parameters.AddWithValue("tenant", tenantId);
+        return (long)(await command.ExecuteScalarAsync(Cancel))!;
+    }
+
+    private async Task<int> BlobsOf(Guid tenantId)
+    {
+        var container = new Azure.Storage.Blobs.BlobContainerClient(storage.ConnectionString, "media");
+        var count = 0;
+        await foreach (var _ in container.GetBlobsAsync(new Azure.Storage.Blobs.Models.GetBlobsOptions { Prefix = $"tenants/{tenantId}/" }, Cancel))
+        {
+            count++;
+        }
+
+        return count;
     }
 
     [Fact]

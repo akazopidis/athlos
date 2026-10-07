@@ -246,6 +246,20 @@ Pool is what a marketplace with many small coaches would use in practice, and it
 | **Suspended** | Platform admin action | Storefront and checkout return `404`; existing customers keep access to what they bought |
 | **Deleted** | Owner or admin request | Tenant-private data is removed by `tenant_id` in every service (tenancy-api calls `DELETE /internal/tenants/{id}` on each service; Service Bus Basic has no topics for a broadcast), blobs under `tenants/{id}/` are deleted; orders are kept for accounting with the tenant marked deleted |
 
+**Deletion as built:**
+- *Who and how.* The owner deletes the workspace in the studio with `DELETE /api/v1/studio/{slug}/workspace`, typing the address to confirm. A platform-admin route is future work; admins do not exist yet.
+- *Order of steps.*
+  1. tenancy-api calls catalog-api's `DELETE /internal/tenants/{id}` (programs, workouts, then every blob under `tenants/{id}/`).
+  2. It calls enrollment-api's (enrollments and progress).
+  3. In one transaction it removes the memberships and invites, and marks the tenant `Deleted`, with its name, branding and Stripe link cleared.
+  - If a call fails, the workspace is still Active and the owner retries (502); every step is idempotent.
+  - The slug stays taken, so no new workspace inherits old links. The coach's Stripe account is theirs and stays at Stripe.
+- *Each service deletes as the tenant.* It enters that tenant before its transaction, so the EF filter and RLS both confine the delete to the one tenant. The isolation suite deletes tenant A and counts, as the superuser, that nothing of A and everything of B is left (catalog, enrollment).
+- *What customers see.* Customers lose access to programs they bought from a deleted coach; the orders stay in ordering-api for accounting. This is the trade-off of erasure: the coach's right to erasure removes the paid content too.
+- *Known gaps.*
+  - The tenancy-api calls are not in a distributed transaction: a crash between steps leaves a partly erased but still Active workspace, which a retry completes.
+  - An `OrderPaid` already in the queue when a workspace is deleted could still create an enrollment for it. Checkout is closed by then, because a non-Active workspace cannot sell.
+
 Deleting one tenant's data with one key is a strong, demonstrable argument for the pool model's `tenant_id` discipline, and it is the GDPR "right to erasure" angle for the thesis. Plans (Free, Pro) are assigned by the platform admin; charging coaches a subscription through Stripe Billing is future work.
 
 ---

@@ -27,6 +27,10 @@ builder.Services.AddTenantDbContext<TenancyDbContext>(options => options
         npgsql => npgsql.ConfigureDataSource(dataSource => dataSource.UseEntraTokenIfNoPassword(builder.Configuration["AZURE_CLIENT_ID"])))
     .UseSnakeCaseNamingConvention());
 builder.Services.AddStripeConnect(builder.Configuration);
+// Deleting a workspace asks catalog and enrollment to erase their part (design §3.4), signed.
+builder.Services.AddHttpClient(ServiceTenantErasure.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api")).AddSignedRequests();
+builder.Services.AddHttpClient(ServiceTenantErasure.Enrollment, http => http.BaseAddress = new Uri("https+http://enrollment-api")).AddSignedRequests();
+builder.Services.AddScoped<ITenantErasure, ServiceTenantErasure>();
 // The staff invite email leaves through the outbox to the notifications queue (design §5.2, §5.3).
 builder.AddOutbox<TenancyDbContext>();
 builder.Services.AddValidation();
@@ -78,6 +82,12 @@ studio.MapGetWorkspace();
 studio.MapUpdateWorkspace();
 studio.MapPayouts();
 studio.MapStaffInvites();
+
+// Deleting the workspace manages its own transaction, after the calls to other services.
+app.MapGroup("/api/v1/studio/{tenantSlug}")
+    .RequireAuthorization()
+    .RequireTenant()
+    .MapDeleteWorkspace();
 
 // Gateway only
 app.MapLookupMembership();

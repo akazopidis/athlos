@@ -45,6 +45,20 @@ public sealed class DemoDataTests(AthlosDatabases database)
         // The marketplace sees the published demo programs through RLS (public-read), as catalog-api does.
         Assert.Equal(15L, await AsCatalogApp("public-read"));
         Assert.Equal(0L, await AsCatalogApp(""));
+
+        // A demo coach deleted from the studio (design §3.4) is not seeded again on the next deploy.
+        await Owner("tenancy", $"UPDATE tenants SET status = 'Deleted' WHERE id = '{DemoData.Id("tenant:demo-stride")}'");
+        await Owner("catalog", "DELETE FROM workouts WHERE tenant_id IN (SELECT tenant_id FROM programs WHERE coach_slug = 'demo-stride'); DELETE FROM programs WHERE coach_slug = 'demo-stride';");
+        await using (var tenancy = NpgsqlDataSource.Create(database.OwnerConnectionString("tenancy")))
+        await using (var catalog = NpgsqlDataSource.Create(database.OwnerConnectionString("catalog")))
+        await using (var ordering = NpgsqlDataSource.Create(database.OwnerConnectionString("ordering")))
+        await using (var enrollment = NpgsqlDataSource.Create(database.OwnerConnectionString("enrollment")))
+        {
+            skipped = await DemoData.SeedAsync(new DemoData.Sources(tenancy, catalog, ordering, enrollment), Cancel);
+        }
+
+        Assert.Equal(["demo-stride", "demo-flow"], skipped);
+        Assert.Equal(0L, await Owner<long>("catalog", "SELECT count(*) FROM programs WHERE coach_slug = 'demo-stride'"));
     }
 
     private async Task Owner(string service, string sql)

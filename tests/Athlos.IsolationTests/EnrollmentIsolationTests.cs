@@ -63,6 +63,39 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    // Called by tenancy-api only, so it needs the gateway signature like every route.
+    [Fact]
+    public async Task Unsigned_erase_requests_are_rejected()
+    {
+        var response = await _api.CreateClient().DeleteAsync($"/internal/tenants/{_a.TenantId}", Cancel);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // Deleting a workspace (design §3.4): one tenant id erases that coach's enrollments and progress,
+    // and nothing of another coach's. Counted as the superuser, so RLS cannot hide a leftover.
+    [Fact]
+    public async Task Erasing_A_removes_its_enrollments_and_progress_and_nothing_of_Bs()
+    {
+        var erased = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/tenants/{_a.TenantId}"));
+        var again = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/tenants/{_a.TenantId}"));
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (erased.StatusCode, again.StatusCode));
+        Assert.Equal((0L, 0L), (await RowsOf("enrollments", _a.TenantId), await RowsOf("workout_progress", _a.TenantId)));
+        Assert.Equal(1L, await RowsOf("enrollments", _b.TenantId));
+        Assert.Empty((await _api.MyPrograms(_alice)).Items);
+        Assert.Single((await _api.MyPrograms(_bob)).Items);
+    }
+
+    private async Task<long> RowsOf(string table, Guid tenantId)
+    {
+        await using var connection = new NpgsqlConnection(databases.OwnerConnectionString("enrollment"));
+        await connection.OpenAsync(Cancel);
+        await using var command = new NpgsqlCommand($"SELECT count(*) FROM {table} WHERE tenant_id = @tenant", connection);
+        command.Parameters.AddWithValue("tenant", tenantId);
+        return (long)(await command.ExecuteScalarAsync(Cancel))!;
+    }
+
     [Fact]
     public async Task A_customer_lists_only_their_own_programs()
     {

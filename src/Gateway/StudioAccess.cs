@@ -46,6 +46,8 @@ public static partial class StudioAccess
         }
 
         context.Items[typeof(Membership)] = membership;
+        System.Diagnostics.Activity.Current?.SetTag(TelemetryTags.TenantId, membership.TenantId.ToString());
+        System.Diagnostics.Activity.Current?.SetTag(TelemetryTags.UserRole, membership.Role.ToString());
         await next();
     }
 

@@ -26,6 +26,25 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal(0, inMarketplace.TotalCount);
     }
 
+    // Tenant-aware telemetry (design §6): a studio request's span names the coach and the role.
+    [Fact]
+    public async Task Studio_requests_are_tagged_with_the_tenant_and_role()
+    {
+        var spans = new System.Collections.Concurrent.ConcurrentBag<System.Diagnostics.Activity>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Microsoft.AspNetCore",
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = spans.Add,
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        var coach = NewCoach();
+
+        await _api.AsCoach(coach, HttpMethod.Get, "/programs");
+
+        Assert.Contains(spans, s => s.GetTagItem("tenant.id") as string == coach.TenantId.ToString() && s.GetTagItem("user.role") as string == "Owner");
+    }
+
     [Fact]
     public async Task The_plan_quota_counts_drafts_and_refuses_one_more()
     {

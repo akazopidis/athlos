@@ -95,8 +95,10 @@ public static class StripeWebhook
         }
 
         var order = await db.Orders.SingleOrDefaultAsync(o => o.Id == orderId && o.StripeCheckoutSessionId == session.Id, cancellationToken);
+        var paid = false;
         if (order is { Status: OrderStatus.Pending })
         {
+            paid = outcome == OrderStatus.Paid;
             order.Status = outcome.Value;
             if (outcome == OrderStatus.Paid)
             {
@@ -111,6 +113,13 @@ public static class StripeWebhook
         }
 
         await transaction.CommitAsync(cancellationToken);
+
+        // Counted once the order is committed as Paid; a retried event never reaches this point.
+        if (paid)
+        {
+            OrderMetrics.OrderPaid(order!.TenantId, order.Currency);
+        }
+
         return TypedResults.Ok();
     }
 }

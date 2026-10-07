@@ -3,13 +3,15 @@
 //
 // Requests are sampled (rate-limited sampling keeps a few per second), so request counts sum
 // itemCount, the number of requests each kept one stands for. 429s and paid orders come from the
-// athlos.ratelimit.rejected and athlos.orders.paid metrics, which are exact.
+// athlos.ratelimit.rejected and athlos.orders.paid metrics, which are exact but carry no release, so
+// the release filter applies to the request charts only. The release is the athlos.release span tag:
+// App Insights fills application_Version with the Container Apps revision instead.
 param location string
 param environmentName string
 param appInsightsId string
 
 // Coach traffic as the gateway saw it: the spans it tagged with the coach (design §6).
-var coachRequests = 'requests | where cloud_RoleName startswith "ca-athlos-gateway" | extend coach = tostring(customDimensions["tenant.slug"]), plan = tostring(customDimensions["tenant.plan"]) | where isnotempty(coach) | where application_Version in ({Version})'
+var coachRequests = 'requests | where cloud_RoleName startswith "ca-athlos-gateway" | extend coach = tostring(customDimensions["tenant.slug"]), plan = tostring(customDimensions["tenant.plan"]) | where isnotempty(coach) | where tostring(customDimensions["athlos.release"]) in ({Version})'
 
 var parameters = {
   type: 9
@@ -44,7 +46,7 @@ var parameters = {
         multiSelect: true
         quote: '\''
         delimiter: ','
-        query: 'requests | where cloud_RoleName startswith "ca-athlos-gateway" | distinct application_Version | order by application_Version desc'
+        query: 'requests | where cloud_RoleName startswith "ca-athlos-gateway" | distinct release = tostring(customDimensions["athlos.release"]) | where isnotempty(release) | order by release desc'
         typeSettings: { additionalResourceOptions: [ 'value::all' ], showDefault: false }
         defaultValue: 'value::all'
         timeContextFromParameter: 'TimeRange'
@@ -83,8 +85,8 @@ var items = [
   chart('rate', 'Requests per minute, per coach', '${coachRequests} | summarize requests = sum(itemCount) by coach, bin(timestamp, 1m) | render timechart', 'timechart')
   chart('p95', 'p95 latency (ms), per coach', '${coachRequests} | summarize p95 = percentile(duration, 95) by coach, bin(timestamp, 1m) | render timechart', 'timechart')
   chart('errors', 'Server errors (5xx), share of requests, per coach', '${coachRequests} | summarize errorRate = round(100.0 * sumif(itemCount, toint(resultCode) >= 500) / sum(itemCount), 2) by coach, bin(timestamp, 1m) | render timechart', 'timechart')
-  chart('rejected', 'Refused with 429 (athlos.ratelimit.rejected), per coach', 'customMetrics | where name == "athlos.ratelimit.rejected" | where application_Version in ({Version}) | extend coach = tostring(customDimensions["tenant.slug"]), scope = tostring(customDimensions["scope"]) | summarize refused = sum(valueSum) by who = iff(scope == "tenant", coach, "per client"), bin(timestamp, 1m) | render timechart', 'timechart')
-  chart('orders', 'Paid orders (athlos.orders.paid), per coach', 'customMetrics | where name == "athlos.orders.paid" | where application_Version in ({Version}) | summarize paid = sum(valueSum) by coach = tostring(customDimensions["tenant.slug"]), bin(timestamp, 1h) | render columnchart', 'barchart')
+  chart('rejected', 'Refused with 429 (athlos.ratelimit.rejected), per coach', 'customMetrics | where name == "athlos.ratelimit.rejected" | extend coach = tostring(customDimensions["tenant.slug"]), scope = tostring(customDimensions["scope"]) | summarize refused = sum(valueSum) by who = iff(scope == "tenant", coach, "per client"), bin(timestamp, 1m) | render timechart', 'timechart')
+  chart('orders', 'Paid orders (athlos.orders.paid), per coach', 'customMetrics | where name == "athlos.orders.paid" | summarize paid = sum(valueSum) by coach = tostring(customDimensions["tenant.slug"]), bin(timestamp, 1h) | render columnchart', 'barchart')
   {
     type: 3
     name: 'summary'

@@ -121,6 +121,10 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
 
         if (slug is not null && Slug().IsMatch(slug) && await FindPlanAsync(context, slug) is { } plan)
         {
+            // Tenant-aware telemetry (design §6): the gateway's request span names the coach and plan,
+            // so the workbook can chart each coach's traffic, latency and 429s.
+            System.Diagnostics.Activity.Current?.SetTag(Athlos.Tenancy.TelemetryTags.TenantId, plan.TenantId.ToString());
+            System.Diagnostics.Activity.Current?.SetTag(Athlos.Tenancy.TelemetryTags.TenantPlan, plan.Plan);
             return new Partition($"tenant:{plan.TenantId}:{plan.RequestsPerSecond}", plan.RequestsPerSecond, "tenant", plan.TenantId.ToString(), plan.Plan);
         }
 

@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Athlos.Tenancy;
 
@@ -30,7 +32,26 @@ public static class TenantContextMiddleware
                 UserIdOf(context.User),
                 Enum.TryParse<TenantRole>(headers[TrustedHeaders.UserRole], ignoreCase: false, out var role) ? role : null);
 
-            await next(context);
+            // Tenant-aware telemetry (design §6): the request's span and every log line of the
+            // request carry the tenant and role, so App Insights can be filtered by coach. No user
+            // ids: they identify a person.
+            if (tenantContext.TenantId is null)
+            {
+                await next(context);
+                return;
+            }
+
+            Activity.Current?.SetTag(TelemetryTags.TenantId, tenantContext.TenantId.ToString());
+            Activity.Current?.SetTag(TelemetryTags.UserRole, tenantContext.Role?.ToString());
+            var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Athlos.Tenancy");
+            using (logger.BeginScope(new Dictionary<string, object?>
+            {
+                [TelemetryTags.TenantId] = tenantContext.TenantId.ToString(),
+                [TelemetryTags.UserRole] = tenantContext.Role?.ToString(),
+            }))
+            {
+                await next(context);
+            }
         });
 
     public static Guid? UserIdOf(ClaimsPrincipal user)

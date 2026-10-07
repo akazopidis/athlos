@@ -51,7 +51,7 @@ public static partial class PayoutEndpoints
         string tenantSlug, ITenantContext tenant, TenancyDbContext db, IStripeConnect stripe, IConfiguration configuration,
         CancellationToken cancellationToken)
     {
-        var workspace = await db.Tenants.SingleOrDefaultAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug, cancellationToken);
+        var workspace = await db.Tenants.SingleOrDefaultAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug && t.Status != TenantStatus.Deleted, cancellationToken);
         if (workspace is null)
         {
             return TypedResults.NotFound();
@@ -87,7 +87,7 @@ public static partial class PayoutEndpoints
     private static async Task<Results<Ok<PayoutStatus>, NotFound, ProblemHttpResult>> GetStatus(
         string tenantSlug, ITenantContext tenant, TenancyDbContext db, IStripeConnect stripe, CancellationToken cancellationToken)
     {
-        var workspace = await db.Tenants.SingleOrDefaultAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug, cancellationToken);
+        var workspace = await db.Tenants.SingleOrDefaultAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug && t.Status != TenantStatus.Deleted, cancellationToken);
         if (workspace is null)
         {
             return TypedResults.NotFound();

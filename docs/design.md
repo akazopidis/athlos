@@ -376,6 +376,14 @@ Built in phase 5:
 - **Tenant-aware telemetry:** middleware adds `tenant.id`, `tenant.plan`, `user.role` and `service.version` (the release tag) to the current `Activity` and log scope. Custom metrics: `athlos.ratelimit.rejected{tenant}`, `athlos.orders.paid{tenant}`.
 - **Dashboards:** one Azure Workbook (declared in Bicep) with per-tenant request rate, p95 latency, error rate, 429s, and a distributed trace link. Filtering by `service.version` shows the effect of each release.
 - **Alerts:** two, both cheap: 5xx rate over threshold on the prod gateway, and the monthly budget (§10).
+- **As built (phase 8):**
+  - *Services.* `UseTenantContext` tags the request span and the request's log scope with `tenant.id` and `user.role`; `EnterTenant` re-tags when a slice switches tenant.
+  - *Gateway.* It tags coach traffic (studio, storefront) with `tenant.id`, `tenant.slug` and `tenant.plan`. The slug is the public storefront address, readable in charts.
+  - *Metrics.* `athlos.ratelimit.rejected` (tags `scope`, `tenant`, `tenant.slug`, `plan`, `reason`) and `athlos.orders.paid` (`tenant.id`, `tenant.slug`, `currency`, counted after the order commits).
+  - *Release.* `service.version` is a resource attribute, which App Insights shows as `application_Version`.
+  - *Never in telemetry:* user ids or email addresses.
+  - *The workbook.* `infra/modules/workbook.bicep`, one per environment, "Athlos per coach (env)", filterable by release. Requests are sampled, so request counts sum `itemCount`; 429s and paid orders come from the exact metrics. The slowest-requests table lists `operation_Id` for Transaction search, instead of a clickable trace link.
+  - *The alert.* `infra/modules/alerts.bicep`: more than 5 gateway 5xx in 5 minutes, on the container app's `Requests` metric, emailed through an action group. Prod only, created once the prod environment's `ALERT_EMAIL` variable is set.
 - **Cost guard:** Log Analytics daily cap of 0.15 GB (the first 5 GB/month are free, then €2.57/GB). Turn off Container Apps console-log forwarding if OpenTelemetry logs already cover it, so logs are not ingested twice.
 
 ---

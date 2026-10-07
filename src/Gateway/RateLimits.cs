@@ -31,7 +31,7 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
         public int ConcurrentHeavyRequests { get; set; } = 4;
     }
 
-    private sealed record Partition(string Key, int RequestsPerSecond, string Scope, string? Tenant, string? Plan);
+    private sealed record Partition(string Key, int RequestsPerSecond, string Scope, string? Tenant, string? Plan, string? Slug = null);
 
     private static readonly PathString StudioPrefix = "/api/v1/studio";
     private static readonly PathString CoachesPrefix = "/api/v1/marketplace/coaches";
@@ -124,8 +124,9 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
             // Tenant-aware telemetry (design §6): the gateway's request span names the coach and plan,
             // so the workbook can chart each coach's traffic, latency and 429s.
             System.Diagnostics.Activity.Current?.SetTag(Athlos.Tenancy.TelemetryTags.TenantId, plan.TenantId.ToString());
+            System.Diagnostics.Activity.Current?.SetTag(Athlos.Tenancy.TelemetryTags.TenantSlug, slug);
             System.Diagnostics.Activity.Current?.SetTag(Athlos.Tenancy.TelemetryTags.TenantPlan, plan.Plan);
-            return new Partition($"tenant:{plan.TenantId}:{plan.RequestsPerSecond}", plan.RequestsPerSecond, "tenant", plan.TenantId.ToString(), plan.Plan);
+            return new Partition($"tenant:{plan.TenantId}:{plan.RequestsPerSecond}", plan.RequestsPerSecond, "tenant", plan.TenantId.ToString(), plan.Plan, slug);
         }
 
         var client = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
@@ -161,6 +162,7 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
         Rejected.Add(1,
             new KeyValuePair<string, object?>("scope", partition.Scope),
             new KeyValuePair<string, object?>("tenant", partition.Tenant),
+            new KeyValuePair<string, object?>(Athlos.Tenancy.TelemetryTags.TenantSlug, partition.Slug),
             new KeyValuePair<string, object?>("plan", partition.Plan),
             new KeyValuePair<string, object?>("reason", reason));
 

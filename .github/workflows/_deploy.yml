@@ -71,6 +71,8 @@ jobs:
           SPA_CLIENT_ID: ${{ vars.SPA_CLIENT_ID }}
           API_SCOPE: ${{ vars.API_SCOPE }}
           STRIPE_CONFIGURED: ${{ vars.STRIPE_CONFIGURED || 'false' }}
+          # Prod environment variable: who gets the gateway 5xx alert (design §6). Empty: no alert.
+          ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
         run: |
           # Gateway signing key: reuse the stored one; only the first deploy (no vault yet) creates it.
           # If the vault exists but the key cannot be read, fail rather than silently rotate it.

@@ -10,6 +10,9 @@ public static class OrderMetrics
 
     private static readonly Counter<long> Paid = Meter.CreateCounter<long>("athlos.orders.paid", description: "Orders paid, per coach (tenant).");
 
-    public static void OrderPaid(Guid tenantId, string currency) =>
-        Paid.Add(1, new KeyValuePair<string, object?>(TelemetryTags.TenantId, tenantId.ToString()), new KeyValuePair<string, object?>("currency", currency));
+    public static void OrderPaid(Guid tenantId, string coachSlug, string currency) =>
+        Paid.Add(1,
+            new KeyValuePair<string, object?>(TelemetryTags.TenantId, tenantId.ToString()),
+            new KeyValuePair<string, object?>(TelemetryTags.TenantSlug, coachSlug),
+            new KeyValuePair<string, object?>("currency", currency));
 }

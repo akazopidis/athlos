@@ -59,6 +59,27 @@ public sealed class RateLimitTests : IAsyncLifetime
         Assert.All(neighbour, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
     }
 
+    // Tenant-aware telemetry (design §6): the gateway's request span names the coach and its plan.
+    [Fact]
+    public async Task A_coach_request_is_tagged_with_its_tenant_and_plan()
+    {
+        var spans = new System.Collections.Concurrent.ConcurrentBag<System.Diagnostics.Activity>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Microsoft.AspNetCore",
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = spans.Add,
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+
+        await Send(Gateway(), "/api/v1/marketplace/coaches/coach-b", times: 1);
+
+        // The gateway's server span is the trace's root (the stand-in backend's span is its
+        // descendant). The listener sees the whole process, so other tests' spans may be there too.
+        Assert.Contains(spans, s => s.Parent is null && s.ParentId is null && s.Kind == System.Diagnostics.ActivityKind.Server
+            && s.GetTagItem("tenant.id") is string && s.GetTagItem("tenant.plan") as string == "Free");
+    }
+
     [Fact]
     public async Task A_storefront_program_list_spends_that_coach_budget()
     {

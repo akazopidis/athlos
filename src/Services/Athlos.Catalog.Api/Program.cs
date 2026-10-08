@@ -93,6 +93,9 @@ app.MapGroup("/internal")
 // Other services only (signed): one tenant's paid content; the handler enters that tenant itself
 app.MapGroup("/internal")
     .MapGetProgramContent();
+// Tenancy-api only (signed): erase one deleted workspace's programs and media (design §3.4)
+app.MapGroup("/internal")
+    .MapEraseTenant();
 studio.MapWorkouts();
 
 app.Run();

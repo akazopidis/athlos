@@ -59,6 +59,7 @@ public sealed class TenantContext : ITenantContext
 
         TenantId = tenantId;
         Role = role;
+        System.Diagnostics.Activity.Current?.SetTag(TelemetryTags.TenantId, tenantId.ToString());
     }
 
     // For public marketplace slices only (design §3.2).

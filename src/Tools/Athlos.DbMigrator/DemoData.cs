@@ -81,7 +81,8 @@ public static class DemoData
     ];
 
     // Returns the demo slugs it skipped because another workspace already has them (created before
-    // demo-* was reserved): the seed never touches a real tenant.
+    // demo-* was reserved), or because the demo workspace was deleted: the seed never touches a real
+    // tenant and never brings a deleted one back.
     public static async Task<IReadOnlyList<string>> SeedAsync(Sources sources, CancellationToken cancellationToken)
     {
         var skipped = new List<string>();
@@ -113,10 +114,11 @@ public static class DemoData
         {
             var tenantId = tenant.TenantId!.Value;
             // Tenants are readable by every session (the storefront is public), so this sees them all.
-            var holder = await db.Tenants.Where(t => t.Slug == coach.Slug).Select(t => (Guid?)t.Id).SingleOrDefaultAsync(cancellationToken);
+            var holder = await db.Tenants.Where(t => t.Slug == coach.Slug).Select(t => new { t.Id, t.Status }).SingleOrDefaultAsync(cancellationToken);
             if (holder is not null)
             {
-                ours = holder == tenantId;
+                // A demo coach someone deleted (design §3.4) stays deleted: its data is not seeded again.
+                ours = holder.Id == tenantId && holder.Status != TenantStatus.Deleted;
                 return;
             }
 

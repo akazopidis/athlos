@@ -110,7 +110,7 @@ export interface paths {
         get: operations["GetWorkspace"];
         put: operations["UpdateWorkspace"];
         post?: never;
-        delete?: never;
+        delete: operations["DeleteWorkspace"];
         options?: never;
         head?: never;
         patch?: never;
@@ -204,6 +204,9 @@ export interface components {
             id: string;
             slug: string;
             displayName: string;
+        };
+        DeleteWorkspaceRequest: {
+            confirmSlug: string;
         };
         GetStorefrontResponse: {
             slug: string;
@@ -469,6 +472,37 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UpdateWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DeleteWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteWorkspaceRequest"];
             };
         };
         responses: {

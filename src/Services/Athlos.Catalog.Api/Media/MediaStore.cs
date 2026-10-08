@@ -42,6 +42,24 @@ public sealed class MediaStore(BlobServiceClient blobs, TimeProvider time) : IDi
     public Task DeleteAsync(string path, CancellationToken cancellationToken) =>
         _container.GetBlobClient(path).DeleteIfExistsAsync(cancellationToken: cancellationToken);
 
+    // Everything under tenants/{tenantId}/: a tenant's media goes with one prefix (design §3.4).
+    public async Task<int> DeleteTenantAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        if (!await _container.ExistsAsync(cancellationToken))
+        {
+            return 0;
+        }
+
+        var deleted = 0;
+        await foreach (var blob in _container.GetBlobsAsync(new GetBlobsOptions { Prefix = $"tenants/{tenantId}/" }, cancellationToken))
+        {
+            await _container.DeleteBlobIfExistsAsync(blob.Name, cancellationToken: cancellationToken);
+            deleted++;
+        }
+
+        return deleted;
+    }
+
     public async Task<string?> ReadLinkAsync(string? path, CancellationToken cancellationToken)
     {
         if (path is null)

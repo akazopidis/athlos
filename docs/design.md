@@ -246,6 +246,20 @@ Pool is what a marketplace with many small coaches would use in practice, and it
 | **Suspended** | Platform admin action | Storefront and checkout return `404`; existing customers keep access to what they bought |
 | **Deleted** | Owner or admin request | Tenant-private data is removed by `tenant_id` in every service (tenancy-api calls `DELETE /internal/tenants/{id}` on each service; Service Bus Basic has no topics for a broadcast), blobs under `tenants/{id}/` are deleted; orders are kept for accounting with the tenant marked deleted |
 
+**Deletion as built:**
+- *Who and how.* The owner deletes the workspace in the studio with `DELETE /api/v1/studio/{slug}/workspace`, typing the address to confirm. A platform-admin route is future work; admins do not exist yet.
+- *Order of steps.*
+  1. tenancy-api calls catalog-api's `DELETE /internal/tenants/{id}` (programs, workouts, then every blob under `tenants/{id}/`).
+  2. It calls enrollment-api's (enrollments and progress).
+  3. In one transaction it removes the memberships and invites, and marks the tenant `Deleted`, with its name, branding and Stripe link cleared.
+  - If a call fails, the workspace is still Active and the owner retries (502); every step is idempotent.
+  - The slug stays taken, so no new workspace inherits old links. The coach's Stripe account is theirs and stays at Stripe.
+- *Each service deletes as the tenant.* It enters that tenant before its transaction, so the EF filter and RLS both confine the delete to the one tenant. The isolation suite deletes tenant A and counts, as the superuser, that nothing of A and everything of B is left (catalog, enrollment).
+- *What customers see.* Customers lose access to programs they bought from a deleted coach; the orders stay in ordering-api for accounting. This is the trade-off of erasure: the coach's right to erasure removes the paid content too.
+- *Known gaps.*
+  - The tenancy-api calls are not in a distributed transaction: a crash between steps leaves a partly erased but still Active workspace, which a retry completes.
+  - An `OrderPaid` already in the queue when a workspace is deleted could still create an enrollment for it. Checkout is closed by then, because a non-Active workspace cannot sell.
+
 Deleting one tenant's data with one key is a strong, demonstrable argument for the pool model's `tenant_id` discipline, and it is the GDPR "right to erasure" angle for the thesis. Plans (Free, Pro) are assigned by the platform admin; charging coaches a subscription through Stripe Billing is future work.
 
 ---
@@ -362,6 +376,14 @@ Built in phase 5:
 - **Tenant-aware telemetry:** middleware adds `tenant.id`, `tenant.plan`, `user.role` and `service.version` (the release tag) to the current `Activity` and log scope. Custom metrics: `athlos.ratelimit.rejected{tenant}`, `athlos.orders.paid{tenant}`.
 - **Dashboards:** one Azure Workbook (declared in Bicep) with per-tenant request rate, p95 latency, error rate, 429s, and a distributed trace link. Filtering by `service.version` shows the effect of each release.
 - **Alerts:** two, both cheap: 5xx rate over threshold on the prod gateway, and the monthly budget (§10).
+- **As built (phase 8):**
+  - *Services.* `UseTenantContext` tags the request span and the request's log scope with `tenant.id` and `user.role`; `EnterTenant` re-tags when a slice switches tenant.
+  - *Gateway.* It tags coach traffic (studio, storefront) with `tenant.id`, `tenant.slug` and `tenant.plan`. The slug is the public storefront address, readable in charts.
+  - *Metrics.* `athlos.ratelimit.rejected` (tags `scope`, `tenant`, `tenant.slug`, `plan`, `reason`) and `athlos.orders.paid` (`tenant.id`, `tenant.slug`, `currency`, counted after the order commits).
+  - *Release.* `service.version` is a resource attribute, but App Insights fills `application_Version` with the Container Apps revision instead. So `ReleaseTagProcessor` tags every span with `athlos.release` (the `APP_VERSION` tag), and the workbook filters on it.
+  - *Never in telemetry:* user ids or email addresses.
+  - *The workbook.* `infra/modules/workbook.bicep`, one per environment, "Athlos per coach (env)". The request charts are filterable by release. Requests are sampled, so request counts sum `itemCount`; 429s and paid orders come from the exact metrics. The slowest-requests table lists `operation_Id` for Transaction search, instead of a clickable trace link.
+  - *The alert.* `infra/modules/alerts.bicep`: more than 5 gateway 5xx in 5 minutes, on the container app's `Requests` metric, emailed through an action group. Prod only, created once the prod environment's `ALERT_EMAIL` variable is set.
 - **Cost guard:** Log Analytics daily cap of 0.15 GB (the first 5 GB/month are free, then €2.57/GB). Turn off Container Apps console-log forwarding if OpenTelemetry logs already cover it, so logs are not ingested twice.
 
 ---

@@ -1,0 +1,19 @@
+{
+  "label": "round2/default-limits-on-1",
+  "mode": "flood",
+  "duration": "2m",
+  "floodRate": 300,
+  "finishedAt": "2026-10-08T17:45:48.576Z",
+  "tenantB": {
+    "requests": 1201,
+    "p50Ms": 55.317,
+    "p95Ms": 142.0244,
+    "p99Ms": 329.3631,
+    "errorRate": 0
+  },
+  "tenantA": {
+    "requests": 36001,
+    "rejectedRate": 0.8956417877281186,
+    "errorRate": 0
+  }
+}

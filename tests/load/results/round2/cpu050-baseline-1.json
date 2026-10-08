@@ -1,0 +1,15 @@
+{
+  "label": "round2/cpu050-baseline-1",
+  "mode": "baseline",
+  "duration": "2m",
+  "floodRate": 0,
+  "finishedAt": "2026-10-08T18:06:21.594Z",
+  "tenantB": {
+    "requests": 1200,
+    "p50Ms": 56.9004,
+    "p95Ms": 64.563855,
+    "p99Ms": 85.924033,
+    "errorRate": 0
+  },
+  "tenantA": null
+}

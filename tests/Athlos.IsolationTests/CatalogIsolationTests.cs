@@ -264,6 +264,37 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Equal((0, 0), (programs, workouts));
     }
 
+    // Layer 3 fully off for writes: bulk update and delete skip both the EF filter (IgnoreQueryFilters)
+    // and the SaveChanges guard, and a raw INSERT names tenant A outright. RLS alone still lets B
+    // change none of A's rows and refuses the insert (design §3.3, defense in depth).
+    [Fact]
+    public async Task With_layer_3_off_RLS_still_blocks_Bs_writes_to_A()
+    {
+        var tenant = new TenantContext();
+        tenant.EnterTenant(_b.TenantId, TenantRole.Owner);
+        var options = new DbContextOptionsBuilder<CatalogDbContext>()
+            .UseNpgsql(databases.AppConnectionString("catalog"))
+            .UseSnakeCaseNamingConvention()
+            .AddInterceptors(new TenantSessionInterceptor(tenant))
+            .Options;
+
+        await using var db = new CatalogDbContext(options, tenant);
+        await using var transaction = await db.Database.BeginTransactionAsync(Cancel);
+        var renamed = await db.Programs.IgnoreQueryFilters()
+            .Where(p => p.TenantId == _a.TenantId)
+            .ExecuteUpdateAsync(p => p.SetProperty(x => x.Title, "Hijacked"), Cancel);
+        var deleted = await db.Workouts.IgnoreQueryFilters()
+            .Where(w => w.TenantId == _a.TenantId)
+            .ExecuteDeleteAsync(Cancel);
+        var insert = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
+            INSERT INTO programs (id, tenant_id, coach_slug, slug, title, description, level, duration_weeks, price_amount, currency, is_published, created_at, updated_at)
+            VALUES ({Guid.CreateVersion7()}, {_a.TenantId}, {_a.Slug}, 'planted', 'Planted by B', '', 'Beginner', 1, 100, 'EUR', true, now(), now())
+            """, Cancel));
+
+        Assert.Equal((0, 0), (renamed, deleted));
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, insert.SqlState);
+    }
+
     private string Resolve(string path) => path
         .Replace("{draft}", _aDraft.Id.ToString(), StringComparison.Ordinal)
         .Replace("{published}", _aPublished.Id.ToString(), StringComparison.Ordinal)

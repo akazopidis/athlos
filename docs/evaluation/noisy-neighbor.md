@@ -43,3 +43,36 @@ Run on 5 October 2026 against **staging** (`sha-e2f52d2`), as design §4 describ
   - a single gateway replica during the experiment (exact per-tenant limits);
   - a short cache of "over limit" per tenant, so the gateway skips the plan lookup for rejected floods;
   - more gateway CPU.
+
+# Round 2: repeated runs and gateway CPU
+
+Run on 8 October 2026 against staging (`sha-afd7b72`, v0.7.0's images) with [`tests/evaluation/noisy_neighbor_round.sh`](../../tests/evaluation/noisy_neighbor_round.sh).
+
+- **Setup:** the same as the first run, with every condition repeated 3 times.
+- **Second gateway size:** a second configuration ran the gateway at 0.5 vCPU / 1 GiB instead of 0.25 vCPU / 0.5 GiB. This tests the first run's suspicion that the gateway's own CPU, refusing 270 req/s, is what slowed tenant B.
+- **Restoring staging:** the script restores the staging gateway afterwards (0.25 vCPU, limits on); this was checked.
+- **Raw results:** [`tests/load/results/round2/`](../../tests/load/results/round2/).
+
+| Condition (3 runs each) | B p50 (median) | B p95 (median, min–max) | B p99 (median) | B errors (mean) | A refused (mean) |
+|---|---|---|---|---|---|
+| Baseline, gateway 0.25 vCPU | 56 ms | 83 ms (64–109) | 115 ms | 0% | n/a |
+| A floods, limits **on**, 0.25 vCPU | 55 ms | 142 ms (62–148) | 320 ms | 0% | 87.6% |
+| A floods, limits **off**, 0.25 vCPU | 1,864 ms | 10,691 ms (8,830–11,580) | 11,210 ms | 26.0% | 0.6% |
+| Baseline, gateway 0.5 vCPU | 57 ms | 64 ms (59–65) | 69 ms | 0% | n/a |
+| A floods, limits **on**, 0.5 vCPU | 54 ms | 60 ms (60–62) | 82 ms | 0% | 86.5% |
+
+## What round 2 shows
+
+1. **The first run's result repeats.**
+   - Without limits, B's p95 reached 9–12 s and 18–41% of its requests failed; catalog-api's connection pool runs out (first run).
+   - With limits, B had no errors in any run.
+   - A could only send 214 req/s on average without limits, because its own answers slowed down.
+2. **The gap to the 20% target was the gateway's CPU.**
+   - *At 0.25 vCPU:* with limits on, B's p95 rose to 142 ms (+71% over its baseline) and varied widely between runs (62–148 ms). Even the baseline was noisy (64–109 ms), because one quarter of a vCPU leaves little headroom.
+   - *At 0.5 vCPU:* B's p95 under a 300 req/s flood was 60 ms, the same as its own baseline (64 ms, −6%), in all three runs, well within the 20% target. Refusing a flood costs the gateway CPU; with enough of it, the refusals no longer reach anyone else.
+   - *Change made:* the gateway now runs at 0.5 vCPU in every environment (`infra/env.bicep`). It still scales to zero, and the Consumption plan bills vCPU-seconds only while a replica runs, so the cost stays within the free monthly grant at this traffic (cost report in [targets.md](targets.md)).
+3. **More of A gets through than its plan allows.** About 13% of A's 300 req/s, roughly 40 req/s, got through, against Free's 20 req/s. With 2 gateway replicas, each keeps its own token bucket (§4 known limitation). Pinning the gateway to 1 replica would make the limit exact but halve the capacity that absorbs the flood; at 0.5 vCPU the extra 20 req/s did not hurt B, so the limitation stays documented, not changed.
+
+**Notes on the runs:**
+- In the first limits-off run, 1.9% of A's requests still got 429s: the gateway was switching revisions as the run started.
+- k6 reported "Insufficient VUs" in the limits-off runs: with answers taking seconds, 1,000 virtual users were not enough to keep 300 req/s going. That is why A's achieved rate is reported.

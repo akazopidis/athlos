@@ -738,6 +738,8 @@ The db-migrator adds demo data when `Seed:DemoData` is true: in dev and staging 
 
 ### 15.3 Targets for the evaluation chapter
 
+Measured results (v0.7.0, 8 October 2026): [docs/evaluation/targets.md](evaluation/targets.md).
+
 Measurable targets make the evaluation honest. Suggested starting values, measured on prod with the demo data:
 
 | Target | Value |

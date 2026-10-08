@@ -1,0 +1,15 @@
+{
+  "label": "round2/default-baseline-1",
+  "mode": "baseline",
+  "duration": "2m",
+  "floodRate": 0,
+  "finishedAt": "2026-10-08T17:43:45.741Z",
+  "tenantB": {
+    "requests": 1200,
+    "p50Ms": 57.027100000000004,
+    "p95Ms": 108.60513999999996,
+    "p99Ms": 168.695033,
+    "errorRate": 0
+  },
+  "tenantA": null
+}

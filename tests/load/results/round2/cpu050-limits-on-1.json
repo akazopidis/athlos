@@ -1,0 +1,19 @@
+{
+  "label": "round2/cpu050-limits-on-1",
+  "mode": "flood",
+  "duration": "2m",
+  "floodRate": 300,
+  "finishedAt": "2026-10-08T18:08:24.374Z",
+  "tenantB": {
+    "requests": 1201,
+    "p50Ms": 55.0896,
+    "p95Ms": 61.8135,
+    "p99Ms": 82.4721,
+    "errorRate": 0
+  },
+  "tenantA": {
+    "requests": 36001,
+    "rejectedRate": 0.8654204049887503,
+    "errorRate": 0
+  }
+}

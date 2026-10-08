@@ -1,0 +1,259 @@
+{
+  "eTag": null,
+  "id": "subscriptions/3f059998-c5af-4b64-83b6-f6e3c581b4fd/providers/Microsoft.CostManagement/query/036a7056-d155-43d0-bed9-58c52c71d1e0",
+  "location": null,
+  "name": "036a7056-d155-43d0-bed9-58c52c71d1e0",
+  "properties": {
+    "columns": [
+      {
+        "name": "Cost",
+        "type": "Number"
+      },
+      {
+        "name": "BillingMonth",
+        "type": "Datetime"
+      },
+      {
+        "name": "ResourceGroupName",
+        "type": "String"
+      },
+      {
+        "name": "ServiceName",
+        "type": "String"
+      },
+      {
+        "name": "Currency",
+        "type": "String"
+      }
+    ],
+    "nextLink": null,
+    "rows": [
+      [
+        0.0,
+        "2026-09-01T00:00:00",
+        "me_cae-athlos-dev_rg-athlos-dev_italynorth",
+        "Load Balancer",
+        "EUR"
+      ],
+      [
+        0.00419552731505333,
+        "2026-09-01T00:00:00",
+        "me_cae-athlos-dev_rg-athlos-dev_italynorth",
+        "Virtual Network",
+        "EUR"
+      ],
+      [
+        0.0,
+        "2026-09-01T00:00:00",
+        "me_cae-athlos-shared_rg-athlos-shared_italynorth",
+        "Load Balancer",
+        "EUR"
+      ],
+      [
+        0.352954996469937,
+        "2026-09-01T00:00:00",
+        "me_cae-athlos-shared_rg-athlos-shared_italynorth",
+        "Virtual Network",
+        "EUR"
+      ],
+      [
+        0.0157359989802937,
+        "2026-09-01T00:00:00",
+        "rg-athlos-dev",
+        "Azure Container Apps",
+        "EUR"
+      ],
+      [
+        0.0,
+        "2026-09-01T00:00:00",
+        "rg-athlos-dev",
+        "Bandwidth",
+        "EUR"
+      ],
+      [
+        0.00202988150437919,
+        "2026-09-01T00:00:00",
+        "rg-athlos-dev",
+        "Key Vault",
+        "EUR"
+      ],
+      [
+        6.01064743259488e-07,
+        "2026-09-01T00:00:00",
+        "rg-athlos-dev",
+        "Service Bus",
+        "EUR"
+      ],
+      [
+        2.38845955692942e-05,
+        "2026-09-01T00:00:00",
+        "rg-athlos-dev",
+        "Storage",
+        "EUR"
+      ],
+      [
+        0.00114374034003091,
+        "2026-09-01T00:00:00",
+        "rg-athlos-prod",
+        "Key Vault",
+        "EUR"
+      ],
+      [
+        2.0607934054611e-06,
+        "2026-09-01T00:00:00",
+        "rg-athlos-prod",
+        "Storage",
+        "EUR"
+      ],
+      [
+        0.0,
+        "2026-09-01T00:00:00",
+        "rg-athlos-shared",
+        "Azure Database for PostgreSQL",
+        "EUR"
+      ],
+      [
+        0.0,
+        "2026-09-01T00:00:00",
+        "rg-athlos-shared",
+        "Container Registry",
+        "EUR"
+      ],
+      [
+        0.0,
+        "2026-09-01T00:00:00",
+        "rg-athlos-shared",
+        "Log Analytics",
+        "EUR"
+      ],
+      [
+        0.00122617207624936,
+        "2026-09-01T00:00:00",
+        "rg-athlos-staging",
+        "Key Vault",
+        "EUR"
+      ],
+      [
+        5.15198351365276e-06,
+        "2026-09-01T00:00:00",
+        "rg-athlos-staging",
+        "Storage",
+        "EUR"
+      ],
+      [
+        0.0,
+        "2026-10-01T00:00:00",
+        "me_cae-athlos-shared_rg-athlos-shared_italynorth",
+        "Load Balancer",
+        "EUR"
+      ],
+      [
+        0.787574797606477,
+        "2026-10-01T00:00:00",
+        "me_cae-athlos-shared_rg-athlos-shared_italynorth",
+        "Virtual Network",
+        "EUR"
+      ],
+      [
+        0.0,
+        "2026-10-01T00:00:00",
+        "rg-athlos-dev",
+        "Bandwidth",
+        "EUR"
+      ],
+      [
+        0.00110047809341683,
+        "2026-10-01T00:00:00",
+        "rg-athlos-dev",
+        "Email",
+        "EUR"
+      ],
+      [
+        0.01435322069693766,
+        "2026-10-01T00:00:00",
+        "rg-athlos-dev",
+        "Key Vault",
+        "EUR"
+      ],
+      [
+        0.001825105596620906,
+        "2026-10-01T00:00:00",
+        "rg-athlos-dev",
+        "Service Bus",
+        "EUR"
+      ],
+      [
+        9.28264695529743e-05,
+        "2026-10-01T00:00:00",
+        "rg-athlos-dev",
+        "Storage",
+        "EUR"
+      ],
+      [
+        0.007679514255543818,
+        "2026-10-01T00:00:00",
+        "rg-athlos-prod",
+        "Key Vault",
+        "EUR"
+      ],
+      [
+        0.00122118092221049,
+        "2026-10-01T00:00:00",
+        "rg-athlos-prod",
+        "Service Bus",
+        "EUR"
+      ],
+      [
+        8.44772967265048e-06,
+        "2026-10-01T00:00:00",
+        "rg-athlos-prod",
+        "Storage",
+        "EUR"
+      ],
+      [
+        0.0,
+        "2026-10-01T00:00:00",
+        "rg-athlos-shared",
+        "Azure Database for PostgreSQL",
+        "EUR"
+      ],
+      [
+        0.0,
+        "2026-10-01T00:00:00",
+        "rg-athlos-shared",
+        "Container Registry",
+        "EUR"
+      ],
+      [
+        0.0,
+        "2026-10-01T00:00:00",
+        "rg-athlos-shared",
+        "Log Analytics",
+        "EUR"
+      ],
+      [
+        0.007893347412882787,
+        "2026-10-01T00:00:00",
+        "rg-athlos-staging",
+        "Key Vault",
+        "EUR"
+      ],
+      [
+        0.00122540478704681,
+        "2026-10-01T00:00:00",
+        "rg-athlos-staging",
+        "Service Bus",
+        "EUR"
+      ],
+      [
+        1.05596620908131e-05,
+        "2026-10-01T00:00:00",
+        "rg-athlos-staging",
+        "Storage",
+        "EUR"
+      ]
+    ]
+  },
+  "sku": null,
+  "type": "Microsoft.CostManagement/query"
+}

@@ -14,6 +14,10 @@ param ingress bool = true
 
 param minReplicas int = 0
 param maxReplicas int = 3
+
+@description('vCPU per replica, with memory at the Consumption ratio (2 GiB per vCPU).')
+@allowed([ '0.25', '0.5' ])
+param cpu string = '0.25'
 param env array = []
 
 @description('Key Vault secrets as { name, keyVaultUrl }, read with the app identity; reference them from env with secretRef.')
@@ -54,7 +58,7 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
         {
           name: 'app'
           image: image
-          resources: { cpu: json('0.25'), memory: '0.5Gi' }
+          resources: { cpu: json(cpu), memory: cpu == '0.5' ? '1Gi' : '0.5Gi' }
           env: env
           probes: !ingress ? [] : [
             {

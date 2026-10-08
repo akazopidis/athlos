@@ -434,6 +434,9 @@ module gateway 'modules/container-app.bicep' = if (deployApps) {
     minReplicas: gatewayMinReplicas
     // The in-memory rate limiter multiplies with replicas, so the gateway stays at 2 (design §4).
     maxReplicas: 2
+    // At 0.25 vCPU, refusing a 300 req/s flood took the gateway's CPU from the other coaches (their p95
+    // +71%); at 0.5 vCPU their p95 stayed at baseline (docs/evaluation/noisy-neighbor.md, round 2).
+    cpu: '0.5'
     keyVaultSecrets: signingKeySecret
     env: concat(commonEnv, authEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'gateway' }

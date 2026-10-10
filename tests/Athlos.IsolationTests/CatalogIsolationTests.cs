@@ -82,6 +82,7 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         { "GET", $"/internal/programs/{Guid.Empty}/offer" },
         { "GET", $"/internal/tenants/{Guid.Empty}/programs/{Guid.Empty}/content" },
         { "DELETE", $"/internal/tenants/{Guid.Empty}" },
+        { "PUT", $"/internal/tenants/{Guid.Empty}/suspension" },
     };
 
     [Theory]
@@ -126,6 +127,47 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Equal((1L, 1L), (await RowsOf("programs", _b.TenantId), await RowsOf("workouts", _b.TenantId)));
         Assert.Equal((0, 1), (await BlobsOf(_a.TenantId), await BlobsOf(_b.TenantId)));
     }
+
+    // Suspending a workspace (design §3.4): one tenant id takes that tenant's programs off the
+    // marketplace and out of checkout, and nothing of another tenant's. Buyers keep the content.
+    [Fact]
+    public async Task Suspending_A_hides_only_As_programs_and_buyers_keep_the_content()
+    {
+        var bProgram = await _api.CreateProgram(_b, publish: true);
+
+        var suspended = await Suspend(_a.TenantId, true);
+
+        Assert.Equal(HttpStatusCode.NoContent, suspended.StatusCode);
+        Assert.Equal(
+            (HttpStatusCode.NotFound, HttpStatusCode.NotFound, HttpStatusCode.OK),
+            (await PublicPage(_a, _aPublished), await Offer(_aPublished), await Content(_a, _aPublished)));
+        Assert.DoesNotContain(_aPublished.Slug, await Search(_a), StringComparison.Ordinal);
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (await PublicPage(_b, bProgram), await Offer(bProgram)));
+        Assert.Contains(bProgram.Slug, await Search(_b), StringComparison.Ordinal);
+
+        // Layer 4 alone: the public-read policy hides the suspended coach's published program too.
+        var visible = await AsAppRole(_b.TenantId, scope: "public-read", connection =>
+            Count(connection, $"SELECT count(*) FROM programs WHERE tenant_id = '{_a.TenantId}'"));
+        Assert.Equal(0L, visible);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await Suspend(_a.TenantId, false)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, await PublicPage(_a, _aPublished));
+    }
+
+    private Task<HttpResponseMessage> Suspend(Guid tenantId, bool suspended) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{tenantId}/suspension") { Content = System.Net.Http.Json.JsonContent.Create(new { suspended }) });
+
+    private async Task<HttpStatusCode> PublicPage(Coach coach, CreatedProgram program) =>
+        (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{coach.Slug}/programs/{program.Slug}"))).StatusCode;
+
+    private async Task<HttpStatusCode> Offer(CreatedProgram program) =>
+        (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/programs/{program.Id}/offer"))).StatusCode;
+
+    private async Task<HttpStatusCode> Content(Coach coach, CreatedProgram program) =>
+        (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{coach.TenantId}/programs/{program.Id}/content"))).StatusCode;
+
+    private async Task<string> Search(Coach coach) =>
+        await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs?coach={coach.Slug}"))).Content.ReadAsStringAsync(Cancel);
 
     private async Task<long> RowsOf(string table, Guid tenantId)
     {

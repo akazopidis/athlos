@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Athlos.Catalog.Api.Features.Marketplace;
 
-// A program's public page. Drafts are 404 for everyone outside the tenant.
+// A program's public page. Drafts and a suspended coach's programs are 404 for everyone outside the tenant.
 // CROSS-TENANT SLICE (design §3.2), same rules as SearchPrograms. Workouts stay private (paid content).
 // The id is public: the Buy button sends it to POST /api/v1/orders/checkout.
 public static class GetPublishedProgram
@@ -24,7 +24,7 @@ public static class GetPublishedProgram
     {
         var program = await db.Programs.AsNoTracking()
             .IgnoreQueryFilters([TenantDbContext.TenantFilter])
-            .Where(p => p.IsPublished && p.CoachSlug == coachSlug && p.Slug == programSlug)
+            .Where(p => p.IsPublished && !p.TenantSuspended && p.CoachSlug == coachSlug && p.Slug == programSlug)
             .SingleOrDefaultAsync(cancellationToken);
 
         return program is null

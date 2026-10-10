@@ -30,11 +30,13 @@ public static class TestTokens
             }));
     }
 
-    public static string For(Guid userId, string? email = null, string? name = null)
+    // appRoles: Entra app roles assigned to the user, sent in the "roles" claim (Platform.Admin).
+    public static string For(Guid userId, string? email = null, string? name = null, IReadOnlyList<string>? appRoles = null)
     {
         var claims = new List<Claim> { new("oid", userId.ToString()), new("scp", "access_as_user") };
         if (email is not null) claims.Add(new Claim("email", email));
         if (name is not null) claims.Add(new Claim("name", name));
+        claims.AddRange((appRoles ?? []).Select(role => new Claim("roles", role)));
 
         return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
         {

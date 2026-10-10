@@ -114,6 +114,44 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
         Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound), (response.StatusCode, inB.StatusCode));
     }
 
+    // Platform admin routes (design §1, §3.4) answer only to the Entra app role. B's owner, even with
+    // the gateway's tenant headers for B, is refused for any workspace (403 for every id, so nothing
+    // about A leaks), and A is unchanged.
+    [Theory]
+    [InlineData("/status", "{\"status\":\"Suspended\"}")]
+    [InlineData("/plan", "{\"plan\":\"Pro\"}")]
+    public async Task B_cannot_suspend_A_or_change_As_plan(string path, string body)
+    {
+        var response = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/admin/tenants/{_a.TenantId}{path}")
+            {
+                Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
+            },
+            _b.OwnerId, _b.TenantId, TenantRole.Owner);
+        var storefront = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{_a.Slug}"));
+        var plan = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{_a.Slug}/plan"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, storefront.StatusCode);
+        Assert.Contains("\"name\":\"Free\"", await plan.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
+
+    // The admin's write enters the one tenant it names, so RLS lets it reach that row only: suspending
+    // A leaves B Active.
+    [Fact]
+    public async Task Suspending_A_leaves_B_active()
+    {
+        var response = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/admin/tenants/{_a.TenantId}/status") { Content = JsonContent.Create(new { status = "Suspended" }) },
+            Guid.CreateVersion7(), appRoles: ["Platform.Admin"]);
+        var aStorefront = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{_a.Slug}"));
+        var bStorefront = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{_b.Slug}"));
+
+        Assert.Equal(
+            (HttpStatusCode.OK, HttpStatusCode.NotFound, HttpStatusCode.OK),
+            (response.StatusCode, aStorefront.StatusCode, bStorefront.StatusCode));
+    }
+
     private sealed record InviteRow(Guid Id, string Email);
 
     private Task<HttpResponseMessage> AsOwnerOfB(HttpMethod method, string path) =>

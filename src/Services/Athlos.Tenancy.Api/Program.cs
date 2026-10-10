@@ -3,6 +3,7 @@ using Athlos.Messaging;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Api.Data;
 using Athlos.Tenancy.Api.Features.Account;
+using Athlos.Tenancy.Api.Features.Admin;
 using Athlos.Tenancy.Api.Features.Internal;
 using Athlos.Tenancy.Api.Features.Payouts;
 using Athlos.Tenancy.Api.Features.Plans;
@@ -20,6 +21,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.Services.AddGatewaySignature(builder.Configuration);
 builder.Services.AddAthlosAuthentication(builder.Configuration);
+builder.Services.AddPlatformAdmin();
 builder.Services.AddTenantContext();
 builder.Services.AddTenantDbContext<TenancyDbContext>(options => options
     .UseNpgsql(
@@ -31,6 +33,9 @@ builder.Services.AddStripeConnect(builder.Configuration);
 builder.Services.AddHttpClient(ServiceTenantErasure.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api")).AddSignedRequests();
 builder.Services.AddHttpClient(ServiceTenantErasure.Enrollment, http => http.BaseAddress = new Uri("https+http://enrollment-api")).AddSignedRequests();
 builder.Services.AddScoped<ITenantErasure, ServiceTenantErasure>();
+// Suspending a workspace asks catalog to hide its programs (design §3.4), signed.
+builder.Services.AddHttpClient(ServiceTenantSuspension.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api")).AddSignedRequests();
+builder.Services.AddScoped<ITenantSuspension, ServiceTenantSuspension>();
 // Deleting an account asks ordering and enrollment to erase the customer's part, then Graph removes
 // the Entra user (design §5.2).
 builder.Services.AddHttpClient(ServiceCustomerErasure.Ordering, http => http.BaseAddress = new Uri("https+http://ordering-api")).AddSignedRequests();
@@ -97,6 +102,9 @@ app.MapGroup("/api/v1/studio/{tenantSlug}")
     .RequireAuthorization()
     .RequireTenant()
     .MapDeleteWorkspace();
+
+// Platform admin (Entra app role Platform.Admin): every workspace, its status and plan (design §1, §3.4)
+app.MapPlatformAdmin();
 
 // Gateway only
 app.MapLookupMembership();

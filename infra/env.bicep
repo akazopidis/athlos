@@ -40,6 +40,9 @@ param seedDemoData bool = false
 @description('Prod only: who gets the gateway 5xx alert (design §6). Empty: no alert is created.')
 param alertEmail string = ''
 
+@description('Client id of this stage "Athlos account deletion" app in the External ID tenant (infra/account_deletion_setup.py), whose secret is entra-deletion-client-secret in the stage Key Vault. Empty: account deletion answers 503.')
+param accountDeletionClientId string = ''
+
 @secure()
 @description('Gateway signing key (GatewaySignature). The deploy workflow passes the stored value, or a new one on the first deploy.')
 param gatewaySigningKey string
@@ -203,6 +206,8 @@ var signingKeySecret = [{ name: 'gateway-signing-key', keyVaultUrl: keyVault.out
 // Stripe secrets are written into Key Vault by infra/stripe_setup.py, not by Bicep (no secret in the repo or pipeline).
 var stripeSecretKey = [{ name: 'stripe-secret-key', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/stripe-secret-key' }]
 var stripeWebhookSecret = [{ name: 'stripe-webhook-secret', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/stripe-webhook-secret' }]
+var accountDeletionConfigured = !empty(accountDeletionClientId)
+var entraDeletionSecret = [{ name: 'entra-deletion-client-secret', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/entra-deletion-client-secret' }]
 
 // The stage's public address: its gateway (container app names are fixed, the domain is the environment's).
 var publicUrl = 'https://ca-athlos-gateway-${environmentName}.${acaEnvironment.properties.defaultDomain}'
@@ -261,7 +266,7 @@ module tenancyApi 'modules/container-app.bicep' = if (deployApps) {
     registryServer: registryServer
     image: '${registryServer}/athlos/tenancy-api:${imageTag}'
     maxReplicas: 3
-    keyVaultSecrets: concat(signingKeySecret, stripeConfigured ? stripeSecretKey : [])
+    keyVaultSecrets: concat(signingKeySecret, stripeConfigured ? stripeSecretKey : [], accountDeletionConfigured ? entraDeletionSecret : [])
     env: concat(commonEnv, authEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'tenancy-api' }
       { name: 'App__PublicUrl', value: publicUrl }
@@ -274,7 +279,14 @@ module tenancyApi 'modules/container-app.bicep' = if (deployApps) {
       // built from the environment's domain, not module outputs: those apps already depend on tenancy.
       { name: 'services__catalog-api__https__0', value: 'https://ca-athlos-catalog-api-${environmentName}.internal.${acaEnvironment.properties.defaultDomain}' }
       { name: 'services__enrollment-api__https__0', value: 'https://ca-athlos-enrollment-api-${environmentName}.internal.${acaEnvironment.properties.defaultDomain}' }
-    ], stripeConfigured ? [{ name: 'Stripe__SecretKey', secretRef: 'stripe-secret-key' }] : [])
+      // Deleting an account calls ordering too (design §5.2).
+      { name: 'services__ordering-api__https__0', value: 'https://ca-athlos-ordering-api-${environmentName}.internal.${acaEnvironment.properties.defaultDomain}' }
+    ], accountDeletionConfigured ? [
+      // The External ID tenant is the one in the sign-in authority (https://<name>.ciamlogin.com/<tenant id>/v2.0).
+      { name: 'EntraAccountDeletion__TenantId', value: split(authAuthority, '/')[3] }
+      { name: 'EntraAccountDeletion__ClientId', value: accountDeletionClientId }
+      { name: 'EntraAccountDeletion__ClientSecret', secretRef: 'entra-deletion-client-secret' }
+    ] : [], stripeConfigured ? [{ name: 'Stripe__SecretKey', secretRef: 'stripe-secret-key' }] : [])
   }
 }
 

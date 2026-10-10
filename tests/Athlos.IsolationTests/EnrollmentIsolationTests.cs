@@ -96,6 +96,38 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         return (long)(await command.ExecuteScalarAsync(Cancel))!;
     }
 
+    // Deleting Alice's account (design §5.2): her enrollments and progress go with every coach; Bob's
+    // stay. Counted as the superuser, so RLS cannot hide a leftover.
+    [Fact]
+    public async Task Erasing_Alice_removes_her_enrollments_with_every_coach_and_nothing_of_Bobs()
+    {
+        await _api.Enroll(_alice, _b);
+
+        var erased = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/customers/{_alice}"));
+        var again = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/customers/{_alice}"));
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (erased.StatusCode, again.StatusCode));
+        Assert.Equal((0L, 0L), (await RowsOfCustomer("enrollments", _alice), await RowsOfCustomer("workout_progress", _alice)));
+        Assert.Equal(1L, await RowsOfCustomer("enrollments", _bob));
+    }
+
+    [Fact]
+    public async Task Unsigned_customer_erase_requests_are_rejected()
+    {
+        var response = await _api.CreateClient().DeleteAsync($"/internal/customers/{_alice}", Cancel);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    private async Task<long> RowsOfCustomer(string table, Guid customerId)
+    {
+        await using var connection = new NpgsqlConnection(databases.OwnerConnectionString("enrollment"));
+        await connection.OpenAsync(Cancel);
+        await using var command = new NpgsqlCommand($"SELECT count(*) FROM {table} WHERE customer_id = @customer", connection);
+        command.Parameters.AddWithValue("customer", customerId);
+        return (long)(await command.ExecuteScalarAsync(Cancel))!;
+    }
+
     [Fact]
     public async Task A_customer_lists_only_their_own_programs()
     {

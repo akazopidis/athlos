@@ -17,6 +17,11 @@ public sealed class CrossTenantSliceGuardTests
         "src/Services/Athlos.Enrollment.Api/Features/MyPrograms/MyEnrollments.cs",
         // A user's own memberships across workspaces.
         "src/Services/Athlos.Tenancy.Api/Features/Account/ListMyMemberships.cs",
+        // Deleting an account: the user's own memberships, orders and enrollments, found across
+        // tenants, then changed one tenant at a time (design §5.2).
+        "src/Services/Athlos.Tenancy.Api/Features/Account/DeleteMyAccount.cs",
+        "src/Services/Athlos.Ordering.Api/Features/Customers/EraseCustomer.cs",
+        "src/Services/Athlos.Enrollment.Api/Features/Enrollments/EraseCustomer.cs",
     ];
 
     [Fact]

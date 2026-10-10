@@ -30,6 +30,37 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         _bobBuysFromA = await _api.Buy(_bob, _a);
     }
 
+    // Deleting Alice's account (design §5.2): her orders stay with both coaches for accounting, with
+    // her address gone; Bob's order is untouched. Counted as the superuser, so RLS cannot hide a row.
+    [Fact]
+    public async Task Erasing_Alice_anonymizes_her_orders_with_every_coach_and_nothing_of_Bobs()
+    {
+        var erased = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/customers/{_alice}"));
+        var again = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/customers/{_alice}"));
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (erased.StatusCode, again.StatusCode));
+        Assert.Equal(Athlos.Ordering.Api.Features.Customers.EraseCustomer.ErasedEmail, await EmailOf(_aliceBuysFromA));
+        Assert.Equal(Athlos.Ordering.Api.Features.Customers.EraseCustomer.ErasedEmail, await EmailOf(_aliceBuysFromB));
+        Assert.NotEqual(Athlos.Ordering.Api.Features.Customers.EraseCustomer.ErasedEmail, await EmailOf(_bobBuysFromA));
+    }
+
+    [Fact]
+    public async Task Unsigned_erase_requests_are_rejected()
+    {
+        var response = await _api.CreateClient().DeleteAsync($"/internal/customers/{_alice}", Cancel);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    private async Task<string> EmailOf(Guid orderId)
+    {
+        await using var connection = new NpgsqlConnection(databases.OwnerConnectionString("ordering"));
+        await connection.OpenAsync(Cancel);
+        await using var command = new NpgsqlCommand("SELECT customer_email FROM orders WHERE id = @id", connection);
+        command.Parameters.AddWithValue("id", orderId);
+        return (string)(await command.ExecuteScalarAsync(Cancel))!;
+    }
+
     public static TheoryData<string, string> AllEndpoints => new()
     {
         { "POST", "/api/v1/orders/checkout" },

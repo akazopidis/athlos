@@ -2,6 +2,7 @@ import { Notice, PageHeader } from '@/components/page'
 import { Button } from '@/components/ui/button'
 import { useApp } from '@/lib/AppContext'
 import { useTitle } from '@/lib/useTitle'
+import { DeleteAccount } from './DeleteAccount.tsx'
 import { MyOrders } from './MyOrders.tsx'
 import { MyPrograms } from './MyPrograms.tsx'
 import { MyWorkspaces } from './MyWorkspaces.tsx'
@@ -30,6 +31,7 @@ export function Me() {
       <MyPrograms />
       <MyOrders />
       <MyWorkspaces />
+      <DeleteAccount />
     </div>
   )
 }

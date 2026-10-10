@@ -116,7 +116,8 @@ var enrollmentApi = builder.AddProject<Projects.Athlos_Enrollment_Api>("enrollme
     .WaitForCompletion(migrator);
 
 // Deleting a workspace: tenancy asks catalog and enrollment to erase their part (design §3.4).
-tenancyApi.WithReference(catalogApi).WithReference(enrollmentApi);
+// Deleting an account: ordering and enrollment erase the customer's part (design §5.2).
+tenancyApi.WithReference(catalogApi).WithReference(enrollmentApi).WithReference(orderingApi);
 
 // Sends the emails of design §5.3. Locally nothing leaves the machine: emails are written to
 // src/AppHost/.emails (git-ignored) and the log names only the subject.

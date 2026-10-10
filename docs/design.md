@@ -348,6 +348,8 @@ Entra External ID does the account work, so Athlos never stores or handles passw
 - *Known gaps.*
   - Invites sent to the user's address by workspaces they never joined stay until they expire or are revoked; the user's own rows cannot reveal which tenants those are.
   - Data at Stripe (the email on past Checkout sessions) follows Stripe's retention, outside Athlos.
+  - Entra soft-deletes: a deleted user stays in the tenant's deleted items for 30 days, then is removed for good (seen on dev, 10 October 2026). Purging it at once is one more Graph call, `DELETE /directory/deletedItems/{id}`; future work.
+- *Tested end to end on dev* (10 October 2026, a throwaway account, one trace of 2.8 s): ordering 204 (172 ms), enrollment 204 (246 ms), Graph token 200, `DELETE /users/{id}` 204; afterwards Graph answers `Request_ResourceNotFound` for that user.
 
 Things to know and write down in the thesis:
 - Entra's own emails (verification and reset codes) come from a Microsoft sender with Athlos branding. Sending them from your own domain needs a custom email provider extension; that is out of scope.

@@ -76,8 +76,9 @@ public sealed class RateLimitTests : IAsyncLifetime
 
         // The gateway's server span is the trace's root (the stand-in backend's span is its
         // descendant). The listener sees the whole process, so other tests' spans may be there too.
-        Assert.Contains(spans, s => s.Parent is null && s.ParentId is null && s.Kind == System.Diagnostics.ActivityKind.Server
-            && s.GetTagItem("tenant.id") is string && s.GetTagItem("tenant.plan") as string == "Free");
+        // The server span stops just after the response is sent, so wait for it briefly.
+        Assert.True(await SpanArrives(spans, s => s.Parent is null && s.ParentId is null && s.Kind == System.Diagnostics.ActivityKind.Server
+            && s.GetTagItem("tenant.id") is string && s.GetTagItem("tenant.plan") as string == "Free"));
     }
 
     [Fact]
@@ -139,5 +140,21 @@ public sealed class RateLimitTests : IAsyncLifetime
         {
             await _backend.DisposeAsync();
         }
+    }
+
+    private static async Task<bool> SpanArrives(
+        System.Collections.Concurrent.ConcurrentBag<System.Diagnostics.Activity> spans, Func<System.Diagnostics.Activity, bool> match)
+    {
+        for (var waited = 0; waited < 5000; waited += 50)
+        {
+            if (spans.Any(match))
+            {
+                return true;
+            }
+
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        return false;
     }
 }

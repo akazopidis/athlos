@@ -42,7 +42,8 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
 
         await _api.AsCoach(coach, HttpMethod.Get, "/programs");
 
-        Assert.Contains(spans, s => s.GetTagItem("tenant.id") as string == coach.TenantId.ToString() && s.GetTagItem("user.role") as string == "Owner");
+        // The server span stops just after the response is sent, so wait for it briefly.
+        Assert.True(await SpanArrives(spans, s => s.GetTagItem("tenant.id") as string == coach.TenantId.ToString() && s.GetTagItem("user.role") as string == "Owner"));
     }
 
     [Fact]
@@ -254,4 +255,20 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
     private sealed record SearchItem(string CoachSlug, string Slug, string Title);
 
     private sealed record SearchPage(List<SearchItem> Items, int Page, int PageSize, int TotalCount);
+
+    private static async Task<bool> SpanArrives(
+        System.Collections.Concurrent.ConcurrentBag<System.Diagnostics.Activity> spans, Func<System.Diagnostics.Activity, bool> match)
+    {
+        for (var waited = 0; waited < 5000; waited += 50)
+        {
+            if (spans.Any(match))
+            {
+                return true;
+            }
+
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        return false;
+    }
 }

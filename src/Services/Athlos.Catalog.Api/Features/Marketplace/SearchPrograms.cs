@@ -9,8 +9,8 @@ namespace Athlos.Catalog.Api.Features.Marketplace;
 
 // Browse and search every coach's published programs (design §8, "/").
 // CROSS-TENANT SLICE (design §3.2): ignores the tenant filter, runs in the public-read scope, and
-// filters on is_published itself; RLS enforces the same rule, so drafts cannot leak even if this
-// filter were wrong.
+// filters on is_published (and a suspended coach, design §3.4) itself; RLS enforces the same rule, so
+// drafts cannot leak even if this filter were wrong.
 public static class SearchPrograms
 {
     public const int MaxPageSize = 50;
@@ -37,7 +37,7 @@ public static class SearchPrograms
     {
         var programs = db.Programs.AsNoTracking()
             .IgnoreQueryFilters([TenantDbContext.TenantFilter])
-            .Where(p => p.IsPublished);
+            .Where(p => p.IsPublished && !p.TenantSuspended);
 
         if (!string.IsNullOrWhiteSpace(query.Q))
         {

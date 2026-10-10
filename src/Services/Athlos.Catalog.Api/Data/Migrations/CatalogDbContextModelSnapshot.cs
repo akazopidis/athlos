@@ -93,6 +93,10 @@ namespace Athlos.Catalog.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");
 
+                    b.Property<bool>("TenantSuspended")
+                        .HasColumnType("boolean")
+                        .HasColumnName("tenant_suspended");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(120)

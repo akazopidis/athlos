@@ -6,7 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Catalog.Api.Features.Internal;
 
 // For ordering-api's checkout (design §2.1: "ordering → catalog for price lookup"): what a published
-// program costs and which workspace sells it. Drafts are 404, so they cannot be bought.
+// program costs and which workspace sells it. Drafts and a suspended coach's programs are 404, so they
+// cannot be bought (design §3.4).
 // CROSS-TENANT SLICE (design §3.2): the buyer is outside the coach's tenant; runs in the public-read
 // scope, where RLS only shows published programs.
 public static class GetProgramOffer
@@ -21,7 +22,7 @@ public static class GetProgramOffer
     {
         var offer = await db.Programs.AsNoTracking()
             .IgnoreQueryFilters([TenantDbContext.TenantFilter])
-            .Where(p => p.Id == programId && p.IsPublished)
+            .Where(p => p.Id == programId && p.IsPublished && !p.TenantSuspended)
             .Select(p => new Response(p.Id, p.TenantId, p.CoachSlug, p.Title, p.PriceAmount, p.Currency))
             .SingleOrDefaultAsync(cancellationToken);
 

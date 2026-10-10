@@ -38,6 +38,11 @@ public sealed class TrainingProgram : ITenantOwned, IHasTimestamps
     // customers may own it, so it can be unpublished but not deleted (design §3.4).
     public DateTimeOffset? FirstPublishedAt { get; set; }
 
+    // Copy of the workspace's suspension by the platform admin (design §3.4): a suspended coach's
+    // programs leave the marketplace and cannot be bought, but customers keep what they bought.
+    // Set by tenancy-api through PUT /internal/tenants/{id}/suspension.
+    public bool TenantSuspended { get; set; }
+
     public string? CoverImagePath { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }

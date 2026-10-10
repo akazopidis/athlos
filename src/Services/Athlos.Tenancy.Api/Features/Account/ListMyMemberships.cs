@@ -10,7 +10,8 @@ namespace Athlos.Tenancy.Api.Features.Account;
 // and on the RLS policy, which lets a session read memberships where user_id = app.user_id.
 public static class ListMyMemberships
 {
-    public sealed record Item(Guid TenantId, string Slug, string DisplayName, TenantRole Role);
+    // Status: a suspended workspace is listed, so the studio can say why it is closed (design §3.4).
+    public sealed record Item(Guid TenantId, string Slug, string DisplayName, TenantRole Role, TenantStatus Status);
 
     public static void MapListMyMemberships(this IEndpointRouteBuilder app) =>
         app.MapGet("/memberships", Handle)
@@ -26,7 +27,7 @@ public static class ListMyMemberships
                 from t in db.Tenants
                 where t.Id == m.TenantId && t.Status != TenantStatus.Deleted
                 orderby t.DisplayName
-                select new Item(t.Id, t.Slug, t.DisplayName, m.Role))
+                select new Item(t.Id, t.Slug, t.DisplayName, m.Role, t.Status))
             .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(items);

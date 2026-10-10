@@ -101,7 +101,7 @@ Four business services, a gateway and one small background worker for email. Tha
 | Service | Owns | Key endpoints | Database |
 |---|---|---|---|
 | **gateway** | Routing, auth check, tenant resolution, per-tenant rate limits | All public traffic | none |
-| **tenancy-api** | Tenants, memberships, plans, branding, Stripe connected-account id | Sign up as coach, workspace settings, Stripe onboarding link, internal membership lookup | `athlos_tenancy` |
+| **tenancy-api** | Tenants, memberships, plans, branding, Stripe connected-account id | Sign up as coach, workspace settings, Stripe onboarding link, internal membership lookup, platform admin (workspaces, status, plans) | `athlos_tenancy` |
 | **catalog-api** | Programs, workouts, prices, publish state, media | Coach CRUD (tenant-scoped), public marketplace search (cross-tenant, published only) | `athlos_catalog` |
 | **ordering-api** | Orders, Stripe Checkout sessions, Stripe webhooks, outbox | Create checkout, webhook receiver, customer "my orders", coach "my sales" | `athlos_ordering` |
 | **enrollment-api** | Enrollments, progress | Customer "my programs", progress updates; consumes `OrderPaid` | `athlos_enrollment` |
@@ -247,7 +247,7 @@ Pool is what a marketplace with many small coaches would use in practice, and it
 | **Deleted** | Owner or admin request | Tenant-private data is removed by `tenant_id` in every service (tenancy-api calls `DELETE /internal/tenants/{id}` on each service; Service Bus Basic has no topics for a broadcast), blobs under `tenants/{id}/` are deleted; orders are kept for accounting with the tenant marked deleted |
 
 **Deletion as built:**
-- *Who and how.* The owner deletes the workspace in the studio with `DELETE /api/v1/studio/{slug}/workspace`, typing the address to confirm. A platform-admin route is future work; admins do not exist yet.
+- *Who and how.* The owner deletes the workspace in the studio with `DELETE /api/v1/studio/{slug}/workspace`, typing the address to confirm. An admin deletion route is future work; the platform admin suspends instead (below).
 - *Order of steps.*
   1. tenancy-api calls catalog-api's `DELETE /internal/tenants/{id}` (programs, workouts, then every blob under `tenants/{id}/`).
   2. It calls enrollment-api's (enrollments and progress).
@@ -259,6 +259,22 @@ Pool is what a marketplace with many small coaches would use in practice, and it
 - *Known gaps.*
   - The tenancy-api calls are not in a distributed transaction: a crash between steps leaves a partly erased but still Active workspace, which a retry completes.
   - An `OrderPaid` already in the queue when a workspace is deleted could still create an enrollment for it. Checkout is closed by then, because a non-Active workspace cannot sell.
+
+**Suspension and plans as built (platform admin):**
+- *Who.* A user with the Entra app role `Platform.Admin` (§5), set up per stage by `infra/platform_admin_setup.py`. The routes are `/api/v1/admin/...` on tenancy-api, behind an authorization policy on the token's `roles` claim; anyone else gets `403` (for every id, so nothing leaks). The SPA shows `/admin` to admins only.
+- *Routes.* `GET /api/v1/admin/tenants` (search by name or address, filter by status, paged), `PUT /api/v1/admin/tenants/{id}/status` (`Active` or `Suspended`), `PUT /api/v1/admin/tenants/{id}/plan` (`Free` or `Pro`), `GET /api/v1/admin/metrics` (workspaces by status and plan, ready to sell, new in 30 days).
+- *Suspending.*
+  1. tenancy-api calls catalog-api's `PUT /internal/tenants/{id}/suspension`, which sets `programs.tenant_suspended` as that tenant.
+  2. It marks the tenant `Suspended`.
+  - If the call fails, nothing has changed (502) and the admin retries. Reactivating runs the same two steps back.
+- *Effect.*
+  - The storefront is `404`.
+  - The marketplace search, program page and checkout's price lookup leave the programs out, so checkout is `404` too. The public-read RLS policy also requires `NOT tenant_suspended`, so layer 4 hides them on its own.
+  - The studio is closed, because the gateway resolves only active workspaces (its cache can keep it open for up to a minute). The coach's workspace list marks it Suspended.
+  - Customers keep what they bought: paid content is read inside the tenant, whatever its state.
+- *Each write enters one tenant.* The admin has no tenant of its own. Changing a workspace's status or plan enters that tenant for the transaction, so RLS (`tenants_update`) confines the write to the one row. The isolation suite shows that suspending A leaves B active, and that B's owner cannot suspend A.
+- *Plans.* A new plan applies within the gateway's 60-second cache. A downgrade keeps what the coach has; quotas only stop new programs and staff.
+- *Platform metrics.* The admin page shows counts from tenancy's own table (database per service). Traffic, latency, 429s and sales per coach stay in the "Athlos per coach" workbook (§6), not in a cross-database report.
 
 Deleting one tenant's data with one key is a strong, demonstrable argument for the pool model's `tenant_id` discipline, and it is the GDPR "right to erasure" angle for the thesis. Plans (Free, Pro) are assigned by the platform admin; charging coaches a subscription through Stripe Billing is future work.
 
@@ -306,7 +322,7 @@ The shared B1ms database is itself a noisy-neighbor story: without limits, tenan
 - **Setup is code:** `infra/entra_setup.py` creates, per stage, an API app registration (scope `access_as_user`, email in access tokens) and a SPA app registration (redirect to the stage's gateway, admin-consented), plus one "Athlos sign-up and sign-in" user flow (email + password, display name). It prints the GitHub environment variables `AUTH_AUTHORITY`, `AUTH_AUDIENCE`, `SPA_CLIENT_ID`, `API_SCOPE`.
 - **Microsoft Entra External ID** (the successor of Azure AD B2C) for sign-up and sign-in. Free for the first 50,000 monthly active users. Customers and coaches use the same user flow (email + password, optionally Google). One external tenant, with a separate app registration per environment (dev, staging, prod).
 - The SPA uses **MSAL React** (auth code + PKCE). The gateway and services validate tokens with ASP.NET Core's `JwtBearer` handler (authority = the External ID tenant, audience = the Athlos API app registration). Microsoft.Identity.Web was the first plan; for a single External ID tenant it adds hidden scope checks and configuration without adding safety, and plain `JwtBearer` lets tests swap in a local signing key.
-- **Authorization data lives in your app, not in the token.** "Who is a coach of which tenant" is in `tenancy-api` `memberships`. This keeps tokens small, avoids a custom-claims extension, and makes role changes immediate. One Entra app role, `Platform.Admin`, covers the admin.
+- **Authorization data lives in your app, not in the token.** "Who is a coach of which tenant" is in `tenancy-api` `memberships`. This keeps tokens small, avoids a custom-claims extension, and makes role changes immediate. One Entra app role, `Platform.Admin`, covers the admin: assigned to a user on the stage's API app registration, it arrives in the access token's `roles` claim (§3.4, "Suspension and plans as built").
 - Becoming a coach: a signed-in user calls `POST /api/v1/tenants` → a tenant is created with them as `Owner` → they are sent to Stripe Connect onboarding (`POST /api/v1/studio/{slug}/payouts/onboarding`, owners only: creates the Express account once, returns a Stripe account link back to `/studio/{slug}`; `GET .../payouts` reads the status from Stripe and caches it as `stripe_onboarding_complete`). Without a Stripe key an environment answers `503` rather than faking onboarding.
 
 ### 5.1 Security checklist
@@ -479,7 +495,7 @@ athlos/
 
 | Concern | Convention |
 |---|---|
-| Routes | Public: `/api/v1/marketplace/...`; coach: `/api/v1/studio/{tenantSlug}/...`; customer: `/api/v1/me/...`; webhooks: `/webhooks/stripe`; service-to-service: `/internal/...` (never routed by the gateway) |
+| Routes | Public: `/api/v1/marketplace/...`; coach: `/api/v1/studio/{tenantSlug}/...`; customer: `/api/v1/me/...`; platform admin: `/api/v1/admin/...`; webhooks: `/webhooks/stripe`; service-to-service: `/internal/...` (never routed by the gateway) |
 | Versioning | URL segment `v1`; a breaking change adds `v2` next to it |
 | JSON | camelCase, ISO 8601 UTC timestamps, enums as strings |
 | Paging | `?page=1&pageSize=20`, max 50, response `{ items, page, pageSize, totalCount }` |
@@ -507,7 +523,7 @@ athlos/
 
 **Look and responsiveness:** Athlos' own colors are ink (near-black) and volt (a sporty yellow-green), with Archivo for headings and Geist for text, both bundled (the CSP allows only self-hosted fonts). Dark mode follows the operating system. Inside a storefront and its program pages, the coach's brand color replaces the primary color, with black or white text picked by contrast. Mobile-first Tailwind breakpoints, touch targets of at least 40 px, and no UI library in the first page load beyond the shadcn copies (the menus are plain disclosures).
 
-One SPA with four areas:
+One SPA with four areas, plus the platform admin's `/admin`, shown to users with the `Platform.Admin` role:
 - `/` marketplace: browse and search all coaches' published programs.
 - `/c/{slug}` coach storefront: the tenant's branded page (logo, colors from workspace settings). This is the visible "configure your dedicated workspace" part of the thesis.
 - `/studio/{slug}` coach dashboard: programs, sales, settings, Stripe onboarding.

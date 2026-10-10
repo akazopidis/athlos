@@ -96,6 +96,9 @@ app.MapGroup("/internal")
 // Tenancy-api only (signed): erase one deleted workspace's programs and media (design §3.4)
 app.MapGroup("/internal")
     .MapEraseTenant();
+// Tenancy-api only (signed): hide or show a suspended workspace's programs (design §3.4)
+app.MapGroup("/internal")
+    .MapSuspendTenant();
 studio.MapWorkouts();
 
 app.Run();

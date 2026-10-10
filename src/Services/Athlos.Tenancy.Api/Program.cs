@@ -31,6 +31,13 @@ builder.Services.AddStripeConnect(builder.Configuration);
 builder.Services.AddHttpClient(ServiceTenantErasure.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api")).AddSignedRequests();
 builder.Services.AddHttpClient(ServiceTenantErasure.Enrollment, http => http.BaseAddress = new Uri("https+http://enrollment-api")).AddSignedRequests();
 builder.Services.AddScoped<ITenantErasure, ServiceTenantErasure>();
+// Deleting an account asks ordering and enrollment to erase the customer's part, then Graph removes
+// the Entra user (design §5.2).
+builder.Services.AddHttpClient(ServiceCustomerErasure.Ordering, http => http.BaseAddress = new Uri("https+http://ordering-api")).AddSignedRequests();
+builder.Services.AddHttpClient(ServiceCustomerErasure.Enrollment, http => http.BaseAddress = new Uri("https+http://enrollment-api")).AddSignedRequests();
+builder.Services.AddScoped<ICustomerErasure, ServiceCustomerErasure>();
+builder.Services.Configure<EntraAccountDeletionOptions>(builder.Configuration.GetSection("EntraAccountDeletion"));
+builder.Services.AddHttpClient<IEntraUsers, GraphEntraUsers>();
 // The staff invite email leaves through the outbox to the notifications queue (design §5.2, §5.3).
 builder.AddOutbox<TenancyDbContext>();
 builder.Services.AddValidation();
@@ -72,6 +79,8 @@ var me = app.MapGroup("/api/v1/me")
     .WithTenantTransaction<TenancyDbContext>();
 me.MapListMyMemberships();
 me.MapUpsertMyProfile();
+// Deleting the account manages its own transactions, around the calls to other services.
+app.MapDeleteMyAccount();
 
 // Coach dashboard: tenant and role come from the gateway
 var studio = app.MapGroup("/api/v1/studio/{tenantSlug}")

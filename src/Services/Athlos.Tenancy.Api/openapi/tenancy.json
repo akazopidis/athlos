@@ -101,6 +101,19 @@
         }
       }
     },
+    "/api/v1/me": {
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "DeleteMyAccount",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/api/v1/marketplace/coaches/{slug}": {
       "get": {
         "tags": [
@@ -827,10 +840,10 @@
       "name": "Team"
     },
     {
-      "name": "Marketplace"
+      "name": "Account"
     },
     {
-      "name": "Account"
+      "name": "Marketplace"
     },
     {
       "name": "Workspace"

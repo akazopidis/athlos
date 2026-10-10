@@ -33,11 +33,11 @@ public abstract class ServiceApiFactory<TAnchor>(AthlosDatabases databases, stri
 
     // Sends a request the way the gateway forwards it: trusted headers set, then signed.
     public Task<HttpResponseMessage> SendAsGateway(
-        HttpRequestMessage request, Guid? userId = null, Guid? tenantId = null, TenantRole? role = null)
+        HttpRequestMessage request, Guid? userId = null, Guid? tenantId = null, TenantRole? role = null, IReadOnlyList<string>? appRoles = null)
     {
         if (userId is { } user)
         {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", TestTokens.For(user, $"{user}@test.local", "Test User"));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", TestTokens.For(user, $"{user}@test.local", "Test User", appRoles));
         }
 
         if (tenantId is { } tenant) request.Headers.Add(TrustedHeaders.TenantId, tenant.ToString());
@@ -68,6 +68,9 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
 
     public FakeEntraUsers EntraUsers { get; } = new();
 
+    // What suspending a workspace asks catalog-api to do (design §3.4).
+    public FakeTenantSuspension Suspension { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -80,6 +83,7 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
             services.AddSingleton<Athlos.Tenancy.Api.Features.Workspace.ITenantErasure>(Erasure);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Account.ICustomerErasure>(CustomerErasure);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Account.IEntraUsers>(EntraUsers);
+            services.AddSingleton<Athlos.Tenancy.Api.Features.Admin.ITenantSuspension>(Suspension);
         });
 
         // Without a fake, Stripe counts as not configured, as in an environment without a key.

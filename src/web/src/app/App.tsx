@@ -12,6 +12,7 @@ import { SiteHeader } from './SiteHeader.tsx'
 // invites) load when first opened, so a marketplace visitor does not download the studio.
 const lazyPage = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
   lazy(async () => ({ default: (await load())[name] }))
+const Admin = lazyPage(() => import('@/features/admin/Admin'), 'Admin')
 const AcceptInvite = lazyPage(() => import('@/features/studio/AcceptInvite'), 'AcceptInvite')
 const CreateWorkspace = lazyPage(() => import('@/features/studio/CreateWorkspace'), 'CreateWorkspace')
 const Me = lazyPage(() => import('@/features/account/Me'), 'Me')
@@ -52,6 +53,7 @@ export default function App() {
               </Route>
               <Route path="/me" element={<Me />} />
               <Route path="/me/programs/:programId" element={<MyProgramPage />} />
+              <Route path="/admin" element={<Admin />} />
               <Route
                 path="*"
                 element={

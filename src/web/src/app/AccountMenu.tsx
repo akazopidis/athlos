@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { LogOut, UserRound } from 'lucide-react'
+import { LogOut, ShieldCheck, UserRound } from 'lucide-react'
 import { useRef } from 'react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { useApp } from '@/lib/AppContext'
+import { usePlatformAdmin } from '@/lib/usePlatformAdmin'
 import { useDisclosure } from './useDisclosure.ts'
 
 export function AccountMenu() {
@@ -11,6 +12,7 @@ export function AccountMenu() {
   const account = msal?.getActiveAccount()
   const container = useRef<HTMLDivElement>(null)
   const menu = useDisclosure(container)
+  const isAdmin = usePlatformAdmin()
 
   // Keeps user_profiles in step with the token after each sign-in (design §5.2).
   useQuery({
@@ -57,6 +59,11 @@ export function AccountMenu() {
           <Link to="/me" onClick={menu.close} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-muted">
             <UserRound className="size-4" aria-hidden /> My account
           </Link>
+          {isAdmin && (
+            <Link to="/admin" onClick={menu.close} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-muted">
+              <ShieldCheck className="size-4" aria-hidden /> Platform admin
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => msal.logoutRedirect()}

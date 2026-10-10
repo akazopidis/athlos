@@ -17,6 +17,7 @@ Run it yourself, signed in to both tenants with az, and with gh:
 Nothing is written to disk; the secret goes straight into Key Vault.
 """
 
+import base64
 import json
 import subprocess
 import sys
@@ -93,12 +94,19 @@ def new_secret(app):
     return created["secretText"]
 
 
+def my_object_id():
+    # From a token for the Students subscription, so it does not matter which tenant az uses by
+    # default (after signing in to the External ID tenant, that is often the other one).
+    token = run("az", "account", "get-access-token", "--subscription", SUBSCRIPTION, "--query", "accessToken", "-o", "tsv")
+    payload = token.split(".")[1]
+    return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))["oid"]
+
+
 def store(stage, name, value):
     vault = f"kv-athlos-{stage}"
-    me = run("az", "account", "show", "--subscription", SUBSCRIPTION, "--query", "user.name", "-o", "tsv")
     scope = run("az", "keyvault", "show", "--subscription", SUBSCRIPTION, "-n", vault, "--query", "id", "-o", "tsv")
-    run("az", "role", "assignment", "create", "--subscription", SUBSCRIPTION, "--assignee", me,
-        "--role", SECRETS_OFFICER_ROLE, "--scope", scope, "-o", "none")
+    run("az", "role", "assignment", "create", "--subscription", SUBSCRIPTION, "--assignee-object-id", my_object_id(),
+        "--assignee-principal-type", "User", "--role", SECRETS_OFFICER_ROLE, "--scope", scope, "-o", "none")
     run("az", "keyvault", "secret", "set", "--subscription", SUBSCRIPTION, "--vault-name", vault,
         "-n", name, "--value", value, "-o", "none")
 

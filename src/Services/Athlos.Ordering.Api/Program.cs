@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Athlos.Messaging;
 using Athlos.Ordering.Api.Data;
 using Athlos.Ordering.Api.Features.Checkout;
+using Athlos.Ordering.Api.Features.Customers;
 using Athlos.Ordering.Api.Features.Orders;
 using Athlos.Ordering.Api.Features.Webhooks;
 using Athlos.Tenancy;
@@ -73,5 +74,8 @@ app.MapGroup("/api/v1/studio/{tenantSlug}")
 
 // Stripe, through the gateway (no user; the Stripe-Signature is the authentication)
 app.MapStripeWebhook();
+
+// Tenancy-api only (signed): anonymize a deleted account's orders (design §5.2)
+app.MapEraseCustomer();
 
 app.Run();

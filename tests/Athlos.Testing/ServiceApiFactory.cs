@@ -63,6 +63,11 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
     // What deleting a workspace asks catalog-api and enrollment-api to erase (design §3.4).
     public FakeTenantErasure Erasure { get; } = new();
 
+    // What deleting an account asks the other services and Microsoft Graph to do (design §5.2).
+    public FakeCustomerErasure CustomerErasure { get; } = new();
+
+    public FakeEntraUsers EntraUsers { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -73,6 +78,8 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
         {
             services.AddSingleton<IMessageSender>(Messages);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Workspace.ITenantErasure>(Erasure);
+            services.AddSingleton<Athlos.Tenancy.Api.Features.Account.ICustomerErasure>(CustomerErasure);
+            services.AddSingleton<Athlos.Tenancy.Api.Features.Account.IEntraUsers>(EntraUsers);
         });
 
         // Without a fake, Stripe counts as not configured, as in an environment without a key.

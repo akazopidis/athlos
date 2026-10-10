@@ -62,6 +62,18 @@ public sealed class TenantContext : ITenantContext
         System.Diagnostics.Activity.Current?.SetTag(TelemetryTags.TenantId, tenantId.ToString());
     }
 
+    // For internal slices that act for a user another service already verified (account deletion,
+    // design §5.2): RLS then shows that user's own rows across tenants, as it does for the user.
+    public void ActForUser(Guid userId)
+    {
+        if (UserId is not null && UserId != userId)
+        {
+            throw new InvalidOperationException("Already acting for another user.");
+        }
+
+        UserId = userId;
+    }
+
     // For public marketplace slices only (design §3.2).
     public void UsePublicReadScope() => Scope = TenantScope.PublicRead;
 }

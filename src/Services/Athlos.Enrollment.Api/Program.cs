@@ -69,5 +69,7 @@ me.MapWorkoutCompletion();
 
 // Tenancy-api only (signed): erase one deleted workspace's enrollments (design §3.4)
 app.MapEraseTenant();
+// Tenancy-api only (signed): erase a deleted account's enrollments (design §5.2)
+app.MapEraseCustomer();
 
 app.Run();

@@ -15,6 +15,7 @@ import { leaveTo } from '@/lib/navigation'
 import { problemTitle } from '@/lib/problem'
 import { useCoaches } from '@/lib/useCoaches'
 import { useOwnedPrograms } from '@/lib/useOwnedPrograms'
+import { useSlow } from '@/lib/useSlow'
 import { useTitle } from '@/lib/useTitle'
 import { ProductCard } from './ProductCard.tsx'
 import { useStorefront } from './useStorefront.ts'
@@ -61,6 +62,7 @@ export function ProgramPage() {
     },
     onSuccess: ({ checkoutUrl }) => leaveTo(checkoutUrl),
   })
+  const slow = useSlow(buy.isPending)
 
   if (program.isPending) return <Loading lines={5} />
   if (!program.data) {
@@ -202,6 +204,7 @@ export function ProgramPage() {
                 </div>
               )}
             </div>
+            {slow && <div className="mt-3"><p className="text-center text-xs text-muted-foreground" role="status">Waking up the payment service. This can take up to a minute the first time.</p></div>}
             {buy.error && (
               <Alert variant="destructive" role="alert" className="mt-3">
                 <AlertDescription>{buy.error.message}</AlertDescription>

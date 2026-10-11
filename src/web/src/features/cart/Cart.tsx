@@ -13,6 +13,7 @@ import { leaveTo } from '@/lib/navigation'
 import { problemTitle } from '@/lib/problem'
 import { useCoaches } from '@/lib/useCoaches'
 import { useOwnedPrograms } from '@/lib/useOwnedPrograms'
+import { useSlow } from '@/lib/useSlow'
 import { useTitle } from '@/lib/useTitle'
 
 // The cart (design §2.2, §8): programs from any coaches, paid in one Stripe checkout. ordering-api
@@ -58,13 +59,19 @@ export function Cart() {
         setNotice(`${problemTitle(error) ?? 'Some programs cannot be bought.'} Removed from your cart: ${titles.join(', ')}.`)
         return null
       }
-      if (reason === 'cannotSell') setBlocked(refused)
+      if (reason === 'cannotSell') {
+        // The cart stays; the coach's programs are marked (the notice below names the coach).
+        setBlocked(refused)
+        return null
+      }
       if (response.status === 401) throw new Error('Sign in to check out.')
       if (response.status === 503) throw new Error('Payments are not available yet in this environment.')
       throw new Error(problemTitle(error) ?? 'Could not start checkout.')
     },
     onSuccess: (result) => result && leaveTo(result.checkoutUrl),
   })
+  const slow = useSlow(checkout.isPending)
+  const blockedItems = cart.items.filter((i) => blocked.includes(i.programId))
 
   if (!cart.items.length) {
     return (
@@ -91,6 +98,15 @@ export function Cart() {
     <div className="space-y-8">
       <PageHeader eyebrow="Cart" title="Your cart" description={`${cart.items.length} of up to ${MaxCartItems} programs, from ${byCoach.size} ${byCoach.size === 1 ? 'coach' : 'coaches'}.`} />
       {params.get('checkout') === 'cancelled' && <Cancelled />}
+      {blockedItems.length > 0 && (
+        <Alert role="status">
+          <Info aria-hidden />
+          <AlertDescription>
+            {[...new Set(blockedItems.map((i) => coaches.get(i.coachSlug)?.displayName ?? i.coachSlug))].join(', ')} cannot take payments right now. Remove{' '}
+            {blockedItems.length === 1 ? 'that program' : 'those programs'} to check out the rest.
+          </AlertDescription>
+        </Alert>
+      )}
       {notice && (
         <Alert role="status">
           <Info aria-hidden />
@@ -168,6 +184,7 @@ export function Cart() {
           ) : (
             <p className="text-sm">Sign-in is not available in this environment.</p>
           )}
+          {slow && <p className="text-center text-xs text-muted-foreground" role="status">Waking up the payment service. This can take up to a minute the first time.</p>}
           <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
             <Lock className="size-3.5" aria-hidden /> One secure payment with Stripe for every coach
           </p>

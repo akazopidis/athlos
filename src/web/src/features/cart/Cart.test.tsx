@@ -108,6 +108,6 @@ test('a coach who cannot take payments is marked, and the cart stays', async () 
   fireEvent.click(await screen.findByRole('button', { name: 'Check out' }))
 
   expect(await screen.findByText(/This coach cannot take payments right now/)).toBeInTheDocument()
-  expect(screen.getByRole('alert')).toHaveTextContent('ben cannot take payments right now.')
+  expect(await screen.findByRole('status')).toHaveTextContent('Ben Runs cannot take payments right now. Remove that program to check out the rest.')
   expect(JSON.parse(localStorage.getItem('athlos.cart')!)).toHaveLength(2)
 })

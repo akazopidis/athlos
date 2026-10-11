@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v11, building (2026-09-28)
+**Status:** v12, built; v1.2.0 in production (2026-10-11)
+
+**Changes in v12 (v0.6.0 to v1.2.0, as built):** rate limits and quotas (§4), per-coach telemetry, workbook and alert (§6), the phase 9 evaluation (`docs/evaluation/`, §15.3), workspace deletion (§3.4), customer account deletion (§5.2), the platform admin with suspension and plans (§1, §3.4), the CI contract check (§15.1), and the repo visibility decision (§16).
 
 **Changes in v11:** the External ID tenant is linked to a separate pay-as-you-go subscription (§5, §10): the Azure for Students policy cannot allow the tenant resource, and Azure support declined an exception.
 
@@ -330,7 +332,7 @@ The shared B1ms database is itself a noisy-neighbor story: without limits, tenan
 - HTTPS only; HSTS and basic security headers (`X-Content-Type-Options`, `Referrer-Policy`, a Content Security Policy on the SPA, all set by the gateway, which serves the SPA).
 - No CORS: the SPA and the API share the gateway's origin. Local development uses the Vite dev-server proxy, so CORS stays off there too.
 - Stripe webhooks: verify the `Stripe-Signature` header with the signing secret, reject events older than 5 minutes, dedupe on event id.
-- No secrets in the repo, ever. Local secrets live in .NET user secrets or in Aspire parameters; Azure secrets in Key Vault. Enable GitHub secret scanning and push protection.
+- No secrets in the repo, ever. Local secrets live in .NET user secrets or in Aspire parameters; Azure secrets in Key Vault. GitHub secret scanning needs a public repo or paid Advanced Security; the repo is private (§16), so GitGuardian's check on every PR scans for secrets instead.
 - Upload limits: content-type allow-list and size cap for media; SAS URLs expire within 15 minutes.
 - Personal data is minimal: Entra holds credentials; Athlos stores user ids, display names and emails only where needed.
 - The API never returns stack traces; `ProblemDetails` only, with the trace id so errors can be found in App Insights.
@@ -747,7 +749,7 @@ Build a deployable "walking skeleton" first, so IaC and CI/CD grow with the code
 | Unit | xUnit v3 | Domain rules, rate-limit partitioning, price and fee calculation | every PR |
 | Integration | xUnit v3 + Testcontainers (PostgreSQL 17) + `WebApplicationFactory` | Each endpoint against a real database, including migrations and RLS | every PR |
 | Isolation | same | The cross-tenant suite from §3.3; **a failing isolation test blocks the merge** | every PR |
-| Contract | OpenAPI documents checked into the repo | CI fails if an endpoint's OpenAPI changes without the file being updated, so the SPA client never drifts | every PR |
+| Contract | OpenAPI documents checked into the repo | CI fails if an endpoint's OpenAPI changes without the file being updated, and if the SPA's generated client differs from the documents, so the client never drifts | every PR |
 | Frontend | Vitest + Testing Library | Components with API calls mocked | every PR |
 | End-to-end | Playwright (optional) | Sign in, buy a program with a Stripe test card, see it in "my programs" | on every staging deploy |
 | Load | k6 | Noisy-neighbor experiment (§4) | on demand against staging |
@@ -792,7 +794,7 @@ Measurable targets make the evaluation honest. Suggested starting values, measur
 1. ~~**Compute:** Container Apps or AKS.~~ **Decided 2026-09-26: Container Apps.**
 2. ~~**Database.**~~ **Decided 2026-09-26: PostgreSQL Flexible Server.**
 3. ~~**Registry:** ACR or GHCR.~~ Resolved by the Students free service: ACR Standard, as long as the portal confirms it.
-4. **Repo visibility:** public enables free CodeQL and makes the "reference guide" goal real; private is fine otherwise.
+4. ~~**Repo visibility.**~~ **Decided: private** (GitHub Pro). The cost: no free CodeQL or GitHub secret scanning, and no required reviewers on prod (§12). GitGuardian's check on every PR covers secret scanning, and Dependabot alerts and security updates are on (enabled 11 October 2026). Making it public later, for the "reference guide" goal, needs no code change.
 
 ## References
 

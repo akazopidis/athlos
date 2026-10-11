@@ -39,6 +39,15 @@ jobs:
 
       - run: dotnet restore Athlos.slnx
       - run: dotnet build Athlos.slnx --no-restore --configuration Release
+
+      # Contract check (design §15.1): the build rewrites each service's OpenAPI document, so a
+      # changed endpoint whose checked-in document was not updated shows up as a diff.
+      - name: OpenAPI documents match the code
+        run: |
+          if ! git diff --exit-code --stat -- 'src/Services/*/openapi/'; then
+            echo "::error::An OpenAPI document is out of date. Build locally and commit src/Services/*/openapi/, then run npm run generate:api in src/web."
+            exit 1
+          fi
       - run: dotnet test Athlos.slnx --no-build --configuration Release
 
       # The deploy publishes these as container images; catch publish-only errors (such as
@@ -64,6 +73,16 @@ jobs:
           cache-dependency-path: src/web/package-lock.json
 
       - run: npm ci
+
+      # The typed client must be generated from the checked-in OpenAPI documents (design §8, §15.1).
+      - name: API client matches the OpenAPI documents
+        run: |
+          npm run generate:api
+          if ! git diff --exit-code --stat -- src/api; then
+            echo "::error::src/web/src/api is out of date. Run npm run generate:api in src/web and commit it."
+            exit 1
+          fi
+
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test

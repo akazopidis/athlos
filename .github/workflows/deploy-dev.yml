@@ -16,6 +16,9 @@ concurrency:
 
 jobs:
   # Registry and Log Analytics must exist before images are pushed. Only dev deploys shared.bicep.
+  # It re-applies the PostgreSQL server and takes minutes even as a no-op, so it runs only when the
+  # push changed infra/ (or on a manual run), which keeps dev deploys under 15 min
+  # (docs/evaluation/targets.md, deploy times).
   shared:
     runs-on: ubuntu-latest
     environment: dev
@@ -23,17 +26,32 @@ jobs:
       image-tag: ${{ steps.tag.outputs.image-tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - id: tag
         run: echo "image-tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
-      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+      - id: changed
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" != "push" || -z "$BEFORE" || "$BEFORE" =~ ^0+$ ]]             || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null             || ! git diff --quiet "$BEFORE" "$GITHUB_SHA" -- infra/; then
+            echo "infra=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "infra=false" >> "$GITHUB_OUTPUT"
+            echo "No change under infra/ since $BEFORE: skipping shared.bicep."
+          fi
+
+      - if: steps.changed.outputs.infra == 'true'
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - run: >
+      - if: steps.changed.outputs.infra == 'true'
+        run: >
           az deployment group create --resource-group rg-athlos-shared
           --name "shared-${{ github.run_id }}" --template-file infra/shared.bicep --output none
 

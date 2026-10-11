@@ -18,6 +18,12 @@ public interface ICheckoutSessions
 
     // Sends a paid order's share to the coach; returns the transfer id. Idempotent per order.
     Task<string> TransferAsync(Order order, string paymentIntentId, CancellationToken cancellationToken);
+
+    // Closes an older, unpaid session, so it can no longer be paid. False if it was already paid.
+    Task<bool> ExpireAsync(string sessionId, CancellationToken cancellationToken);
+
+    // Gives one order's amount back (a program paid twice); returns the refund id. Idempotent per order.
+    Task<string> RefundAsync(Order order, string paymentIntentId, CancellationToken cancellationToken);
 }
 
 public sealed record CheckoutRequest(Guid CheckoutId, string CustomerEmail, string Currency, IReadOnlyList<Order> Orders, Uri SuccessUrl, Uri CancelUrl);
@@ -129,6 +135,31 @@ public sealed class StripeCheckoutSessions(IStripeClient stripe) : ICheckoutSess
 
         return transfer.Id;
     }
+
+    public async Task<bool> ExpireAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        var sessions = new SessionService(stripe);
+        var session = await sessions.GetAsync(sessionId, cancellationToken: cancellationToken);
+        if (session.Status == "open")
+        {
+            session = await sessions.ExpireAsync(sessionId, cancellationToken: cancellationToken);
+        }
+
+        return session.Status != "complete";
+    }
+
+    public async Task<string> RefundAsync(Order order, string paymentIntentId, CancellationToken cancellationToken)
+    {
+        var refund = await new RefundService(stripe).CreateAsync(new RefundCreateOptions
+        {
+            PaymentIntent = paymentIntentId,
+            Amount = order.Amount,
+            Reason = "duplicate",
+            Metadata = new Dictionary<string, string> { [CheckoutMetadata.OrderId] = order.Id.ToString() },
+        }, new RequestOptions { IdempotencyKey = $"refund-{order.Id}" }, cancellationToken);
+
+        return refund.Id;
+    }
 }
 
 // Without a Stripe key, checkout answers 503 instead of pretending to take money.
@@ -140,6 +171,12 @@ public sealed class CheckoutNotConfigured : ICheckoutSessions
         throw new InvalidOperationException("Stripe is not configured.");
 
     public Task<string> TransferAsync(Order order, string paymentIntentId, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Stripe is not configured.");
+
+    public Task<bool> ExpireAsync(string sessionId, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Stripe is not configured.");
+
+    public Task<string> RefundAsync(Order order, string paymentIntentId, CancellationToken cancellationToken) =>
         throw new InvalidOperationException("Stripe is not configured.");
 }
 

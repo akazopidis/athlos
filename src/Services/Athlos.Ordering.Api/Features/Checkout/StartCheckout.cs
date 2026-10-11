@@ -22,6 +22,9 @@ namespace Athlos.Ordering.Api.Features.Checkout;
 //    insert. The tenant comes from catalog's signed offer, never from the request.
 // The session is created before the rows, so a failure leaves no order pending without a payment
 // page; an unused session expires at Stripe.
+// A program is paid for once: a new checkout closes the customer's older, still-open Stripe pages for
+// the same programs first (found on dev: three open pages for one program, two of them paid). If one
+// of them was paid meanwhile, the program counts as owned. The webhook refunds what still slips through.
 public static class StartCheckout
 {
     public const int MaxPrograms = 10;
@@ -117,6 +120,30 @@ public static class StartCheckout
         if (owned.Count > 0)
         {
             return Problem(StatusCodes.Status409Conflict, "owned", "You already own some of these programs.", owned.Distinct());
+        }
+
+        var superseded = new List<(string SessionId, Guid ProgramId)>();
+        foreach (var coach in offers.GroupBy(o => o.TenantId))
+        {
+            var ids = coach.Select(o => o.ProgramId).ToList();
+            await scopes.InTenantAsync<OrderingDbContext>(coach.Key, async orders => superseded.AddRange((await orders.Orders
+                .Where(o => o.CustomerId == customerId && ids.Contains(o.ProgramId) && o.Status == OrderStatus.Pending && o.StripeCheckoutSessionId != null)
+                .Select(o => new { o.StripeCheckoutSessionId, o.ProgramId })
+                .ToListAsync(cancellationToken)).Select(o => (o.StripeCheckoutSessionId!, o.ProgramId))), cancellationToken);
+        }
+
+        var paidMeanwhile = new List<Guid>();
+        foreach (var older in superseded.GroupBy(s => s.SessionId))
+        {
+            if (!await checkout.ExpireAsync(older.Key, cancellationToken))
+            {
+                paidMeanwhile.AddRange(older.Select(s => s.ProgramId));
+            }
+        }
+
+        if (paidMeanwhile.Count > 0)
+        {
+            return Problem(StatusCodes.Status409Conflict, "owned", "A payment for some of these programs has just gone through. See My orders.", paidMeanwhile.Distinct());
         }
 
         var checkoutId = Guid.CreateVersion7();

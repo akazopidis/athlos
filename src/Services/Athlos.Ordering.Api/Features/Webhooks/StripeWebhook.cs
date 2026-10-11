@@ -98,9 +98,18 @@ public static partial class StripeWebhook
         var paid = new List<Order>();
         foreach (var (tenantId, orderId) in orders)
         {
-            var order = await FindPendingAsync(scopes, tenantId, orderId, session.Id, cancellationToken);
+            var (order, alreadyOwned) = await FindPendingAsync(scopes, tenantId, orderId, session.Id, cancellationToken);
             if (order is null)
             {
+                continue;
+            }
+
+            // The customer already owns this program (two checkout pages paid before either webhook
+            // arrived): the amount goes back and the coach gets nothing for this order.
+            if (outcome == OrderStatus.Paid && alreadyOwned && !legacy && session.PaymentIntentId is { } duplicateIntent)
+            {
+                await checkout.RefundAsync(order, duplicateIntent, cancellationToken);
+                await CompleteAsync(scopes, tenantId, orderId, session.Id, OrderStatus.Refunded, transferId: null, configuration, cancellationToken);
                 continue;
             }
 
@@ -153,15 +162,21 @@ public static partial class StripeWebhook
     [LoggerMessage(Level = LogLevel.Error, Message = "Transfer of order {OrderId} (tenant {TenantId}) to the coach failed: {StripeCode}")]
     private static partial void LogTransferFailed(ILogger logger, Guid orderId, Guid tenantId, string? stripeCode);
 
-    // The order, read inside the tenant the metadata names: another tenant's order is not there.
-    private static async Task<Order?> FindPendingAsync(
+    // The order, read inside the tenant the metadata names: another tenant's order is not there. Also
+    // whether the customer already has a paid order for the same program (with the same coach).
+    private static async Task<(Order? Order, bool AlreadyOwned)> FindPendingAsync(
         IServiceScopeFactory scopes, Guid tenantId, Guid orderId, string sessionId, CancellationToken cancellationToken)
     {
         Order? order = null;
-        await scopes.InTenantAsync<OrderingDbContext>(tenantId, async db => order = await db.Orders.AsNoTracking()
-            .SingleOrDefaultAsync(o => o.Id == orderId && o.StripeCheckoutSessionId == sessionId && o.Status == OrderStatus.Pending, cancellationToken),
-            cancellationToken);
-        return order;
+        var owned = false;
+        await scopes.InTenantAsync<OrderingDbContext>(tenantId, async db =>
+        {
+            order = await db.Orders.AsNoTracking()
+                .SingleOrDefaultAsync(o => o.Id == orderId && o.StripeCheckoutSessionId == sessionId && o.Status == OrderStatus.Pending, cancellationToken);
+            owned = order is not null && await db.Orders.AnyAsync(
+                o => o.CustomerId == order.CustomerId && o.ProgramId == order.ProgramId && o.Status == OrderStatus.Paid && o.Id != order.Id, cancellationToken);
+        }, cancellationToken);
+        return (order, owned);
     }
 
     // Moves the order out of Pending once: the conditional update locks the row, so of two concurrent

@@ -202,7 +202,14 @@ export interface components {
         };
         /** @enum {unknown} */
         ProgramLevel: "Beginner" | "Intermediate" | "Advanced";
+        SearchProgramsCoachFacet: {
+            coachSlug: string;
+            /** Format: int32 */
+            count: number | string;
+        };
         SearchProgramsItem: {
+            /** Format: uuid */
+            id: string;
             coachSlug: string;
             slug: string;
             title: string;
@@ -222,7 +229,10 @@ export interface components {
             pageSize: number | string;
             /** Format: int32 */
             totalCount: number | string;
+            coaches: components["schemas"]["SearchProgramsCoachFacet"][];
         };
+        /** @enum {unknown} */
+        SearchProgramsSort: "Newest" | "PriceLowToHigh" | "PriceHighToLow";
         UpdateProgramRequest: {
             title: string;
             description: null | string;
@@ -269,6 +279,11 @@ export interface operations {
                 Q?: string;
                 Level?: components["schemas"]["ProgramLevel"];
                 Coach?: string;
+                MinPrice?: number | string;
+                MaxPrice?: number | string;
+                MinWeeks?: number | string;
+                MaxWeeks?: number | string;
+                Sort?: components["schemas"]["SearchProgramsSort"];
                 Page?: number | string;
                 PageSize?: number | string;
             };

@@ -154,6 +154,33 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Single(wildcard.Items);
     }
 
+    // The shop's catalog (design §8): price and length ranges, sorting, and a coach facet that counts
+    // every coach among the results even when one coach is picked.
+    [Fact]
+    public async Task The_shop_filters_by_price_and_length_sorts_by_price_and_counts_coaches()
+    {
+        var (anna, ben) = (NewCoach(), NewCoach());
+        var tag = $"shop{Guid.NewGuid():N}"[..16];
+        foreach (var (coach, price, weeks) in new[] { (anna, 3000L, 4), (anna, 1000L, 8), (anna, 2000L, 12), (ben, 2500L, 6) })
+        {
+            var program = await _api.CreateProgram(coach, title: $"{tag} {price}", publish: true);
+            var update = await _api.AsCoach(coach, HttpMethod.Put, $"/programs/{program.Id}",
+                new { title = $"{tag} {price}", level = "Beginner", durationWeeks = weeks, priceAmount = price, currency = "EUR" });
+            Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        }
+
+        var cheapestFirst = await Search($"?q={tag}&coach={anna.Slug}&sort=PriceLowToHigh");
+        var dearestFirst = await Search($"?q={tag}&sort=PriceHighToLow");
+        var midRange = await Search($"?q={tag}&minPrice=1500&maxPrice=2600");
+        var short_ = await Search($"?q={tag}&maxWeeks=8");
+
+        Assert.Equal([$"{tag} 1000", $"{tag} 2000", $"{tag} 3000"], cheapestFirst.Items.Select(i => i.Title));
+        Assert.Equal([$"{tag} 3000", $"{tag} 2500", $"{tag} 2000", $"{tag} 1000"], dearestFirst.Items.Select(i => i.Title));
+        Assert.Equal([$"{tag} 2500", $"{tag} 2000"], midRange.Items.Select(i => i.Title).Order(StringComparer.Ordinal).Reverse());
+        Assert.Equal(3, short_.TotalCount);
+        Assert.Equal([(anna.Slug, 3), (ben.Slug, 1)], cheapestFirst.Coaches.Select(c => (c.CoachSlug, c.Count)));
+    }
+
     [Fact]
     public async Task Page_size_is_capped_at_50()
     {
@@ -254,7 +281,9 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
 
     private sealed record SearchItem(string CoachSlug, string Slug, string Title);
 
-    private sealed record SearchPage(List<SearchItem> Items, int Page, int PageSize, int TotalCount);
+    private sealed record CoachFacet(string CoachSlug, int Count);
+
+    private sealed record SearchPage(List<SearchItem> Items, int Page, int PageSize, int TotalCount, List<CoachFacet> Coaches);
 
     private static async Task<bool> SpanArrives(
         System.Collections.Concurrent.ConcurrentBag<System.Diagnostics.Activity> spans, Func<System.Diagnostics.Activity, bool> match)

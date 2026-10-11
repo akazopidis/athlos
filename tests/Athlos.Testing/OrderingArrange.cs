@@ -14,34 +14,53 @@ public static class OrderingArrange
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
-    public sealed record CheckoutStarted(Guid OrderId, string CheckoutUrl);
+    public sealed record CheckoutStarted(Guid CheckoutId, string CheckoutUrl)
+    {
+        public string SessionId => FakeCheckoutSessions.SessionIdOf(CheckoutId);
+    }
 
     public sealed record Coach(Guid TenantId, string Slug, Guid OwnerId);
 
     public static Coach NewCoach() => new(Guid.CreateVersion7(), TenancyArrange.NewSlug(), Guid.CreateVersion7());
 
-    public static Task<HttpResponseMessage> StartCheckout(this OrderingApiFactory api, Guid customerId, Guid programId, string? idempotencyKey = null)
+    public static Task<HttpResponseMessage> StartCheckout(this OrderingApiFactory api, Guid customerId, Guid programId, string? idempotencyKey = null) =>
+        api.StartCheckout(customerId, [programId], idempotencyKey);
+
+    public static Task<HttpResponseMessage> StartCheckout(this OrderingApiFactory api, Guid customerId, IReadOnlyList<Guid> programIds, string? idempotencyKey = null)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout") { Content = JsonContent.Create(new { programId }) };
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout") { Content = JsonContent.Create(new { programIds }) };
         if (idempotencyKey is not null) request.Headers.Add("Idempotency-Key", idempotencyKey);
         return api.SendAsGateway(request, customerId);
     }
 
-    public static async Task<CheckoutStarted> Checkout(this OrderingApiFactory api, Guid customerId, Guid programId, string? idempotencyKey = null)
+    public static Task<CheckoutStarted> Checkout(this OrderingApiFactory api, Guid customerId, Guid programId, string? idempotencyKey = null) =>
+        api.Checkout(customerId, [programId], idempotencyKey);
+
+    public static async Task<CheckoutStarted> Checkout(this OrderingApiFactory api, Guid customerId, IReadOnlyList<Guid> programIds, string? idempotencyKey = null)
     {
-        var response = await api.StartCheckout(customerId, programId, idempotencyKey);
+        var response = await api.StartCheckout(customerId, programIds, idempotencyKey);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<CheckoutStarted>(Json, TestContext.Current.CancellationToken))!;
     }
+
+    // The orders a checkout created, as Stripe would name them in the session metadata.
+    public static List<Order> OrdersOf(this OrderingApiFactory api, CheckoutStarted checkout) =>
+        api.CheckoutSessions.Sessions[checkout.SessionId].Orders.ToList();
+
+    public static IEnumerable<(Guid TenantId, Guid OrderId)> Pairs(this IEnumerable<Order> orders) =>
+        orders.Select(o => (o.TenantId, o.Id));
+
+    // Stripe's "paid" webhook for a whole checkout.
+    public static Task<HttpResponseMessage> Pay(this OrderingApiFactory api, CheckoutStarted checkout, string? eventId = null) =>
+        api.SendWebhook(StripeEvents.CheckoutCompleted(eventId ?? $"evt_{Guid.NewGuid():N}", checkout.SessionId, api.OrdersOf(checkout).Pairs()));
 
     // Checkout plus Stripe's "paid" webhook: what a completed purchase looks like to ordering-api.
     public static async Task<Guid> Buy(this OrderingApiFactory api, Guid customerId, Coach coach)
     {
         var offer = api.Sellers.Sell(coach.TenantId, coach.Slug);
         var checkout = await api.Checkout(customerId, offer.ProgramId);
-        var paid = await api.SendWebhook(StripeEvents.CheckoutCompleted($"evt_{Guid.NewGuid():N}", $"cs_test_{checkout.OrderId:N}", checkout.OrderId, coach.TenantId));
-        Assert.Equal(HttpStatusCode.OK, paid.StatusCode);
-        return checkout.OrderId;
+        Assert.Equal(HttpStatusCode.OK, (await api.Pay(checkout)).StatusCode);
+        return api.OrdersOf(checkout).Single().Id;
     }
 
     public static Task<HttpResponseMessage> AsCoach(this OrderingApiFactory api, Coach coach, string path) =>

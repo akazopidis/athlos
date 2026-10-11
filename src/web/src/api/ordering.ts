@@ -71,6 +71,8 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             paidAt: null | string;
+            /** Format: uuid */
+            checkoutId: null | string;
         };
         OrderListsMyOrdersPage: {
             items: components["schemas"]["OrderListsMyOrder"][];
@@ -108,12 +110,11 @@ export interface components {
         /** @enum {unknown} */
         OrderStatus: "Pending" | "Paid" | "Failed" | "Refunded";
         StartCheckoutRequest: {
-            /** Format: uuid */
-            programId: string;
+            programIds: string[];
         };
         StartCheckoutResponse: {
             /** Format: uuid */
-            orderId: string;
+            checkoutId: string;
             checkoutUrl: string;
         };
     };
@@ -148,13 +149,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["StartCheckoutResponse"];
                 };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };

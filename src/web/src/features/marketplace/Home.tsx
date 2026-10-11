@@ -1,129 +1,87 @@
-import { ArrowRight, Check, CreditCard, Search, TrendingUp } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import { ArrowRight, Check, CreditCard, Infinity as Forever, TrendingUp } from 'lucide-react'
 import { Link } from 'react-router'
-import { Section } from '@/components/page'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { useTitle } from '@/lib/useTitle'
-import { cn } from '@/lib/utils'
-import { ProgramList } from './ProgramList.tsx'
-import { Levels, useProgramSearch } from './useProgramSearch.ts'
+import { Catalog } from './Catalog.tsx'
+import { useProgramSearch } from './useProgramSearch.ts'
 
-// The marketplace (design §8, "/"): browse and search all coaches' published programs.
+// The marketplace (design §8, "/"), laid out as a shop: a short banner, the shop's promises, then the
+// catalog of every coach's published programs. The search box and the level categories are in the
+// header, so they work from every page.
 export function Home() {
-  const { search, update } = useProgramSearch()
-  useTitle('Programs')
-  const [text, setText] = useState(search.q ?? '')
-
-  // Search as the visitor types, once they pause.
-  useEffect(() => {
-    if (text === (search.q ?? '')) return
-    const timer = setTimeout(() => update({ q: text }), 300)
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the typed text starts a search
-  }, [text])
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
-    update({ q: text })
-    document.getElementById('programs')?.scrollIntoView({ behavior: 'smooth' })
-  }
+  const { search, update, clear } = useProgramSearch()
+  useTitle(search.q ? `“${search.q}”` : 'Programs')
+  const heading = search.q ? `Results for “${search.q}”` : search.level ? `${search.level} programs` : 'All programs'
 
   return (
     <>
-      <section className="relative isolate overflow-hidden bg-ink text-ink-foreground">
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-10"
-          style={{
-            background:
-              'radial-gradient(60% 70% at 85% 0%, color-mix(in oklch, var(--volt) 35%, transparent), transparent 70%), radial-gradient(50% 60% at 0% 100%, color-mix(in oklch, var(--volt) 12%, transparent), transparent 70%)',
-          }}
-        />
-        <div aria-hidden className="absolute inset-0 -z-10 opacity-[0.07] [background-image:repeating-linear-gradient(115deg,white_0_1px,transparent_1px_28px)]" />
-        <div className="container-page py-16 sm:py-24 lg:py-28">
-          <p className="text-xs font-semibold tracking-[0.25em] text-volt uppercase">Programs from independent coaches</p>
-          <h1 className="mt-4 max-w-4xl text-5xl leading-[0.95] font-black tracking-tight uppercase sm:text-7xl lg:text-8xl" style={{ fontStretch: '78%' }}>
-            Train with coaches you <span className="text-volt">trust.</span>
-          </h1>
-          <p className="mt-6 max-w-xl text-lg text-ink-foreground/75">
-            Buy a program once and it's yours: every workout, at your own pace, with your progress saved as you go.
-          </p>
-          <form role="search" onSubmit={submit} className="mt-8 max-w-xl">
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-5 size-5 -translate-y-1/2 text-ink-foreground/60" aria-hidden />
-              <Input
-                type="search"
-                aria-label="Search programs"
-                placeholder="Strength, running, mobility…"
-                className="h-14 rounded-full border-white/15 bg-white/10 pr-5 pl-13 text-base text-ink-foreground placeholder:text-ink-foreground/50 focus-visible:border-volt focus-visible:ring-volt/30 md:text-base dark:bg-white/10"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-              />
+      {!search.q && (
+        <section className="relative isolate overflow-hidden bg-ink text-ink-foreground">
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10"
+            style={{
+              background:
+                'radial-gradient(60% 90% at 90% 0%, color-mix(in oklch, var(--volt) 35%, transparent), transparent 70%), radial-gradient(40% 70% at 0% 100%, color-mix(in oklch, var(--volt) 12%, transparent), transparent 70%)',
+            }}
+          />
+          <div aria-hidden className="absolute inset-0 -z-10 opacity-[0.07] [background-image:repeating-linear-gradient(115deg,white_0_1px,transparent_1px_28px)]" />
+          <div className="container-page flex flex-wrap items-end justify-between gap-6 py-10 sm:py-14">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold tracking-[0.25em] text-volt uppercase">Programs from independent coaches</p>
+              <h1 className="mt-3 text-4xl leading-[0.95] font-black tracking-tight uppercase sm:text-6xl" style={{ fontStretch: '78%' }}>
+                Train with coaches you <span className="text-volt">trust.</span>
+              </h1>
+              <p className="mt-4 max-w-xl text-ink-foreground/75">Pick programs from any coach, pay once at checkout, and keep every workout.</p>
             </div>
-          </form>
-          <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Level">
-            {[undefined, ...Levels].map((level) => {
-              const active = search.level === level
-              return (
-                <button
-                  key={level ?? 'any'}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => update({ level: level ?? null })}
-                  className={cn(
-                    'h-9 rounded-full border px-4 text-sm font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-volt/40',
-                    active ? 'border-volt bg-volt text-volt-foreground' : 'border-white/20 text-ink-foreground/80 hover:border-white/40 hover:text-ink-foreground',
-                  )}
-                >
-                  {level ?? 'All levels'}
-                </button>
-              )
-            })}
+            <Button asChild size="lg" className="bg-volt text-volt-foreground hover:bg-volt/90">
+              <a href="#programs">
+                Shop programs <ArrowRight aria-hidden />
+              </a>
+            </Button>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      <div className="container-page space-y-20 py-12 sm:py-16">
-        <Section title={search.q ? `Results for “${search.q}”` : search.level ? `${search.level} programs` : 'Latest programs'}>
-          <div id="programs" className="scroll-mt-24">
-            <ProgramList search={search} onPage={(page) => update({ page })} />
-          </div>
-        </Section>
-        <HowItWorks />
+      <Promises />
+
+      <div className="container-page space-y-16 py-10 sm:py-12">
+        <section id="programs" aria-labelledby="catalog-heading" className="scroll-mt-36 space-y-6">
+          <h2 id="catalog-heading" className="text-2xl font-bold tracking-tight sm:text-3xl">
+            {heading}
+          </h2>
+          <Catalog search={search} update={update} clear={clear} />
+        </section>
         <CoachInvite />
       </div>
     </>
   )
 }
 
-const steps = [
-  { icon: Search, title: 'Find your program', text: 'Browse programs from independent coaches and filter by level.' },
-  { icon: CreditCard, title: 'Buy once, keep it', text: 'One secure payment through Stripe. No subscription: the program stays yours.' },
-  { icon: TrendingUp, title: 'Train and track', text: 'Follow the workouts week by week and tick each one off as you go.' },
+const promises = [
+  { icon: Forever, title: 'Buy once, keep it', text: 'No subscription' },
+  { icon: CreditCard, title: 'One secure checkout', text: 'Every coach in one payment, by Stripe' },
+  { icon: TrendingUp, title: 'Track your progress', text: 'Tick off workouts week by week' },
 ]
 
-function HowItWorks() {
+// The shop's promises, in a strip under the banner.
+function Promises() {
   return (
-    <section aria-labelledby="how-it-works" className="space-y-8">
-      <h2 id="how-it-works" className="text-2xl font-bold tracking-tight sm:text-3xl">
-        How it works
-      </h2>
-      <ol className="grid gap-4 sm:grid-cols-3">
-        {steps.map((s, i) => (
-          <li key={s.title} className="rounded-3xl border bg-card p-6">
-            <div className="flex items-center justify-between">
-              <span className="flex size-11 items-center justify-center rounded-2xl bg-volt text-volt-foreground">
-                <s.icon className="size-5" aria-hidden />
-              </span>
-              <span className="font-heading text-4xl font-black text-muted-foreground/30">{i + 1}</span>
-            </div>
-            <h3 className="mt-5 text-lg font-bold">{s.title}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">{s.text}</p>
+    <div className="border-b bg-muted/40">
+      <ul className="container-page grid gap-3 py-4 text-sm sm:grid-cols-3">
+        {promises.map((p) => (
+          <li key={p.title} className="flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-volt text-volt-foreground">
+              <p.icon className="size-4" aria-hidden />
+            </span>
+            <span>
+              <span className="block font-semibold">{p.title}</span>
+              <span className="text-muted-foreground">{p.text}</span>
+            </span>
           </li>
         ))}
-      </ol>
-    </section>
+      </ul>
+    </div>
   )
 }
 

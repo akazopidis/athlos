@@ -74,7 +74,8 @@ app.MapDefaultEndpoints();
 // Public
 app.MapListPlans();
 app.MapGroup("/api/v1/marketplace")
-    .MapGetStorefront();
+    .MapGetStorefront()
+    .MapListStorefronts();
 
 // Signed-in user, no tenant yet
 app.MapCreateTenant();

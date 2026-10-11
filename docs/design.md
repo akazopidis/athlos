@@ -2,7 +2,7 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v13, built; v1.2.0 in production, the cart in v1.3.0 (2026-10-11)
+**Status:** v13, built; v1.3.0 in production (2026-10-11)
 
 **Changes in v13 (the shop):** a cart across coaches paid in one Stripe payment, with separate charges and transfers (§2.2, ordering notes); the marketplace as an e-shop: header search and categories, filters, sorting, product cards and pages (§8).
 

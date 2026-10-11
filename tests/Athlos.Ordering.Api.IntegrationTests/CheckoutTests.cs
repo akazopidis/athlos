@@ -238,6 +238,61 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal([offer.ProgramId], await ProgramIdsIn(again));
     }
 
+    // Found on dev: three checkout pages open for one program, two of them paid. A new checkout now
+    // closes the older pages for the same programs first.
+    [Fact]
+    public async Task A_new_checkout_closes_older_open_pages_for_the_same_program()
+    {
+        var coach = NewCoach();
+        var customer = Guid.CreateVersion7();
+        var offer = _api.Sellers.Sell(coach.TenantId, coach.Slug);
+        var first = await _api.Checkout(customer, offer.ProgramId);
+
+        var second = await _api.Checkout(customer, offer.ProgramId);
+
+        Assert.True(_api.CheckoutSessions.Expired.ContainsKey(first.SessionId));
+        Assert.False(_api.CheckoutSessions.Expired.ContainsKey(second.SessionId));
+    }
+
+    [Fact]
+    public async Task An_older_page_already_paid_at_Stripe_counts_as_owned()
+    {
+        var coach = NewCoach();
+        var customer = Guid.CreateVersion7();
+        var offer = _api.Sellers.Sell(coach.TenantId, coach.Slug);
+        var first = await _api.Checkout(customer, offer.ProgramId);
+        _api.CheckoutSessions.PaidAtStripe[first.SessionId] = true; // paid, webhook not here yet
+
+        var again = await _api.StartCheckout(customer, offer.ProgramId);
+
+        Assert.Equal((HttpStatusCode.Conflict, "owned"), (again.StatusCode, await ReasonOf(again)));
+    }
+
+    // The safety net: if two pages were paid anyway, the second payment is refunded, the coach gets no
+    // transfer for it, and the customer has one enrollment's worth of orders.
+    [Fact]
+    public async Task A_program_paid_twice_is_refunded_once()
+    {
+        var coach = NewCoach();
+        var customer = Guid.CreateVersion7();
+        var offer = _api.Sellers.Sell(coach.TenantId, coach.Slug);
+        var first = await _api.Checkout(customer, offer.ProgramId);
+        var second = await _api.Checkout(customer, offer.ProgramId);
+
+        await _api.Pay(second);
+        await _api.Pay(first); // paid before it could be closed
+
+        var (paid, refunded) = (_api.OrdersOf(second).Single(), _api.OrdersOf(first).Single());
+        Assert.Equal(offer.PriceAmount, _api.CheckoutSessions.Refunds[refunded.Id]);
+        Assert.False(_api.CheckoutSessions.Transfers.ContainsKey(refunded.Id));
+        Assert.True(_api.CheckoutSessions.Transfers.ContainsKey(paid.Id));
+        var orders = await MyOrders(customer);
+        Assert.Equal(OrderStatus.Paid, orders.Single(o => o.Id == paid.Id).Status);
+        Assert.Equal(OrderStatus.Refunded, orders.Single(o => o.Id == refunded.Id).Status);
+        await _api.PublishOutbox();
+        Assert.DoesNotContain(_api.Messages.Sent, m => m.Queue == OrderPaid.Queue && m.Message.Payload.Contains(refunded.Id.ToString(), StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task The_coach_sees_the_sale()
     {

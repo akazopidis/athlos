@@ -43,6 +43,14 @@ public sealed class FakeCheckoutSessions : ICheckoutSessions
     // Order id -> (destination account, amount), one per transfer actually made.
     public ConcurrentDictionary<Guid, (string? Destination, long Amount)> Transfers { get; } = new();
 
+    // Sessions closed by a newer checkout, and sessions the customer already paid at Stripe.
+    public ConcurrentDictionary<string, bool> Expired { get; } = new();
+
+    public ConcurrentDictionary<string, bool> PaidAtStripe { get; } = new();
+
+    // Order id -> amount given back.
+    public ConcurrentDictionary<Guid, long> Refunds { get; } = new();
+
     public bool IsConfigured => true;
 
     public static string SessionIdOf(Guid checkoutId) => $"cs_test_{checkoutId:N}";
@@ -66,6 +74,23 @@ public sealed class FakeCheckoutSessions : ICheckoutSessions
 
         Transfers[order.Id] = (order.SellerAccountId, order.Amount - order.PlatformFee);
         return Task.FromResult($"tr_test_{order.Id:N}");
+    }
+
+    public Task<bool> ExpireAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        if (PaidAtStripe.ContainsKey(sessionId))
+        {
+            return Task.FromResult(false);
+        }
+
+        Expired[sessionId] = true;
+        return Task.FromResult(true);
+    }
+
+    public Task<string> RefundAsync(Order order, string paymentIntentId, CancellationToken cancellationToken)
+    {
+        Refunds[order.Id] = order.Amount;
+        return Task.FromResult($"re_test_{order.Id:N}");
     }
 }
 

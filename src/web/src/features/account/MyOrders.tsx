@@ -10,19 +10,21 @@ import { useMyOrders } from './useMyOrders.ts'
 // reads the same on a phone.
 export function MyOrders() {
   const { orders, returned } = useMyOrders()
+  const pending = returned.some((o) => o.status === 'Pending')
+  const titles = returned.map((o) => o.programTitle).join(', ')
 
   return (
     <Section title="My orders">
-      {returned?.status === 'Pending' && (
+      {returned.length > 0 && pending && (
         <Alert>
           <Loader2 className="animate-spin" aria-hidden />
-          <AlertDescription>Payment received. Confirming your order…</AlertDescription>
+          <AlertDescription>Payment received. Confirming your {returned.length === 1 ? 'order' : 'orders'}…</AlertDescription>
         </Alert>
       )}
-      {returned?.status === 'Paid' && (
+      {returned.length > 0 && !pending && (
         <Alert>
           <CircleCheck aria-hidden />
-          <AlertDescription>Thank you! Your purchase of {returned.programTitle} is confirmed.</AlertDescription>
+          <AlertDescription>Thank you! Your purchase of {titles} is confirmed.</AlertDescription>
         </Alert>
       )}
       {orders.isPending ? (

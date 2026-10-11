@@ -13,6 +13,7 @@ import { SiteHeader } from './SiteHeader.tsx'
 const lazyPage = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
   lazy(async () => ({ default: (await load())[name] }))
 const Admin = lazyPage(() => import('@/features/admin/Admin'), 'Admin')
+const Cart = lazyPage(() => import('@/features/cart/Cart'), 'Cart')
 const AcceptInvite = lazyPage(() => import('@/features/studio/AcceptInvite'), 'AcceptInvite')
 const CreateWorkspace = lazyPage(() => import('@/features/studio/CreateWorkspace'), 'CreateWorkspace')
 const Me = lazyPage(() => import('@/features/account/Me'), 'Me')
@@ -23,7 +24,7 @@ const StudioProgramEditor = lazyPage(() => import('@/features/studio/StudioProgr
 const StudioSales = lazyPage(() => import('@/features/studio/StudioSales'), 'StudioSales')
 const StudioSettings = lazyPage(() => import('@/features/studio/StudioSettings'), 'StudioSettings')
 
-// Four areas (design §8): marketplace, coach storefront, coach studio, customer area.
+// Four areas (design §8): marketplace (with the cart), coach storefront, coach studio, customer area.
 // The marketplace and storefronts run edge to edge (their banners); every other page sits in the
 // page container.
 export default function App() {
@@ -51,6 +52,7 @@ export default function App() {
                 <Route path="sales" element={<StudioSales />} />
                 <Route path="settings" element={<StudioSettings />} />
               </Route>
+              <Route path="/cart" element={<Cart />} />
               <Route path="/me" element={<Me />} />
               <Route path="/me/programs/:programId" element={<MyProgramPage />} />
               <Route path="/admin" element={<Admin />} />

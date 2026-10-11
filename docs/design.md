@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v12, built; v1.2.0 in production (2026-10-11)
+**Status:** v13, built; v1.2.0 in production, the cart in v1.3.0 (2026-10-11)
+
+**Changes in v13 (the shop):** a cart across coaches paid in one Stripe payment, with separate charges and transfers (§2.2, ordering notes); the marketplace as an e-shop: header search and categories, filters, sorting, product cards and pages (§8).
 
 **Changes in v12 (v0.6.0 to v1.2.0, as built):** rate limits and quotas (§4), per-coach telemetry, workbook and alert (§6), the phase 9 evaluation (`docs/evaluation/`, §15.3), workspace deletion (§3.4), customer account deletion (§5.2), the platform admin with suspension and plans (§1, §3.4), the CI contract check (§15.1), and the repo visibility decision (§16).
 
@@ -120,6 +122,12 @@ Rules that keep it clean:
 
 <sub>Source: [diagrams/03-checkout-flow.mmd](diagrams/03-checkout-flow.mmd)</sub>
 
+**The cart (as built, v1.3.0).** Customers shop like in an e-shop: they put programs from any coaches in a cart and pay **once**. One payment cannot be a destination charge to several coaches, so checkout uses Stripe's **separate charges and transfers**:
+- the customer pays the platform, in one Checkout Session for the whole cart;
+- after payment, the webhook sends each coach their share (price minus the platform fee) as a Transfer to their Connect account, tied to the charge with `source_transaction`.
+
+The trade-off: the platform is the merchant of record, so refunds and disputes are the platform's to handle, then reversed from the coach's transfer. "Buy now" on a program page is a cart of one.
+
 ### 2.3 Data model essentials
 
 Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.CreateVersion7()`, so inserts stay index-friendly), `created_at` and `updated_at`. **T** marks tenant-owned tables that carry `tenant_id` and an RLS policy.
@@ -132,7 +140,8 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 | tenancy | `staff_invites` **T** | `email`, `token_hash`, `expires_at`, `accepted_at` |
 | catalog | `programs` **T** | `title`, `slug`, `description`, `level`, `duration_weeks`, `price_amount` (integer cents), `currency`, `is_published`, `cover_image_path` |
 | catalog | `workouts` **T** | `program_id`, `week`, `day`, `title`, `content` (Markdown), `video_url` |
-| ordering | `orders` **T** | `customer_id`, `customer_email`, `program_id`, `program_title` (copy at purchase time), `amount`, `currency`, `platform_fee`, `status` (Pending, Paid, Failed, Refunded), `stripe_checkout_session_id` (unique) |
+| ordering | `orders` **T** | `customer_id`, `customer_email`, `program_id`, `program_title` (copy at purchase time), `amount`, `currency`, `platform_fee`, `status` (Pending, Paid, Failed, Refunded), `stripe_checkout_session_id` (shared by a cart's orders), `checkout_id`, `seller_account_id` (the coach's Connect account at checkout), `stripe_transfer_id` |
+| ordering | `checkouts` | `customer_id`, `idempotency_key` (unique per customer), `stripe_checkout_session_id`, `checkout_url`. The customer's, not a tenant's: RLS `customer_id = app.user_id` |
 | ordering | `processed_stripe_events` | `stripe_event_id` (primary key, for webhook idempotency) |
 | ordering | `outbox_messages` | `type`, `payload` (jsonb), `occurred_at`, `sent_at` |
 | enrollment | `enrollments` **T** | `customer_id`, `program_id`, `order_id` (unique, for idempotency) |
@@ -146,8 +155,17 @@ Catalog notes (phase 3):
 - Publishing requires an active workspace with finished Stripe onboarding (§3.4): catalog asks tenancy-api's `GET /internal/tenants/{id}/payout-account` with a signed service-to-service call (`SignedRequestHandler`, the same HMAC as the gateway's, no tenant headers). A suspended tenant's programs leave the marketplace with the tenant lifecycle (§3.4).
 
 Ordering notes (phase 4):
-- **Checkout** (`POST /api/v1/orders/checkout`, optional `Idempotency-Key`) is a listed cross-tenant slice: the buyer is not in the coach's tenant. The tenant comes from catalog-api's signed answer for the program (`GET /internal/programs/{id}/offer`, published programs only), never from the request; the slice enters it before the transaction, so RLS checks the insert. tenancy-api's payout account must be active and onboarded. The Stripe Checkout session is a destination charge with `application_fee_amount` (`Payments:PlatformFeePercent`, default 10 %), and carries the order and tenant ids as metadata.
-- **Webhook** (`POST /webhooks/stripe`, through the gateway): Stripe.net verifies `Stripe-Signature` with a 5-minute tolerance; the tenant is read from the session's metadata and entered, so the order is found under RLS (a signed event naming another tenant finds nothing). One transaction records the event id (dedupe), marks the order `Paid` and writes `OrderPaid` to the outbox.
+- **Checkout** (`POST /api/v1/orders/checkout`, `{ programIds }` with 1 to 10 programs from any coaches, optional `Idempotency-Key`):
+  - *Checks.* The buyer is not in any coach's tenant. Each program's tenant comes from catalog-api's signed answer (`GET /internal/programs/{id}/offer`, published programs of active coaches only), never from the request.
+  - *Refusals.* Every coach must have an active, onboarded payout account, the cart must be in one currency, and no program may already be owned. Otherwise nothing is created, and the `ProblemDetails` carries a `reason` (`notForSale`, `currencies`, `cannotSell`, `owned`) and the `programIds` at fault, which the cart drops or flags.
+  - *Writes.* Stripe creates one Checkout Session for the cart first, with `transfer_group` set to the checkout id and one `athlos_order_{i}` = `{tenant}:{order}` metadata entry per program. Then the customer's `checkouts` row (holding the Idempotency-Key) and one `orders` row per program are written. Each order goes inside its coach's tenant, one tenant at a time (`InTenantAsync`), so the EF filter and RLS check every insert. Creating the session first means a failure never leaves an order pending without a payment page.
+  - *Fee.* `Payments:PlatformFeePercent`, default 10 %, per order.
+- **Webhook** (`POST /webhooks/stripe`, through the gateway). Stripe.net verifies `Stripe-Signature` with a 5-minute tolerance. Then, for each (tenant, order) pair in the session's metadata, inside that tenant, so a signed event naming another tenant finds nothing:
+  1. it transfers the coach's share, with idempotency key `transfer-{order}`;
+  2. in one transaction, it marks the order `Paid` only if it is still `Pending` (a conditional update, so concurrent deliveries change it once) and writes `OrderPaid` and the sale email to the outbox;
+  3. finally, it records the event id, so a retry returns at once.
+  - *Retries and failures.* Every step is idempotent, so an event that fails halfway is completed by Stripe's retry. If a coach's transfer fails (for example a restricted Connect account), the order is still Paid, because the customer has paid. The error is logged, and the share waits on a Paid order without `stripe_transfer_id`.
+  - *Older sessions.* Sessions from before the cart (destination charges, `athlos_order_id`/`athlos_tenant_id` metadata) still complete, with nothing to transfer.
 - **Outbox** (`Athlos.Messaging`): `outbox_messages` rows are claimed with `FOR UPDATE SKIP LOCKED`, sent to the Service Bus queue, then marked sent. At-least-once; consumers dedupe on `OrderId`.
 - **Reads**: `GET /api/v1/me/orders` (the customer's orders across coaches, a listed cross-tenant slice, RLS reads on `customer_id = app.user_id`) and `GET /api/v1/studio/{slug}/sales` (the tenant's paid orders).
 
@@ -503,7 +521,7 @@ athlos/
 | Paging | `?page=1&pageSize=20`, max 50, response `{ items, page, pageSize, totalCount }` |
 | Errors | RFC 9457 `ProblemDetails`, with `traceId`; validation errors list the failing fields |
 | Not found vs forbidden | Another tenant's resource is always `404` |
-| Idempotency | `POST /orders/checkout` accepts an `Idempotency-Key` header; webhooks and queue consumers dedupe on ids |
+| Idempotency | `POST /orders/checkout` accepts an `Idempotency-Key` header (the SPA sends one per cart content); webhooks and queue consumers dedupe on ids, and Stripe transfers on the order id |
 | Health | `/health/live` and `/health/ready` (ready checks the database), wired to Container Apps liveness and readiness probes |
 | Version | `GET /version` returns the release tag |
 
@@ -525,8 +543,15 @@ athlos/
 
 **Look and responsiveness:** Athlos' own colors are ink (near-black) and volt (a sporty yellow-green), with Archivo for headings and Geist for text, both bundled (the CSP allows only self-hosted fonts). Dark mode follows the operating system. Inside a storefront and its program pages, the coach's brand color replaces the primary color, with black or white text picked by contrast. Mobile-first Tailwind breakpoints, touch targets of at least 40 px, and no UI library in the first page load beyond the shadcn copies (the menus are plain disclosures).
 
+**A shop (v1.3.0).** The marketplace looks and works like an e-shop:
+- *Header.* A search box, the levels as categories, and a cart icon with a count.
+- *Catalog.* A filter sidebar (level, coach with counts, length, price; a drawer on phones), a "Sort by" menu (newest, price up or down) and the result count. Catalog's search takes `minPrice`, `maxPrice`, `minWeeks`, `maxWeeks` and `sort`, and returns a coach facet. Coach names and logos come from tenancy-api's `GET /api/v1/marketplace/coaches?slug=…`.
+- *Product cards.* Level and length, the coach, the price, "Add to cart", and "Owned" for programs already bought.
+- *Product pages.* Breadcrumbs, a buy box (Add to cart, Buy now), and "More from this coach".
+- *Cart.* `/cart` keeps the cart in the browser (`localStorage`, up to 10 programs), grouped by coach, and checks out once.
+
 One SPA with four areas, plus the platform admin's `/admin`, shown to users with the `Platform.Admin` role:
-- `/` marketplace: browse and search all coaches' published programs.
+- `/` marketplace: browse, filter and search all coaches' published programs; `/cart` the cart.
 - `/c/{slug}` coach storefront: the tenant's branded page (logo, colors from workspace settings). This is the visible "configure your dedicated workspace" part of the thesis.
 - `/studio/{slug}` coach dashboard: programs, sales, settings, Stripe onboarding.
 - `/me` customer area: purchased programs and progress.
@@ -809,6 +834,7 @@ Measurable targets make the evaluation honest. Suggested starting values, measur
 - YARP: https://learn.microsoft.com/aspnet/core/fundamentals/servers/yarp/yarp-overview
 - Aspire: https://learn.microsoft.com/dotnet/aspire/
 - Stripe Connect destination charges: https://docs.stripe.com/connect/destination-charges
+- Stripe Connect separate charges and transfers (the cart): https://docs.stripe.com/connect/separate-charges-and-transfers
 - Microsoft Entra External ID: https://learn.microsoft.com/entra/external-id/customers/overview-customers-ciam
 - Semantic Versioning: https://semver.org
 - Conventional Commits: https://www.conventionalcommits.org

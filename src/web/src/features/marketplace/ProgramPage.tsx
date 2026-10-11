@@ -1,29 +1,35 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Check, Lock } from 'lucide-react'
+import { Check, ChevronRight, Lock, ShoppingBag } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { BrandScope } from '@/components/brand'
-import { Loading, Notice } from '@/components/page'
+import { Loading, Notice, Section } from '@/components/page'
 import { ProgramCover } from '@/components/program-cover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useApp } from '@/lib/AppContext'
+import { MaxCartItems, useCart } from '@/lib/cart'
 import { formatMoney } from '@/lib/money'
 import { leaveTo } from '@/lib/navigation'
 import { problemTitle } from '@/lib/problem'
+import { useCoaches } from '@/lib/useCoaches'
+import { useOwnedPrograms } from '@/lib/useOwnedPrograms'
 import { useTitle } from '@/lib/useTitle'
+import { ProductCard } from './ProductCard.tsx'
 import { useStorefront } from './useStorefront.ts'
 
-// A published program's public page with its Buy button, in the coach's colors. Buying sends the
-// customer to Stripe Checkout; Stripe returns them to /me (paid) or to the storefront (cancelled).
+// A published program's product page, in the coach's colors: breadcrumbs, the buy box ("Add to cart",
+// or "Buy now", a checkout of this program alone), what is included, and more from the same coach.
+// Checkout sends the customer to Stripe; Stripe returns them to /me (paid) or to /cart (cancelled).
 export function ProgramPage() {
   const { slug = '', programSlug = '' } = useParams()
   const { api, msal, config } = useApp()
   const signedIn = Boolean(msal?.getActiveAccount())
   const coach = useStorefront(slug)
+  const cart = useCart()
 
-  // One key per visit: a double click or a retry reuses the same order and checkout page (design §7.1).
+  // One key per visit: a double click or a retry reuses the same checkout page (design §7.1).
   const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   const program = useQuery({
@@ -37,18 +43,14 @@ export function ProgramPage() {
   })
 
   // A customer who already bought it gets the way in, not a second checkout (which would be a 409).
-  const owned = useQuery({
-    queryKey: ['my-programs'],
-    queryFn: async () => (await api.GET('/api/v1/me/programs')).data ?? null,
-    enabled: signedIn,
-  })
-  const ownsIt = Boolean(program.data && owned.data?.items.some((o) => o.programId === program.data?.id))
+  const owned = useOwnedPrograms()
+  const ownsIt = Boolean(program.data && owned.has(program.data.id))
   useTitle(program.data?.title)
 
   const buy = useMutation({
     mutationFn: async (programId: string) => {
       const { data, error, response } = await api.POST('/api/v1/orders/checkout', {
-        body: { programId },
+        body: { programIds: [programId] },
         params: { header: { 'Idempotency-Key': idempotencyKey } },
       })
       if (data) return data
@@ -79,6 +81,8 @@ export function ProgramPage() {
   const p = program.data
   const coachName = coach.data?.displayName ?? p.coachSlug
   const weeks = Number(p.durationWeeks)
+  const inCart = cart.has(p.id)
+  const cartFull = cart.items.length >= MaxCartItems
   const included = [
     `${weeks} ${weeks === 1 ? 'week' : 'weeks'} of structured training`,
     'Every workout with instructions, and videos where the coach adds them',
@@ -86,14 +90,43 @@ export function ProgramPage() {
     'One payment, yours to keep',
   ]
 
+  const addToCart = () =>
+    cart.add({
+      programId: p.id,
+      coachSlug: p.coachSlug,
+      slug: p.slug,
+      title: p.title,
+      priceAmount: Number(p.priceAmount),
+      currency: p.currency,
+      coverImageUrl: p.coverImageUrl,
+    })
+
   return (
     <BrandScope color={coach.data?.branding?.primaryColor}>
       <article className="space-y-6">
-        <Button asChild variant="ghost" size="sm" className="-ml-3">
-          <Link to={`/c/${p.coachSlug}`}>
-            <ArrowLeft aria-hidden /> {coachName}
-          </Link>
-        </Button>
+        <nav aria-label="Breadcrumb">
+          <ol className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+            <li>
+              <Link to="/" className="hover:text-foreground hover:underline">
+                Programs
+              </Link>
+            </li>
+            <li aria-hidden>
+              <ChevronRight className="size-3.5" />
+            </li>
+            <li>
+              <Link to={`/c/${p.coachSlug}`} className="hover:text-foreground hover:underline">
+                {coachName}
+              </Link>
+            </li>
+            <li aria-hidden>
+              <ChevronRight className="size-3.5" />
+            </li>
+            <li aria-current="page" className="max-w-[60vw] truncate font-medium text-foreground">
+              {p.title}
+            </li>
+          </ol>
+        </nav>
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-12">
           <div className="min-w-0 space-y-8">
             <ProgramCover url={p.coverImageUrl} title={p.title} className="aspect-video rounded-3xl" />
@@ -103,6 +136,7 @@ export function ProgramPage() {
                 <Badge variant="outline">
                   {weeks} {weeks === 1 ? 'week' : 'weeks'}
                 </Badge>
+                {ownsIt && <Badge>Owned</Badge>}
               </div>
               <h1 className="text-4xl leading-tight font-black tracking-tight sm:text-5xl">{p.title}</h1>
               <p className="text-muted-foreground">
@@ -128,34 +162,45 @@ export function ProgramPage() {
             </section>
           </div>
 
-          {/* One purchase panel: a bar pinned to the bottom of the screen on phones, a card that
-              follows the scroll beside the content on large screens. */}
+          {/* The buy box: a bar pinned to the bottom of the screen on phones, a card that follows the
+              scroll beside the content on large screens. */}
           <aside className="sticky bottom-0 z-30 -mx-4 border-t bg-background/95 p-4 backdrop-blur sm:-mx-6 sm:px-6 lg:top-24 lg:bottom-auto lg:mx-0 lg:self-start lg:rounded-3xl lg:border lg:bg-card lg:p-6 lg:shadow-sm">
-            <div className="flex items-center gap-4 lg:flex-col lg:items-stretch">
+            <div className="flex flex-wrap items-center gap-3 lg:flex-col lg:items-stretch">
               <div className="min-w-0 lg:space-y-1">
                 <p className="font-heading text-2xl font-black tabular-nums lg:text-4xl">{formatMoney(p.priceAmount, p.currency)}</p>
                 <p className="hidden text-sm text-muted-foreground lg:block">One payment. All workouts, yours to keep.</p>
               </div>
-              <div className="flex-1 space-y-2 lg:flex-none">
-                {ownsIt ? (
-                  <>
-                    <p className="hidden text-sm font-medium lg:block">You own this program.</p>
-                    <Button asChild className="w-full" size="lg">
-                      <Link to={`/me/programs/${p.id}`}>Open program</Link>
+              {ownsIt ? (
+                <div className="flex-1 space-y-2 lg:flex-none">
+                  <p className="hidden text-sm font-medium lg:block">You own this program.</p>
+                  <Button asChild className="w-full" size="lg">
+                    <Link to={`/me/programs/${p.id}`}>Open program</Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-1 gap-2 lg:flex-none lg:flex-col">
+                  {inCart ? (
+                    <Button asChild className="flex-1" size="lg" variant="secondary">
+                      <Link to="/cart">
+                        <Check aria-hidden /> In cart
+                      </Link>
                     </Button>
-                  </>
-                ) : signedIn ? (
-                  <Button className="w-full" size="lg" onClick={() => buy.mutate(p.id)} disabled={buy.isPending || buy.isSuccess}>
-                    {buy.isPending || buy.isSuccess ? 'Opening checkout…' : 'Buy'}
-                  </Button>
-                ) : msal ? (
-                  <Button className="w-full" size="lg" onClick={() => msal.loginRedirect({ scopes: [config.apiScope!] })}>
-                    Sign in to buy
-                  </Button>
-                ) : (
-                  <p className="text-sm">Sign-in is not available in this environment.</p>
-                )}
-              </div>
+                  ) : (
+                    <Button className="flex-1" size="lg" onClick={addToCart} disabled={cartFull} title={cartFull ? `A cart holds up to ${MaxCartItems} programs` : undefined}>
+                      <ShoppingBag aria-hidden /> Add to cart
+                    </Button>
+                  )}
+                  {signedIn ? (
+                    <Button className="flex-1" size="lg" variant="outline" onClick={() => buy.mutate(p.id)} disabled={buy.isPending || buy.isSuccess}>
+                      {buy.isPending || buy.isSuccess ? 'Opening checkout…' : 'Buy now'}
+                    </Button>
+                  ) : msal ? (
+                    <Button className="flex-1" size="lg" variant="outline" onClick={() => msal.loginRedirect({ scopes: [config.apiScope!] })}>
+                      Sign in to buy
+                    </Button>
+                  ) : null}
+                </div>
+              )}
             </div>
             {buy.error && (
               <Alert variant="destructive" role="alert" className="mt-3">
@@ -167,7 +212,33 @@ export function ProgramPage() {
             </p>
           </aside>
         </div>
+        <MoreFromCoach coachSlug={p.coachSlug} coachName={coachName} exclude={p.id} />
       </article>
     </BrandScope>
+  )
+}
+
+// Up to four other programs by the same coach, as product cards.
+function MoreFromCoach({ coachSlug, coachName, exclude }: { coachSlug: string; coachName: string; exclude: string }) {
+  const { api } = useApp()
+  const owned = useOwnedPrograms()
+  const coaches = useCoaches([coachSlug])
+  const more = useQuery({
+    queryKey: ['programs', coachSlug, 'more'],
+    queryFn: async () => (await api.GET('/api/v1/marketplace/programs', { params: { query: { Coach: coachSlug, PageSize: 5 } } })).data ?? null,
+  })
+  const items = (more.data?.items ?? []).filter((i) => i.id !== exclude).slice(0, 4)
+  if (!items.length) return null
+
+  return (
+    <Section title={`More from ${coachName}`} className="pt-10">
+      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {items.map((i) => (
+          <li key={i.id}>
+            <ProductCard program={i} coach={coaches.get(i.coachSlug)} owned={owned.has(i.id)} />
+          </li>
+        ))}
+      </ul>
+    </Section>
   )
 }

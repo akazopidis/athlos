@@ -6,8 +6,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Ordering.Api.Features.Customers;
 
 // Deleting a customer's account (design §5.2), called by tenancy-api: their orders stay, because the
-// coaches need them for accounting, but the email address goes. The customer id stays too: it is the
-// Entra object id of an account that no longer exists, so it names nobody.
+// coaches need them for accounting, but the email address goes, and so do their cart checkouts. The
+// customer id stays too: it is the Entra object id of an account that no longer exists, so it names
+// nobody.
 //
 // CROSS-TENANT SLICE (design §3.2, "a customer's own rows, for account deletion"): finding the
 // tenants that hold the customer's orders ignores the tenant filter and relies on the customer filter
@@ -34,6 +35,10 @@ public static class EraseCustomer
                 .Select(o => o.TenantId)
                 .Distinct()
                 .ToListAsync(cancellationToken);
+
+            // The customer's own checkouts (RLS: customer_id = app.user_id) only link their orders.
+            await db.Checkouts.Where(c => c.CustomerId == customerId).ExecuteDeleteAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
 
         foreach (var tenantId in tenants)

@@ -34,6 +34,70 @@
             }
           },
           {
+            "name": "MinPrice",
+            "in": "query",
+            "schema": {
+              "maximum": 9223372036854776000,
+              "minimum": 0,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "MaxPrice",
+            "in": "query",
+            "schema": {
+              "maximum": 9223372036854776000,
+              "minimum": 0,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "MinWeeks",
+            "in": "query",
+            "schema": {
+              "maximum": 520,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "MaxWeeks",
+            "in": "query",
+            "schema": {
+              "maximum": 520,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "Sort",
+            "in": "query",
+            "schema": {
+              "default": "Newest",
+              "$ref": "#/components/schemas/SearchProgramsSort"
+            }
+          },
+          {
             "name": "Page",
             "in": "query",
             "schema": {
@@ -905,8 +969,29 @@
           "Advanced"
         ]
       },
+      "SearchProgramsCoachFacet": {
+        "required": [
+          "coachSlug",
+          "count"
+        ],
+        "type": "object",
+        "properties": {
+          "coachSlug": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "SearchProgramsItem": {
         "required": [
+          "id",
           "coachSlug",
           "slug",
           "title",
@@ -918,6 +1003,10 @@
         ],
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "coachSlug": {
             "type": "string"
           },
@@ -962,7 +1051,8 @@
           "items",
           "page",
           "pageSize",
-          "totalCount"
+          "totalCount",
+          "coaches"
         ],
         "type": "object",
         "properties": {
@@ -995,8 +1085,21 @@
               "string"
             ],
             "format": "int32"
+          },
+          "coaches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchProgramsCoachFacet"
+            }
           }
         }
+      },
+      "SearchProgramsSort": {
+        "enum": [
+          "Newest",
+          "PriceLowToHigh",
+          "PriceHighToLow"
+        ]
       },
       "UpdateProgramRequest": {
         "required": [

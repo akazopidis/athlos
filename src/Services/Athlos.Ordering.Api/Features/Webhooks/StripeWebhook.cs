@@ -2,21 +2,26 @@ using Athlos.Messaging;
 using Athlos.Messaging.Contracts;
 using Athlos.Ordering.Api.Data;
 using Athlos.Ordering.Api.Features.Checkout;
-using Athlos.Tenancy;
+using Athlos.Tenancy.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Stripe;
 using Stripe.Checkout;
 
 namespace Athlos.Ordering.Api.Features.Webhooks;
 
 // Stripe calls POST /webhooks/stripe through the gateway (design §2.2, §5.1):
 // 1. verify the Stripe-Signature and reject events older than five minutes;
-// 2. find the tenant in the session's metadata (written by checkout), enter it, so RLS applies;
-// 3. in one transaction: record the event id (dedupe), mark the order Paid, write OrderPaid and the
-//    coach's "you made a sale" email to the outbox. Either all of it commits or none of it, and a
-//    retried event changes nothing.
-public static class StripeWebhook
+// 2. read the session's orders from its metadata (written by checkout): one (tenant, order) pair per
+//    program, possibly of several coaches;
+// 3. for each order, inside its own tenant, so RLS applies: send the coach's share as a Stripe
+//    Transfer (paid sessions from the cart), then in one transaction mark the order Paid only if it
+//    is still Pending, and write OrderPaid and the coach's "you made a sale" email to the outbox;
+// 4. record the event id, so a retried event returns at once.
+// Every step is idempotent (the transfer per order at Stripe, the conditional update here), so an
+// event that fails halfway is safely completed by Stripe's retry.
+public static partial class StripeWebhook
 {
     private const long MaxPayloadBytes = 64 * 1024;
 
@@ -39,8 +44,8 @@ public static class StripeWebhook
     }
 
     private static async Task<Results<Ok, BadRequest, ProblemHttpResult>> Handle(
-        HttpRequest request, StripeWebhookVerifier verifier, TenantContext tenant, OrderingDbContext db, IConfiguration configuration,
-        CancellationToken cancellationToken)
+        HttpRequest request, StripeWebhookVerifier verifier, OrderingDbContext db, ICheckoutSessions checkout, IServiceScopeFactory scopes,
+        IConfiguration configuration, ILoggerFactory loggers, CancellationToken cancellationToken)
     {
         if (!verifier.IsConfigured)
         {
@@ -68,9 +73,13 @@ public static class StripeWebhook
         };
 
         // Other event types are acknowledged and ignored.
-        if (outcome is null || stripeEvent.Data.Object is not Session session
-            || !Guid.TryParse(session.Metadata?.GetValueOrDefault(CheckoutMetadata.TenantId), out var tenantId)
-            || !Guid.TryParse(session.Metadata?.GetValueOrDefault(CheckoutMetadata.OrderId), out var orderId))
+        if (outcome is null || stripeEvent.Data.Object is not Session session)
+        {
+            return TypedResults.Ok();
+        }
+
+        var (orders, legacy) = CheckoutMetadata.Read(session.Metadata);
+        if (orders.Count == 0)
         {
             return TypedResults.Ok();
         }
@@ -81,8 +90,46 @@ public static class StripeWebhook
             return TypedResults.Ok();
         }
 
-        tenant.EnterTenant(tenantId, role: null);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        if (await db.ProcessedStripeEvents.AnyAsync(e => e.StripeEventId == stripeEvent.Id, cancellationToken))
+        {
+            return TypedResults.Ok(); // Already handled: Stripe retried.
+        }
+
+        var paid = new List<Order>();
+        foreach (var (tenantId, orderId) in orders)
+        {
+            var order = await FindPendingAsync(scopes, tenantId, orderId, session.Id, cancellationToken);
+            if (order is null)
+            {
+                continue;
+            }
+
+            // Before the cart, destination charges paid the coach directly; there is nothing to transfer.
+            string? transferId = null;
+            if (outcome == OrderStatus.Paid && !legacy)
+            {
+                if (session.PaymentIntentId is not { } paymentIntentId || order.SellerAccountId is null)
+                {
+                    return TypedResults.Problem(statusCode: StatusCodes.Status500InternalServerError, title: "The payment cannot be transferred.");
+                }
+
+                try
+                {
+                    transferId = await checkout.TransferAsync(order, paymentIntentId, cancellationToken);
+                }
+                catch (StripeException e)
+                {
+                    // The customer has paid, so the order is still Paid and the rest of the cart goes
+                    // on; the coach's share waits, found by the Paid order without a transfer id.
+                    LogTransferFailed(loggers.CreateLogger("Athlos.Ordering.Transfers"), order.Id, tenantId, e.StripeError?.Code);
+                }
+            }
+
+            if (await CompleteAsync(scopes, tenantId, orderId, session.Id, outcome.Value, transferId, configuration, cancellationToken) is { } completed)
+            {
+                paid.Add(completed);
+            }
+        }
 
         db.ProcessedStripeEvents.Add(new ProcessedStripeEvent { StripeEventId = stripeEvent.Id });
         try
@@ -91,35 +138,63 @@ public static class StripeWebhook
         }
         catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return TypedResults.Ok(); // Already handled: Stripe retried.
+            // A concurrent delivery of the same event finished first; each order was still handled once.
         }
 
-        var order = await db.Orders.SingleOrDefaultAsync(o => o.Id == orderId && o.StripeCheckoutSessionId == session.Id, cancellationToken);
-        var paid = false;
-        if (order is { Status: OrderStatus.Pending })
+        // Counted once each order is committed as Paid; a retried event never reaches this point.
+        foreach (var order in paid)
         {
-            paid = outcome == OrderStatus.Paid;
-            order.Status = outcome.Value;
-            if (outcome == OrderStatus.Paid)
-            {
-                order.PaidAt = DateTimeOffset.UtcNow;
-                db.OutboxMessages.Add(OutboxMessage.For(OrderPaid.Queue, new OrderPaid(
-                    order.Id, order.TenantId, order.CustomerId, order.CustomerEmail, order.ProgramId, order.ProgramTitle, order.CoachSlug,
-                    order.Amount, order.Currency, order.PaidAt.Value)));
-                db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, SaleEmail(order, configuration)));
-            }
-
-            await db.SaveChangesAsync(cancellationToken);
-        }
-
-        await transaction.CommitAsync(cancellationToken);
-
-        // Counted once the order is committed as Paid; a retried event never reaches this point.
-        if (paid)
-        {
-            OrderMetrics.OrderPaid(order!.TenantId, order.CoachSlug, order.Currency);
+            OrderMetrics.OrderPaid(order.TenantId, order.CoachSlug, order.Currency);
         }
 
         return TypedResults.Ok();
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Transfer of order {OrderId} (tenant {TenantId}) to the coach failed: {StripeCode}")]
+    private static partial void LogTransferFailed(ILogger logger, Guid orderId, Guid tenantId, string? stripeCode);
+
+    // The order, read inside the tenant the metadata names: another tenant's order is not there.
+    private static async Task<Order?> FindPendingAsync(
+        IServiceScopeFactory scopes, Guid tenantId, Guid orderId, string sessionId, CancellationToken cancellationToken)
+    {
+        Order? order = null;
+        await scopes.InTenantAsync<OrderingDbContext>(tenantId, async db => order = await db.Orders.AsNoTracking()
+            .SingleOrDefaultAsync(o => o.Id == orderId && o.StripeCheckoutSessionId == sessionId && o.Status == OrderStatus.Pending, cancellationToken),
+            cancellationToken);
+        return order;
+    }
+
+    // Moves the order out of Pending once: the conditional update locks the row, so of two concurrent
+    // deliveries only one sees it change. Returns the order if it was marked Paid.
+    private static async Task<Order?> CompleteAsync(
+        IServiceScopeFactory scopes, Guid tenantId, Guid orderId, string sessionId, OrderStatus outcome, string? transferId,
+        IConfiguration configuration, CancellationToken cancellationToken)
+    {
+        Order? paid = null;
+        await scopes.InTenantAsync<OrderingDbContext>(tenantId, async db =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            DateTimeOffset? paidAt = outcome == OrderStatus.Paid ? now : null;
+            var changed = await db.Orders
+                .Where(o => o.Id == orderId && o.StripeCheckoutSessionId == sessionId && o.Status == OrderStatus.Pending)
+                .ExecuteUpdateAsync(o => o
+                    .SetProperty(x => x.Status, outcome)
+                    .SetProperty(x => x.PaidAt, paidAt)
+                    .SetProperty(x => x.StripeTransferId, transferId)
+                    .SetProperty(x => x.UpdatedAt, now), cancellationToken);
+            if (changed == 0 || outcome != OrderStatus.Paid)
+            {
+                return;
+            }
+
+            var order = await db.Orders.AsNoTracking().SingleAsync(o => o.Id == orderId, cancellationToken);
+            db.OutboxMessages.Add(OutboxMessage.For(OrderPaid.Queue, new OrderPaid(
+                order.Id, order.TenantId, order.CustomerId, order.CustomerEmail, order.ProgramId, order.ProgramTitle, order.CoachSlug,
+                order.Amount, order.Currency, order.PaidAt!.Value)));
+            db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, SaleEmail(order, configuration)));
+            await db.SaveChangesAsync(cancellationToken);
+            paid = order;
+        }, cancellationToken);
+        return paid;
     }
 }

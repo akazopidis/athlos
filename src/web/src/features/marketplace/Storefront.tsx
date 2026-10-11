@@ -5,7 +5,7 @@ import { Loading, Notice, Section } from '@/components/page'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useTitle } from '@/lib/useTitle'
-import { ProgramList } from './ProgramList.tsx'
+import { Catalog } from './Catalog.tsx'
 import { useProgramSearch } from './useProgramSearch.ts'
 import { useStorefront } from './useStorefront.ts'
 
@@ -14,7 +14,7 @@ import { useStorefront } from './useStorefront.ts'
 export function Storefront() {
   const { slug = '' } = useParams()
   const [params] = useSearchParams()
-  const { search, update } = useProgramSearch()
+  const { search, update, clear } = useProgramSearch()
   const storefront = useStorefront(slug)
 
   useTitle(storefront.data?.displayName)
@@ -46,15 +46,15 @@ export function Storefront() {
     <BrandScope color={branding.primaryColor}>
       <StorefrontBanner name={displayName} logoUrl={branding.logoUrl} color={branding.primaryColor} innerClassName="container-page py-12 sm:py-20" />
       <div className="container-page space-y-8 py-10 sm:py-14">
-        {/* Stripe sends the customer back here when they leave the checkout page. */}
+        {/* Checkouts from before the cart send the customer back here when they leave Stripe's page. */}
         {params.get('checkout') === 'cancelled' && (
           <Alert>
             <Info aria-hidden />
             <AlertDescription>Checkout cancelled. You have not been charged.</AlertDescription>
           </Alert>
         )}
-        <Section title="Programs">
-          <ProgramList search={{ coach: slug, page: search.page }} onPage={(page) => update({ page })} />
+        <Section title={`Programs by ${displayName}`}>
+          <Catalog search={search} update={update} clear={clear} fixedCoach={slug} />
         </Section>
       </div>
     </BrandScope>

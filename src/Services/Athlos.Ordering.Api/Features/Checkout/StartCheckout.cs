@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Ordering.Api.Data;
 using Athlos.Tenancy;
+using Athlos.Tenancy.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -8,16 +9,26 @@ using Npgsql;
 
 namespace Athlos.Ordering.Api.Features.Checkout;
 
-// A signed-in customer buys a published program (design §2.2). The order belongs to the coach's
-// tenant, which the customer is not a member of.
-// CROSS-TENANT SLICE (design §3.2): the tenant comes from catalog's offer for the program (a signed
-// service-to-service answer), never from the request. The slice enters that tenant before the
-// transaction, so RLS checks the insert like any other.
+// A signed-in customer buys the programs in their cart, from any number of coaches, with one payment
+// (design §2.2). "Buy now" is a cart of one.
+//
+// 1. Every program must be on sale (catalog's offer), in one currency, from a coach who can take
+//    payments (tenancy), and not already owned. Otherwise nothing is created, and the problem names
+//    the programIds at fault and a reason (notForSale, currencies, cannotSell, owned), so the cart
+//    can drop or flag them.
+// 2. Stripe creates one Checkout Session for all of them (separate charges and transfers).
+// 3. The customer's Checkout row (the Idempotency-Key) and one Order per program are written; each
+//    order inside its coach's tenant, one tenant at a time, so the EF filter and RLS check every
+//    insert. The tenant comes from catalog's signed offer, never from the request.
+// The session is created before the rows, so a failure leaves no order pending without a payment
+// page; an unused session expires at Stripe.
 public static class StartCheckout
 {
-    public sealed record Request([property: Required] Guid ProgramId);
+    public const int MaxPrograms = 10;
 
-    public sealed record Response(Guid OrderId, string CheckoutUrl);
+    public sealed record Request([property: Required, MinLength(1), MaxLength(MaxPrograms)] List<Guid> ProgramIds);
+
+    public sealed record Response(Guid CheckoutId, string CheckoutUrl);
 
     public static void MapStartCheckout(this IEndpointRouteBuilder app) =>
         app.MapPost("/api/v1/orders/checkout", Handle)
@@ -25,7 +36,7 @@ public static class StartCheckout
             .WithName("StartCheckout")
             .WithTags("Orders");
 
-    private static async Task<Results<Ok<Response>, NotFound, ProblemHttpResult>> Handle(
+    private static async Task<Results<Ok<Response>, ProblemHttpResult>> Handle(
         Request request,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
         HttpContext http,
@@ -33,6 +44,7 @@ public static class StartCheckout
         OrderingDbContext db,
         ISellerDirectory sellers,
         ICheckoutSessions checkout,
+        IServiceScopeFactory scopes,
         IConfiguration configuration,
         CancellationToken cancellationToken)
     {
@@ -52,36 +64,65 @@ public static class StartCheckout
             return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Payments are not configured for this environment.");
         }
 
-        if (await sellers.GetOfferAsync(request.ProgramId, cancellationToken) is not { } offer)
+        // Retrying with the same key returns the same checkout and Stripe page (design §7.1). The
+        // Checkout row is the customer's own (RLS: customer_id = app.user_id).
+        if (idempotencyKey is not null && await FindCheckoutAsync(db, customerId, idempotencyKey, cancellationToken) is { } existing)
         {
-            return TypedResults.NotFound();
+            return TypedResults.Ok(existing);
         }
 
-        var seller = await sellers.GetPayoutAccountAsync(offer.TenantId, cancellationToken);
-        if (seller is not { CanSell: true })
+        var programIds = request.ProgramIds.Distinct().ToList();
+        var offers = new List<ProgramOffer>();
+        foreach (var programId in programIds)
         {
-            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This coach cannot take payments right now.");
+            if (await sellers.GetOfferAsync(programId, cancellationToken) is { } offer)
+            {
+                offers.Add(offer);
+            }
         }
 
-        tenant.EnterTenant(offer.TenantId, role: null);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-
-        // Retrying with the same key returns the same order and checkout page (design §7.1).
-        if (idempotencyKey is not null
-            && await db.Orders.SingleOrDefaultAsync(o => o.CustomerId == customerId && o.IdempotencyKey == idempotencyKey, cancellationToken) is { } existing)
+        if (offers.Count < programIds.Count)
         {
-            return existing is { Status: OrderStatus.Pending, CheckoutUrl: { } url }
-                ? TypedResults.Ok(new Response(existing.Id, url))
-                : TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This checkout has already finished.");
+            return Problem(StatusCodes.Status404NotFound, "notForSale", "Some programs in your cart are no longer for sale.",
+                programIds.Except(offers.Select(o => o.ProgramId)));
         }
 
-        if (await db.Orders.AnyAsync(o => o.CustomerId == customerId && o.ProgramId == offer.ProgramId && o.Status == OrderStatus.Paid, cancellationToken))
+        if (offers.Select(o => o.Currency).Distinct().Count() > 1)
         {
-            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "You already own this program.");
+            return Problem(StatusCodes.Status400BadRequest, "currencies", "Programs in different currencies are paid separately.", programIds);
         }
 
-        var order = new Order
+        var accounts = new Dictionary<Guid, string>();
+        foreach (var coach in offers.GroupBy(o => o.TenantId))
         {
+            var seller = await sellers.GetPayoutAccountAsync(coach.Key, cancellationToken);
+            if (seller is not { CanSell: true })
+            {
+                return Problem(StatusCodes.Status409Conflict, "cannotSell", $"{coach.First().CoachSlug} cannot take payments right now.", coach.Select(o => o.ProgramId));
+            }
+
+            accounts[coach.Key] = seller.StripeAccountId!;
+        }
+
+        var owned = new List<Guid>();
+        foreach (var coach in offers.GroupBy(o => o.TenantId))
+        {
+            var ids = coach.Select(o => o.ProgramId).ToList();
+            await scopes.InTenantAsync<OrderingDbContext>(coach.Key, async orders => owned.AddRange(await orders.Orders
+                .Where(o => o.CustomerId == customerId && ids.Contains(o.ProgramId) && o.Status == OrderStatus.Paid)
+                .Select(o => o.ProgramId)
+                .ToListAsync(cancellationToken)), cancellationToken);
+        }
+
+        if (owned.Count > 0)
+        {
+            return Problem(StatusCodes.Status409Conflict, "owned", "You already own some of these programs.", owned.Distinct());
+        }
+
+        var checkoutId = Guid.CreateVersion7();
+        var newOrders = offers.Select(offer => new Order
+        {
+            TenantId = offer.TenantId,
             CustomerId = customerId,
             CustomerEmail = email,
             ProgramId = offer.ProgramId,
@@ -90,32 +131,70 @@ public static class StartCheckout
             Amount = offer.PriceAmount,
             Currency = offer.Currency,
             PlatformFee = PlatformFee(offer.PriceAmount, configuration),
-            IdempotencyKey = idempotencyKey,
-        };
-        db.Orders.Add(order);
-
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "A checkout with this Idempotency-Key is already in progress.");
-        }
+            CheckoutId = checkoutId,
+            SellerAccountId = accounts[offer.TenantId],
+        }).ToList();
 
         var publicUrl = new Uri(configuration["App:PublicUrl"] ?? throw new InvalidOperationException("App:PublicUrl is not configured."));
-        var session = await checkout.CreateAsync(order, seller.StripeAccountId!,
-            successUrl: new Uri(publicUrl, $"/me?checkout=success&order={order.Id}"),
-            cancelUrl: new Uri(publicUrl, $"/c/{offer.CoachSlug}?checkout=cancelled"),
-            cancellationToken);
+        var session = await checkout.CreateAsync(new CheckoutRequest(checkoutId, email, offers[0].Currency, newOrders,
+            SuccessUrl: new Uri(publicUrl, $"/me?checkout=success&id={checkoutId}"),
+            CancelUrl: new Uri(publicUrl, "/cart?checkout=cancelled")), cancellationToken);
 
-        order.StripeCheckoutSessionId = session.Id;
-        order.CheckoutUrl = session.Url;
-        await db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        await using (var transaction = await db.Database.BeginTransactionAsync(cancellationToken))
+        {
+            db.Checkouts.Add(new Data.Checkout
+            {
+                Id = checkoutId,
+                CustomerId = customerId,
+                IdempotencyKey = idempotencyKey,
+                StripeCheckoutSessionId = session.Id,
+                CheckoutUrl = session.Url,
+            });
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+            {
+                return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "A checkout with this Idempotency-Key is already in progress.");
+            }
 
-        return TypedResults.Ok(new Response(order.Id, session.Url));
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        foreach (var coach in newOrders.GroupBy(o => o.TenantId))
+        {
+            await scopes.InTenantAsync<OrderingDbContext>(coach.Key, async orders =>
+            {
+                foreach (var order in coach)
+                {
+                    order.StripeCheckoutSessionId = session.Id;
+                    order.CheckoutUrl = session.Url;
+                    orders.Orders.Add(order);
+                }
+
+                await orders.SaveChangesAsync(cancellationToken);
+            }, cancellationToken);
+        }
+
+        return TypedResults.Ok(new Response(checkoutId, session.Url));
     }
+
+    private static async Task<Response?> FindCheckoutAsync(OrderingDbContext db, Guid customerId, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        return await db.Checkouts.AsNoTracking()
+            .Where(c => c.CustomerId == customerId && c.IdempotencyKey == idempotencyKey)
+            .Select(c => new Response(c.Id, c.CheckoutUrl))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    private static ProblemHttpResult Problem(int status, string reason, string title, IEnumerable<Guid> programIds) =>
+        TypedResults.Problem(statusCode: status, title: title, extensions: new Dictionary<string, object?>
+        {
+            ["reason"] = reason,
+            ["programIds"] = programIds.ToList(),
+        });
 
     // The platform's share, in the order's minor units, rounded down (design §0: "the platform keeps a fee").
     public static long PlatformFee(long amount, IConfiguration configuration)

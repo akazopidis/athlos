@@ -114,19 +114,61 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         Assert.DoesNotContain(_bobBuysFromA.ToString(), body, StringComparison.Ordinal);
     }
 
-    // Even a genuinely signed event cannot move an order across tenants: the order is looked up
-    // inside the tenant named in the metadata, where another tenant's order does not exist.
+    // Even a genuinely signed event cannot move an order across tenants: each order is looked up
+    // inside the tenant named next to it in the metadata, where another tenant's order does not exist.
     [Fact]
     public async Task A_webhook_naming_the_wrong_tenant_cannot_touch_the_order()
     {
         var offer = _api.Sellers.Sell(_a.TenantId, _a.Slug);
         var checkout = await _api.Checkout(Guid.CreateVersion7(), offer.ProgramId);
+        var order = _api.OrdersOf(checkout).Single();
 
         var response = await _api.SendWebhook(StripeEvents.CheckoutCompleted(
-            $"evt_{Guid.NewGuid():N}", $"cs_test_{checkout.OrderId:N}", checkout.OrderId, tenantId: _b.TenantId));
+            $"evt_{Guid.NewGuid():N}", checkout.SessionId, [(_b.TenantId, order.Id)]));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("Pending", await Scalar<string>(null, null, $"SELECT status FROM orders WHERE id = '{checkout.OrderId}'", asOwner: true));
+        Assert.Equal("Pending", await Scalar<string>(null, null, $"SELECT status FROM orders WHERE id = '{order.Id}'", asOwner: true));
+        Assert.False(_api.CheckoutSessions.Transfers.ContainsKey(order.Id));
+    }
+
+    // The cart (design §2.2): one checkout across coaches writes each order into its own coach's
+    // tenant, and each coach sees only their part of it. Counted as the superuser.
+    [Fact]
+    public async Task A_cart_across_A_and_B_puts_each_order_in_its_coachs_tenant()
+    {
+        var carol = Guid.CreateVersion7();
+        var fromA = _api.Sellers.Sell(_a.TenantId, _a.Slug);
+        var fromB = _api.Sellers.Sell(_b.TenantId, _b.Slug);
+        var checkout = await _api.Checkout(carol, [fromA.ProgramId, fromB.ProgramId]);
+        await _api.Pay(checkout);
+        var orders = _api.OrdersOf(checkout).ToDictionary(o => o.ProgramId, o => o.Id);
+
+        var tenantOfA = await Scalar<Guid>(null, null, $"SELECT tenant_id FROM orders WHERE id = '{orders[fromA.ProgramId]}'", asOwner: true);
+        var tenantOfB = await Scalar<Guid>(null, null, $"SELECT tenant_id FROM orders WHERE id = '{orders[fromB.ProgramId]}'", asOwner: true);
+        var as_ = await Body(await _api.AsCoach(_a, "/sales"));
+        var bs = await Body(await _api.AsCoach(_b, "/sales"));
+
+        Assert.Equal((_a.TenantId, _b.TenantId), (tenantOfA, tenantOfB));
+        Assert.Contains(orders[fromA.ProgramId].ToString(), as_, StringComparison.Ordinal);
+        Assert.DoesNotContain(orders[fromB.ProgramId].ToString(), as_, StringComparison.Ordinal);
+        Assert.Contains(orders[fromB.ProgramId].ToString(), bs, StringComparison.Ordinal);
+        Assert.DoesNotContain(orders[fromA.ProgramId].ToString(), bs, StringComparison.Ordinal);
+    }
+
+    // Layer 4 alone: a checkout is its customer's. Another user, or a coach's tenant session, sees none.
+    [Fact]
+    public async Task RLS_a_checkout_is_visible_to_its_customer_only()
+    {
+        var offer = _api.Sellers.Sell(_a.TenantId, _a.Slug);
+        var checkout = await _api.Checkout(_alice, offer.ProgramId);
+        var sql = $"SELECT count(*) FROM checkouts WHERE id = '{checkout.CheckoutId}'";
+
+        var asAlice = await Scalar<long>(null, _alice, sql);
+        var asBob = await Scalar<long>(null, _bob, sql);
+        var asCoachA = await Scalar<long>(_a.TenantId, null, sql);
+        var bobDeletes = await Execute(null, _bob, $"DELETE FROM checkouts WHERE id = '{checkout.CheckoutId}'");
+
+        Assert.Equal((1L, 0L, 0L, 0), (asAlice, asBob, asCoachA, bobDeletes));
     }
 
     // Layer 4 alone: raw SQL as ordering-api's role.

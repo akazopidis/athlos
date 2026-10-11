@@ -36,7 +36,7 @@ public static class TenancyArrange
         return new Workspace(created!.Id, slug, ownerId);
     }
 
-    // Staff invites arrive in a later phase; until then staff are added directly as the owner role.
+    // Adds a member straight in the database, skipping the invite flow, for tests that only need one.
     public static async Task<Guid> AddMember(this AthlosDatabases database, Guid tenantId, TenantRole role, Guid? existingUser = null)
     {
         var userId = existingUser ?? Guid.CreateVersion7();

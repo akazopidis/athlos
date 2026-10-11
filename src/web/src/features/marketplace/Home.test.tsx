@@ -4,11 +4,13 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApi } from '@/api/client'
 import { AppContext } from '@/lib/AppContext'
+import { CartProvider } from '@/lib/CartProvider'
 import { Home } from './Home.tsx'
 
 afterEach(() => vi.unstubAllGlobals())
 
 const program = (n: number) => ({
+  id: `0199a000-0000-7000-8000-00000000000${n}`,
   coachSlug: 'anna',
   slug: `program-${n}`,
   title: `Program ${n}`,
@@ -25,9 +27,10 @@ test('the search in the URL reaches the API and Next loads the following page', 
     'fetch',
     vi.fn(async (request: Request) => {
       const url = new URL(request.url)
+      if (url.pathname === '/api/v1/marketplace/coaches') return Response.json([{ slug: 'anna', displayName: 'Anna Coaching', branding: {} }])
       searches.push(url.searchParams)
       const page = Number(url.searchParams.get('Page'))
-      return Response.json({ items: [program(page)], page, pageSize: 12, totalCount: 13 })
+      return Response.json({ items: [program(page)], page, pageSize: 12, totalCount: 13, coaches: [{ coachSlug: 'anna', count: 13 }] })
     }),
   )
 
@@ -35,11 +38,13 @@ test('the search in the URL reaches the API and Next loads the following page', 
   render(
     <AppContext.Provider value={{ config, msal: null, api: createApi(null, null) }}>
       <QueryClientProvider client={new QueryClient()}>
-        <MemoryRouter initialEntries={['/?q=strength&level=Advanced']}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-          </Routes>
-        </MemoryRouter>
+        <CartProvider>
+          <MemoryRouter initialEntries={['/?q=strength&level=Advanced']}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+            </Routes>
+          </MemoryRouter>
+        </CartProvider>
       </QueryClientProvider>
     </AppContext.Provider>,
   )
@@ -49,6 +54,8 @@ test('the search in the URL reaches the API and Next loads the following page', 
   expect(searches[0].get('Level')).toBe('Advanced')
   expect(searches[0].get('PageSize')).toBe('12')
   expect(screen.getByText('Page 1 of 2')).toBeInTheDocument()
+  // The coach facet shows the coach's name, from tenancy's lookup.
+  expect(await screen.findByRole('radio', { name: /Anna Coaching/ })).toBeInTheDocument()
 
   fireEvent.click(screen.getByRole('button', { name: /Next/ }))
 

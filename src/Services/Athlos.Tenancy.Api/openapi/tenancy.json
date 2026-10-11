@@ -147,6 +147,41 @@
         }
       }
     },
+    "/api/v1/marketplace/coaches": {
+      "get": {
+        "tags": [
+          "Marketplace"
+        ],
+        "operationId": "ListStorefronts",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GetStorefrontResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/memberships": {
       "get": {
         "tags": [

@@ -61,6 +61,7 @@ public sealed class PlatformAdminTests(AthlosDatabases databases) : IAsyncLifeti
         Assert.Equal("Suspended", (await StatusAndPlan(workspace.TenantId)).Status);
         Assert.Equal(HttpStatusCode.NotFound, (await Storefront(workspace)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await Membership(workspace)).StatusCode);
+        Assert.Equal("[]", await (await Storefronts(workspace.Slug)).Content.ReadAsStringAsync(Cancel));
         var payout = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{workspace.TenantId}/payout-account"));
         Assert.False((await payout.Content.ReadFromJsonAsync<JsonElement>(Cancel)).GetProperty("active").GetBoolean());
 
@@ -160,6 +161,23 @@ public sealed class PlatformAdminTests(AthlosDatabases databases) : IAsyncLifeti
 
     private Task<HttpResponseMessage> Storefront(Workspace workspace) =>
         _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{workspace.Slug}"));
+
+    // The shop's coach lookup lists active workspaces only.
+    [Fact]
+    public async Task The_coach_lookup_lists_active_workspaces_by_address()
+    {
+        var (anna, ben, hidden) = (await _api.CreateWorkspace(), await _api.CreateWorkspace(), await _api.CreateWorkspace());
+        Assert.Equal(HttpStatusCode.OK, (await SetStatus(hidden.TenantId, "Suspended")).StatusCode);
+
+        var found = await (await Storefronts(anna.Slug, ben.Slug, hidden.Slug, "no-such-coach")).Content.ReadFromJsonAsync<List<JsonElement>>(Cancel);
+        var tooMany = await Storefronts(Enumerable.Range(0, 51).Select(i => $"coach-{i}").ToArray());
+
+        Assert.Equivalent(new[] { anna.Slug, ben.Slug }, found!.Select(f => f.GetProperty("slug").GetString()));
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
+    }
+
+    private Task<HttpResponseMessage> Storefronts(params string[] slugs) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/marketplace/coaches?" + string.Join('&', slugs.Select(s => $"slug={s}"))));
 
     private Task<HttpResponseMessage> Membership(Workspace workspace) =>
         _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{workspace.Slug}/members/{workspace.OwnerId}"));

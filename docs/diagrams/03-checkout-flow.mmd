@@ -5,16 +5,20 @@ sequenceDiagram
   participant S as Stripe
   participant Q as Service Bus
   participant E as enrollment-api
-  C->>G: POST /orders/checkout {programId}
+  C->>G: POST /orders/checkout {programIds: cart}
   G->>O: forward (+ user id)
-  O->>O: create Order (Pending, TenantId, CustomerId)
-  O->>S: Checkout Session (destination charge, application fee)
+  O->>O: check offers (catalog), sellers (tenancy), not owned
+  O->>S: one Checkout Session for the whole cart
+  O->>O: Checkout row (customer) + one Order per program, each in its coach's tenant
   O-->>C: redirect URL
-  C->>S: pays on Stripe-hosted page
+  C->>S: pays once on Stripe-hosted page
   S->>G: webhook checkout.session.completed
   G->>O: forward
-  O->>O: verify signature, dedupe, Order = Paid + outbox row (one transaction)
-  O->>Q: outbox publisher sends OrderPaid
+  loop each order, inside its coach's tenant
+    O->>S: Transfer of the coach's share (idempotent per order)
+    O->>O: Order = Paid + outbox row (one transaction, only if still Pending)
+  end
+  O->>Q: outbox publisher sends OrderPaid per order
   Q->>E: OrderPaid (scales enrollment-api up from zero)
   E->>E: create Enrollment (idempotent on OrderId)
   C->>G: GET /me/programs

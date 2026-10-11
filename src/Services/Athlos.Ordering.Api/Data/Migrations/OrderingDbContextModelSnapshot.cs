@@ -64,6 +64,57 @@ namespace Athlos.Ordering.Api.Data.Migrations
                     b.ToTable("outbox_messages", (string)null);
                 });
 
+            modelBuilder.Entity("Athlos.Ordering.Api.Data.Checkout", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CheckoutUrl")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("checkout_url");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<string>("StripeCheckoutSessionId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("stripe_checkout_session_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_checkouts");
+
+                    b.HasIndex("StripeCheckoutSessionId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_checkouts_stripe_checkout_session_id");
+
+                    b.HasIndex("CustomerId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_checkouts_customer_id_idempotency_key")
+                        .HasFilter("idempotency_key IS NOT NULL");
+
+                    b.ToTable("checkouts", (string)null);
+                });
+
             modelBuilder.Entity("Athlos.Ordering.Api.Data.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -74,6 +125,10 @@ namespace Athlos.Ordering.Api.Data.Migrations
                     b.Property<long>("Amount")
                         .HasColumnType("bigint")
                         .HasColumnName("amount");
+
+                    b.Property<Guid?>("CheckoutId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("checkout_id");
 
                     b.Property<string>("CheckoutUrl")
                         .HasMaxLength(2000)
@@ -130,6 +185,11 @@ namespace Athlos.Ordering.Api.Data.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("program_title");
 
+                    b.Property<string>("SellerAccountId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("seller_account_id");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -140,6 +200,11 @@ namespace Athlos.Ordering.Api.Data.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("stripe_checkout_session_id");
+
+                    b.Property<string>("StripeTransferId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("stripe_transfer_id");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
@@ -152,11 +217,13 @@ namespace Athlos.Ordering.Api.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_orders");
 
+                    b.HasIndex("CheckoutId")
+                        .HasDatabaseName("ix_orders_checkout_id");
+
                     b.HasIndex("CustomerId")
                         .HasDatabaseName("ix_orders_customer_id");
 
                     b.HasIndex("StripeCheckoutSessionId")
-                        .IsUnique()
                         .HasDatabaseName("ix_orders_stripe_checkout_session_id");
 
                     b.HasIndex("CustomerId", "IdempotencyKey")

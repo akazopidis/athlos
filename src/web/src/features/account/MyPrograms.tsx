@@ -19,17 +19,17 @@ export function MyPrograms() {
     queryKey: ['my-programs'],
     queryFn: async () => (await api.GET('/api/v1/me/programs')).data ?? null,
     refetchInterval: (query) =>
-      returned?.status === 'Paid' && !query.state.data?.items.some((p) => p.programId === returned.programId) ? 3000 : false,
+      returned.some((o) => o.status === 'Paid' && !query.state.data?.items.some((p) => p.programId === o.programId)) ? 3000 : false,
   })
 
-  const waiting = returned?.status === 'Paid' && programs.data && !programs.data.items.some((p) => p.programId === returned.programId)
+  const waiting = programs.data ? returned.filter((o) => o.status === 'Paid' && !programs.data?.items.some((p) => p.programId === o.programId)) : []
 
   return (
     <Section title="My programs">
-      {waiting && (
+      {waiting.length > 0 && (
         <Alert>
           <Loader2 className="animate-spin" aria-hidden />
-          <AlertDescription>Setting up your access to {returned.programTitle}…</AlertDescription>
+          <AlertDescription>Setting up your access to {waiting.map((o) => o.programTitle).join(', ')}…</AlertDescription>
         </Alert>
       )}
       {programs.isPending ? (

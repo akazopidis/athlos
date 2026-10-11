@@ -7,6 +7,7 @@ import { createApi } from '@/api/client'
 import App from '@/app/App'
 import { AppContext } from '@/lib/AppContext'
 import { createMsal } from '@/lib/auth'
+import { CartProvider } from '@/lib/CartProvider'
 import { loadConfig } from '@/lib/config'
 import './index.css'
 
@@ -23,9 +24,11 @@ createRoot(document.getElementById('root')!).render(
     {withAuth(
       <AppContext.Provider value={services}>
         <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
+          <CartProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </CartProvider>
         </QueryClientProvider>
       </AppContext.Provider>,
     )}

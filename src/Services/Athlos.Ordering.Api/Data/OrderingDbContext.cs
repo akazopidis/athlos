@@ -10,6 +10,8 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
 {
     public DbSet<Order> Orders => Set<Order>();
 
+    public DbSet<Checkout> Checkouts => Set<Checkout>();
+
     public DbSet<ProcessedStripeEvent> ProcessedStripeEvents => Set<ProcessedStripeEvent>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
@@ -20,7 +22,8 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
         {
             order.HasIndex(o => new { o.TenantId, o.CreatedAt });
             order.HasIndex(o => o.CustomerId);
-            order.HasIndex(o => o.StripeCheckoutSessionId).IsUnique();
+            order.HasIndex(o => o.StripeCheckoutSessionId);
+            order.HasIndex(o => o.CheckoutId);
             order.HasIndex(o => new { o.CustomerId, o.IdempotencyKey }).IsUnique().HasFilter("idempotency_key IS NOT NULL");
             order.Property(o => o.CustomerEmail).HasMaxLength(320);
             order.Property(o => o.ProgramTitle).HasMaxLength(120);
@@ -30,6 +33,17 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
             order.Property(o => o.IdempotencyKey).HasMaxLength(100);
             order.Property(o => o.StripeCheckoutSessionId).HasMaxLength(255);
             order.Property(o => o.CheckoutUrl).HasMaxLength(2000);
+            order.Property(o => o.SellerAccountId).HasMaxLength(255);
+            order.Property(o => o.StripeTransferId).HasMaxLength(255);
+        });
+
+        modelBuilder.Entity<Checkout>(checkout =>
+        {
+            checkout.HasIndex(c => new { c.CustomerId, c.IdempotencyKey }).IsUnique().HasFilter("idempotency_key IS NOT NULL");
+            checkout.HasIndex(c => c.StripeCheckoutSessionId).IsUnique();
+            checkout.Property(c => c.IdempotencyKey).HasMaxLength(100);
+            checkout.Property(c => c.StripeCheckoutSessionId).HasMaxLength(255);
+            checkout.Property(c => c.CheckoutUrl).HasMaxLength(2000);
         });
 
         modelBuilder.Entity<ProcessedStripeEvent>(e =>

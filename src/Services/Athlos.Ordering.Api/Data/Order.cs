@@ -31,9 +31,20 @@ public sealed class Order : ITenantOwned, IHasTimestamps
 
     public OrderStatus Status { get; set; } = OrderStatus.Pending;
 
-    // The customer's Idempotency-Key header, unique per customer (design §7.1).
+    // The customer's Idempotency-Key header, unique per customer (design §7.1). Set only on orders
+    // from before the cart; a cart's key is on its Checkout.
     public string? IdempotencyKey { get; init; }
 
+    // The cart checkout this order was bought in; null for orders from before the cart (design §2.2).
+    public Guid? CheckoutId { get; init; }
+
+    // The coach's Stripe Connect account at checkout time: the transfer after payment goes there.
+    public string? SellerAccountId { get; init; }
+
+    // The Stripe Transfer of the coach's share, once paid (separate charges and transfers).
+    public string? StripeTransferId { get; set; }
+
+    // One Checkout Session can pay for several orders, of several coaches.
     public string? StripeCheckoutSessionId { get; set; }
 
     public string? CheckoutUrl { get; set; }
@@ -51,6 +62,27 @@ public enum OrderStatus
     Paid,
     Failed,
     Refunded,
+}
+
+// A cart checkout (design §2.2): one Stripe payment for programs from any number of coaches. Each
+// program is an Order in its coach's tenant; this row is the customer's, not a tenant's, and only
+// they can read it (RLS: customer_id = app.user_id). It holds the Idempotency-Key, so retrying a
+// checkout returns the same Stripe page.
+public sealed class Checkout : IHasTimestamps
+{
+    public Guid Id { get; init; } = Guid.CreateVersion7();
+
+    public required Guid CustomerId { get; init; }
+
+    public string? IdempotencyKey { get; init; }
+
+    public required string StripeCheckoutSessionId { get; init; }
+
+    public required string CheckoutUrl { get; init; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 // Stripe retries webhooks; each event is handled once (design §5.1: dedupe on event id).

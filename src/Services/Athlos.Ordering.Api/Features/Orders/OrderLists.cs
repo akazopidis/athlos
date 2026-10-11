@@ -14,7 +14,9 @@ public static class OrderLists
 {
     public const int MaxPageSize = 50;
 
-    public sealed record MyOrder(Guid Id, Guid ProgramId, string ProgramTitle, string CoachSlug, long Amount, string Currency, OrderStatus Status, DateTimeOffset CreatedAt, DateTimeOffset? PaidAt);
+    // CheckoutId: the cart checkout it was bought in (null before the cart), so the page Stripe returns
+    // to can find the orders of that payment.
+    public sealed record MyOrder(Guid Id, Guid ProgramId, string ProgramTitle, string CoachSlug, long Amount, string Currency, OrderStatus Status, DateTimeOffset CreatedAt, DateTimeOffset? PaidAt, Guid? CheckoutId);
 
     public sealed record Sale(Guid Id, Guid ProgramId, string ProgramTitle, string CustomerEmail, long Amount, long PlatformFee, string Currency, DateTimeOffset PaidAt);
 
@@ -39,7 +41,7 @@ public static class OrderLists
                 return TypedResults.Ok(new MyOrdersPage(
                     await orders.OrderByDescending(o => o.CreatedAt)
                         .Skip((paging.Page - 1) * paging.PageSize).Take(paging.PageSize)
-                        .Select(o => new MyOrder(o.Id, o.ProgramId, o.ProgramTitle, o.CoachSlug, o.Amount, o.Currency, o.Status, o.CreatedAt, o.PaidAt))
+                        .Select(o => new MyOrder(o.Id, o.ProgramId, o.ProgramTitle, o.CoachSlug, o.Amount, o.Currency, o.Status, o.CreatedAt, o.PaidAt, o.CheckoutId))
                         .ToListAsync(cancellationToken),
                     paging.Page, paging.PageSize, await orders.CountAsync(cancellationToken)));
             })

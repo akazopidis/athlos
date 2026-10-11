@@ -1,14 +1,14 @@
 # Evaluation targets (design §15.3)
 
-Measured 8 October 2026, at v0.7.0. Each number links to its raw data or the script that reproduces it.
+Measured 8 October 2026, at v0.7.0; isolation and deploy times refreshed 11 October 2026, at v1.2.0. Each number links to its raw data or the script that reproduces it.
 
 | Target | Value | Measured | Met? |
 |---|---|---|---|
-| Cross-tenant data leaks in the isolation suite | 0 | 0 in 134 isolation tests | Yes |
+| Cross-tenant data leaks in the isolation suite | 0 | 0 in 153 isolation tests (134 at v0.7.0) | Yes |
 | Gateway p95 latency, warm, normal load | < 300 ms | 59–109 ms (tenant B's baseline, 6 runs) | Yes |
 | Tenant B p95 during tenant A's flood, limits on | within 20% of baseline | −6% at 0.5 vCPU (60 vs 64 ms); +71% at 0.25 vCPU (142 vs 83 ms) | Yes, after raising the gateway to 0.5 vCPU |
-| Time from `git push` on `dev` to running in dev | < 15 min | median 14.3 min, p90 18.2 min (38 runs) | Mostly: 29 of 38 runs |
-| Time from release tag to running in prod | < 10 min, no rebuild | median 7.8 min, p90 10.2 min (7 runs), images reused | Mostly: 5 of 7 runs |
+| Time from `git push` on `dev` to running in dev | < 15 min | median 14.3 min, p90 18.2 min (55 runs) | Mostly: 44 of 55 runs; the slowest step is now skipped when `infra/` is unchanged (below) |
+| Time from release tag to running in prod | < 10 min, no rebuild | median 8.1 min, p90 11.0 min (10 runs), images reused | Mostly: 7 of 10 runs |
 | Monthly Azure cost | < €5 | €0.38 in September (from the 27th), €0.82 for 1–8 October, about €3.2 projected for October | Yes |
 | Cold start from zero replicas | measured and reported | median 87 s (70–97 s, 4 samples); warm 0.2–0.3 s | Reported |
 
@@ -23,6 +23,7 @@ The isolation suite (`tests/Athlos.IsolationTests`, run on every PR, where a fai
   - *Reads:* with the EF query filter turned off (`IgnoreQueryFilters`), RLS still hides A's rows (tenancy, catalog).
   - *Writes:* bulk update and delete skip both the filter and the SaveChanges guard, and a raw `INSERT` names tenant A outright. B still changes 0 of A's rows, and the insert fails with `insufficient_privilege` (`With_layer_3_off_RLS_still_blocks_Bs_writes_to_A`).
 - **Workspace deletion (§3.4).** Erasing tenant A leaves 0 of A's rows and blobs and every one of B's (catalog, enrollment), counted as the superuser.
+- **Suspension and plans (§3.4, v1.2.0).** B's owner cannot suspend A or change A's plan (403, A unchanged). The platform admin's suspension of A leaves B active and hides only A's programs, and the public-read RLS policy alone hides them. A's buyers keep the content.
 
 ## Noisy neighbor
 
@@ -37,13 +38,13 @@ See [noisy-neighbor.md](noisy-neighbor.md):
 
 | Environment | Runs | Median | p90 | Min | Max |
 |---|---|---|---|---|---|
-| dev (push to running) | 38 | 14.3 min | 18.2 min | 10.8 min | 42.7 min |
-| staging (merge to running) | 9 | 8.1 min | 10.9 min | 3.0 min | 13.6 min |
-| prod (tag to running) | 7 | 7.8 min | 10.2 min | 3.8 min | 12.7 min |
+| dev (push to running) | 55 | 14.3 min | 18.2 min | 4.3 min | 42.7 min |
+| staging (merge to running) | 12 | 8.0 min | 10.9 min | 3.0 min | 13.6 min |
+| prod (tag to running) | 10 | 8.1 min | 11.0 min | 3.8 min | 12.7 min |
 
 - **dev:** builds all six images every time, then deploys. The 42.7 min maximum is one deploy that failed twice and was re-run, because three merges in a row overlapped on the shared PostgreSQL server's update.
 - **staging and prod:** reuse dev's images ("build once, promote") and only deploy.
-- **The slowest step in every deploy** is the shared-infrastructure step (Bicep on the shared resource group, which re-applies the PostgreSQL server). It is a no-op except after an infra change, but Azure still takes minutes to confirm it. Skipping it when `infra/shared.bicep` has not changed would bring dev under 15 min reliably; left as future work.
+- **The slowest step in every deploy** is the shared-infrastructure step (Bicep on the shared resource group, which re-applies the PostgreSQL server). It is a no-op except after an infra change, but Azure still takes minutes to confirm it. Since 11 October 2026, `deploy-dev` skips it when the push changed nothing under `infra/` (a manual run always applies it); the runs above are from before that change.
 
 ## Cost
 

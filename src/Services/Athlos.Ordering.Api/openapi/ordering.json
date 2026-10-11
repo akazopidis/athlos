@@ -40,9 +40,6 @@
                 }
               }
             }
-          },
-          "404": {
-            "description": "Not Found"
           }
         }
       }
@@ -172,7 +169,8 @@
           "currency",
           "status",
           "createdAt",
-          "paidAt"
+          "paidAt",
+          "checkoutId"
         ],
         "type": "object",
         "properties": {
@@ -214,6 +212,13 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "checkoutId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -361,24 +366,29 @@
       },
       "StartCheckoutRequest": {
         "required": [
-          "programId"
+          "programIds"
         ],
         "type": "object",
         "properties": {
-          "programId": {
-            "type": "string",
-            "format": "uuid"
+          "programIds": {
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         }
       },
       "StartCheckoutResponse": {
         "required": [
-          "orderId",
+          "checkoutId",
           "checkoutUrl"
         ],
         "type": "object",
         "properties": {
-          "orderId": {
+          "checkoutId": {
             "type": "string",
             "format": "uuid"
           },

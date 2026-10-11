@@ -33,18 +33,64 @@ public sealed class FakeSellerDirectory : ISellerDirectory
         Task.FromResult(_accounts.GetValueOrDefault(tenantId));
 }
 
-// Stripe Checkout: records what would have been sent to Stripe.
+// Stripe Checkout and Transfers: records what would have been sent to Stripe.
 public sealed class FakeCheckoutSessions : ICheckoutSessions
 {
-    public ConcurrentDictionary<string, (Order Order, string Destination)> Sessions { get; } = new();
+    private readonly ConcurrentDictionary<Guid, bool> _failingTransfers = new();
+
+    public ConcurrentDictionary<string, CheckoutRequest> Sessions { get; } = new();
+
+    // Order id -> (destination account, amount), one per transfer actually made.
+    public ConcurrentDictionary<Guid, (string? Destination, long Amount)> Transfers { get; } = new();
+
+    // Sessions closed by a newer checkout, and sessions the customer already paid at Stripe.
+    public ConcurrentDictionary<string, bool> Expired { get; } = new();
+
+    public ConcurrentDictionary<string, bool> PaidAtStripe { get; } = new();
+
+    // Order id -> amount given back.
+    public ConcurrentDictionary<Guid, long> Refunds { get; } = new();
 
     public bool IsConfigured => true;
 
-    public Task<CheckoutSession> CreateAsync(Order order, string destinationAccountId, Uri successUrl, Uri cancelUrl, CancellationToken cancellationToken)
+    public static string SessionIdOf(Guid checkoutId) => $"cs_test_{checkoutId:N}";
+
+    // Transfers to this coach fail, as for a restricted Connect account.
+    public void FailTransfersTo(Guid tenantId) => _failingTransfers[tenantId] = true;
+
+    public Task<CheckoutSession> CreateAsync(CheckoutRequest request, CancellationToken cancellationToken)
     {
-        var id = $"cs_test_{order.Id:N}";
-        Sessions[id] = (order, destinationAccountId);
+        var id = SessionIdOf(request.CheckoutId);
+        Sessions[id] = request;
         return Task.FromResult(new CheckoutSession(id, $"https://checkout.stripe.test/{id}"));
+    }
+
+    public Task<string> TransferAsync(Order order, string paymentIntentId, CancellationToken cancellationToken)
+    {
+        if (_failingTransfers.ContainsKey(order.TenantId))
+        {
+            throw new Stripe.StripeException("Your destination account needs to have at least one of the following capabilities enabled: transfers.");
+        }
+
+        Transfers[order.Id] = (order.SellerAccountId, order.Amount - order.PlatformFee);
+        return Task.FromResult($"tr_test_{order.Id:N}");
+    }
+
+    public Task<bool> ExpireAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        if (PaidAtStripe.ContainsKey(sessionId))
+        {
+            return Task.FromResult(false);
+        }
+
+        Expired[sessionId] = true;
+        return Task.FromResult(true);
+    }
+
+    public Task<string> RefundAsync(Order order, string paymentIntentId, CancellationToken cancellationToken)
+    {
+        Refunds[order.Id] = order.Amount;
+        return Task.FromResult($"re_test_{order.Id:N}");
     }
 }
 
@@ -66,11 +112,23 @@ public static class StripeEvents
 {
     public const string SigningSecret = "whsec_test_athlos_0123456789abcdef";
 
-    public static string CheckoutCompleted(string eventId, string sessionId, Guid orderId, Guid tenantId, string paymentStatus = "paid") =>
-        Event(eventId, "checkout.session.completed", sessionId, orderId, tenantId, paymentStatus);
+    public static string CheckoutCompleted(string eventId, string sessionId, IEnumerable<(Guid TenantId, Guid OrderId)> orders, string paymentStatus = "paid") =>
+        Event(eventId, "checkout.session.completed", sessionId, Metadata(orders), paymentStatus);
 
-    public static string CheckoutExpired(string eventId, string sessionId, Guid orderId, Guid tenantId) =>
-        Event(eventId, "checkout.session.expired", sessionId, orderId, tenantId, "unpaid");
+    public static string CheckoutExpired(string eventId, string sessionId, IEnumerable<(Guid TenantId, Guid OrderId)> orders) =>
+        Event(eventId, "checkout.session.expired", sessionId, Metadata(orders), "unpaid");
+
+    // A session created before the cart: one order, a destination charge, the old metadata keys.
+    public static string LegacyCheckoutCompleted(string eventId, string sessionId, Guid orderId, Guid tenantId) =>
+        Event(eventId, "checkout.session.completed", sessionId, new Dictionary<string, string>
+        {
+            [CheckoutMetadata.OrderId] = orderId.ToString(),
+            [CheckoutMetadata.TenantId] = tenantId.ToString(),
+        }, "paid");
+
+    private static Dictionary<string, string> Metadata(IEnumerable<(Guid TenantId, Guid OrderId)> orders) =>
+        orders.Select((o, i) => (Key: $"{CheckoutMetadata.OrderPrefix}{i}", Value: $"{o.TenantId}:{o.OrderId}"))
+            .ToDictionary(p => p.Key, p => p.Value);
 
     public static string Signature(string payload, DateTimeOffset? at = null, string secret = SigningSecret)
     {
@@ -79,7 +137,7 @@ public static class StripeEvents
         return $"t={timestamp},v1={Convert.ToHexStringLower(hash)}";
     }
 
-    private static string Event(string eventId, string type, string sessionId, Guid orderId, Guid tenantId, string paymentStatus) =>
+    private static string Event(string eventId, string type, string sessionId, Dictionary<string, string> metadata, string paymentStatus) =>
         JsonSerializer.Serialize(new
         {
             id = eventId,
@@ -95,11 +153,8 @@ public static class StripeEvents
                     id = sessionId,
                     @object = "checkout.session",
                     payment_status = paymentStatus,
-                    metadata = new Dictionary<string, string>
-                    {
-                        [CheckoutMetadata.OrderId] = orderId.ToString(),
-                        [CheckoutMetadata.TenantId] = tenantId.ToString(),
-                    },
+                    payment_intent = $"pi_test_{sessionId}",
+                    metadata,
                 },
             },
         });

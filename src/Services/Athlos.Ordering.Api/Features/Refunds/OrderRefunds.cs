@@ -16,6 +16,12 @@ namespace Athlos.Ordering.Api.Features.Refunds;
 // Every step is idempotent per order, so a retry completes a refund that stopped halfway.
 public static class OrderRefunds
 {
+    // How long after payment a coach may refund a sale (Payments:RefundWindowDays, default 14: the EU's
+    // withdrawal period for online purchases). Refunds made at Stripe and lost disputes have no window:
+    // the money has already gone back, and Athlos follows.
+    public static TimeSpan RefundWindow(IConfiguration configuration) =>
+        TimeSpan.FromDays(configuration.GetValue("Payments:RefundWindowDays", 14));
+
     public enum Outcome
     {
         Refunded,

@@ -166,6 +166,8 @@ export interface components {
             status: components["schemas"]["OrderStatus"];
             /** Format: date-time */
             refundedAt: null | string;
+            /** Format: date-time */
+            refundableUntil: string;
         };
         OrderListsSalesPage: {
             items: components["schemas"]["OrderListsSale"][];

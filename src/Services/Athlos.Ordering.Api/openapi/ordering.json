@@ -432,7 +432,8 @@
           "currency",
           "paidAt",
           "status",
-          "refundedAt"
+          "refundedAt",
+          "refundableUntil"
         ],
         "type": "object",
         "properties": {
@@ -481,6 +482,10 @@
               "null",
               "string"
             ],
+            "format": "date-time"
+          },
+          "refundableUntil": {
+            "type": "string",
             "format": "date-time"
           }
         }

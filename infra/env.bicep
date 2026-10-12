@@ -154,15 +154,15 @@ module notificationsAcrPull 'modules/acr-pull.bicep' = {
 
 var serviceBusName = 'sb-athlos-${environmentName}'
 
-// Events between services (design §2.2): ordering sends OrderPaid, enrollment receives it; ordering,
-// enrollment and tenancy queue emails, the notifications-worker receives them (design §5.3).
+// Events between services (design §2.2): ordering sends OrderPaid and OrderRefunded, enrollment receives
+// them; ordering, enrollment and tenancy queue emails, the notifications-worker receives them (design §5.3).
 // Roles are on the namespace: every identity here is one of this stage's own services.
 module serviceBus 'modules/servicebus.bicep' = {
   name: 'servicebus'
   params: {
     name: serviceBusName
     location: location
-    queues: ['order-paid', 'notifications']
+    queues: ['order-paid', 'order-refunded', 'notifications']
     senderPrincipalIds: [orderingIdentity.outputs.principalId, enrollmentIdentity.outputs.principalId, tenancyIdentity.outputs.principalId]
     receiverPrincipalIds: [enrollmentIdentity.outputs.principalId, notificationsIdentity.outputs.principalId]
   }
@@ -374,6 +374,18 @@ module enrollmentApi 'modules/container-app.bicep' = if (deployApps) {
           metadata: {
             namespace: serviceBusName
             queueName: 'order-paid'
+            messageCount: '5'
+          }
+        }
+      }
+      {
+        name: 'order-refunded-queue'
+        custom: {
+          type: 'azure-servicebus'
+          identity: enrollmentIdentity.outputs.id
+          metadata: {
+            namespace: serviceBusName
+            queueName: 'order-refunded'
             messageCount: '5'
           }
         }

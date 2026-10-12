@@ -149,6 +149,19 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         Assert.Null(alices.Workouts[1].CompletedAt);
     }
 
+    // A refund names its tenant; naming another tenant removes nothing, because the delete runs inside
+    // the tenant it names, where the other tenant's enrollment does not exist.
+    [Fact]
+    public async Task An_OrderRefunded_naming_the_wrong_tenant_removes_nothing()
+    {
+        var program = await _api.Enroll(_alice, _a);
+        var enrollment = await Scalar<Guid>(null, _alice, $"SELECT order_id FROM enrollments WHERE customer_id = '{_alice}' AND program_id = '{program.ProgramId}'");
+
+        await _api.Deliver(new Athlos.Messaging.Contracts.OrderRefunded(enrollment, _b.TenantId, _alice, program.ProgramId, DateTimeOffset.UtcNow));
+
+        Assert.Contains((await _api.MyPrograms(_alice)).Items, p => p.ProgramId == program.ProgramId);
+    }
+
     // Layer 4 alone: raw SQL as enrollment-api's role.
     [Fact]
     public async Task RLS_tenant_B_sees_none_of_As_enrollments_or_progress()

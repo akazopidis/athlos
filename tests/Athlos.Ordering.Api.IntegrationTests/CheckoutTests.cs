@@ -57,8 +57,8 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
         await _api.PublishOutbox();
         foreach (var order in orders.Values)
         {
-            Assert.Single(_api.Messages.Sent, m => m.Queue == OrderPaid.Queue && m.Message.Payload.Contains(order.Id.ToString(), StringComparison.Ordinal));
-            Assert.Single(_api.Messages.Sent, m => m.Queue == EmailNotification.Queue && m.Message.Payload.Contains(order.TenantId.ToString(), StringComparison.Ordinal));
+            Assert.Single(await _api.Outbox(), m => m.Queue == OrderPaid.Queue && m.Message.Payload.Contains(order.Id.ToString(), StringComparison.Ordinal));
+            Assert.Single(await _api.Outbox(), m => m.Queue == EmailNotification.Queue && m.Message.Payload.Contains(order.TenantId.ToString(), StringComparison.Ordinal));
         }
     }
 
@@ -119,8 +119,8 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
         // this pass published.
         await _api.PublishOutbox();
 
-        var (queue, message) = Assert.Single(_api.Messages.Sent, m => m.Message.Payload.Contains(orderId.ToString(), StringComparison.Ordinal));
-        var (emailQueue, email) = Assert.Single(_api.Messages.Sent, m => m.Message.Payload.Contains(coach.TenantId.ToString(), StringComparison.Ordinal)
+        var (queue, message) = Assert.Single(await _api.Outbox(), m => m.Message.Payload.Contains(orderId.ToString(), StringComparison.Ordinal));
+        var (emailQueue, email) = Assert.Single(await _api.Outbox(), m => m.Message.Payload.Contains(coach.TenantId.ToString(), StringComparison.Ordinal)
             && m.Queue == EmailNotification.Queue);
         var sale = JsonSerializer.Deserialize<EmailNotification>(email.Payload, Json)!;
         Assert.Equal((EmailTemplates.SaleMade, coach.TenantId), (sale.Template, sale.ToOwnersOfTenant));
@@ -132,7 +132,7 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal((orderId, coach.TenantId, customer), (orderPaid.OrderId, orderPaid.TenantId, orderPaid.CustomerId));
         Assert.Equal(OrderStatus.Paid, (await MyOrders(customer)).Single().Status);
         await _api.PublishOutbox();
-        Assert.Single(_api.Messages.Sent, m => m.Message.Payload.Contains(orderId.ToString(), StringComparison.Ordinal)); // sent once
+        Assert.Single(await _api.Outbox(), m => m.Message.Payload.Contains(orderId.ToString(), StringComparison.Ordinal)); // sent once
     }
 
     [Fact]
@@ -149,8 +149,8 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK), (first.StatusCode, retry.StatusCode, otherEvent.StatusCode));
         var order = _api.OrdersOf(checkout).Single();
         await _api.PublishOutbox();
-        Assert.Single(_api.Messages.Sent, m => m.Queue == OrderPaid.Queue && m.Message.Payload.Contains(order.Id.ToString(), StringComparison.Ordinal));
-        Assert.Single(_api.Messages.Sent, m => m.Queue == EmailNotification.Queue && m.Message.Payload.Contains(coach.TenantId.ToString(), StringComparison.Ordinal));
+        Assert.Single(await _api.Outbox(), m => m.Queue == OrderPaid.Queue && m.Message.Payload.Contains(order.Id.ToString(), StringComparison.Ordinal));
+        Assert.Single(await _api.Outbox(), m => m.Queue == EmailNotification.Queue && m.Message.Payload.Contains(coach.TenantId.ToString(), StringComparison.Ordinal));
         Assert.Single(_api.CheckoutSessions.Transfers, t => t.Key == order.Id);
     }
 
@@ -283,14 +283,14 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
         await _api.Pay(first); // paid before it could be closed
 
         var (paid, refunded) = (_api.OrdersOf(second).Single(), _api.OrdersOf(first).Single());
-        Assert.Equal(offer.PriceAmount, _api.CheckoutSessions.Refunds[refunded.Id]);
+        Assert.Equal((offer.PriceAmount, "duplicate"), _api.CheckoutSessions.Refunds[refunded.Id]);
         Assert.False(_api.CheckoutSessions.Transfers.ContainsKey(refunded.Id));
         Assert.True(_api.CheckoutSessions.Transfers.ContainsKey(paid.Id));
         var orders = await MyOrders(customer);
         Assert.Equal(OrderStatus.Paid, orders.Single(o => o.Id == paid.Id).Status);
         Assert.Equal(OrderStatus.Refunded, orders.Single(o => o.Id == refunded.Id).Status);
         await _api.PublishOutbox();
-        Assert.DoesNotContain(_api.Messages.Sent, m => m.Queue == OrderPaid.Queue && m.Message.Payload.Contains(refunded.Id.ToString(), StringComparison.Ordinal));
+        Assert.DoesNotContain(await _api.Outbox(), m => m.Queue == OrderPaid.Queue && m.Message.Payload.Contains(refunded.Id.ToString(), StringComparison.Ordinal));
     }
 
     [Fact]

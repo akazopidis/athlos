@@ -185,6 +185,10 @@ namespace Athlos.Ordering.Api.Data.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("program_title");
 
+                    b.Property<DateTimeOffset?>("RefundedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("refunded_at");
+
                     b.Property<string>("SellerAccountId")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
@@ -200,6 +204,11 @@ namespace Athlos.Ordering.Api.Data.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("stripe_checkout_session_id");
+
+                    b.Property<string>("StripePaymentIntentId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("stripe_payment_intent_id");
 
                     b.Property<string>("StripeTransferId")
                         .HasMaxLength(255)
@@ -226,6 +235,9 @@ namespace Athlos.Ordering.Api.Data.Migrations
                     b.HasIndex("StripeCheckoutSessionId")
                         .HasDatabaseName("ix_orders_stripe_checkout_session_id");
 
+                    b.HasIndex("StripePaymentIntentId")
+                        .HasDatabaseName("ix_orders_stripe_payment_intent_id");
+
                     b.HasIndex("CustomerId", "IdempotencyKey")
                         .IsUnique()
                         .HasDatabaseName("ix_orders_customer_id_idempotency_key")
@@ -235,6 +247,60 @@ namespace Athlos.Ordering.Api.Data.Migrations
                         .HasDatabaseName("ix_orders_tenant_id_created_at");
 
                     b.ToTable("orders", (string)null);
+                });
+
+            modelBuilder.Entity("Athlos.Ordering.Api.Data.PayoutRetry", b =>
+                {
+                    b.Property<Guid>("OrderId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<long>("Amount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<string>("CoachSlug")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("coach_slug");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("last_error");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("OrderId")
+                        .HasName("pk_payout_retries");
+
+                    b.HasIndex("NextAttemptAt")
+                        .HasDatabaseName("ix_payout_retries_next_attempt_at");
+
+                    b.ToTable("payout_retries", (string)null);
                 });
 
             modelBuilder.Entity("Athlos.Ordering.Api.Data.ProcessedStripeEvent", b =>

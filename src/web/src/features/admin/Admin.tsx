@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useApp } from '@/lib/AppContext'
+import { formatMoney } from '@/lib/money'
 import { problemTitle } from '@/lib/problem'
 import { usePlatformAdmin } from '@/lib/usePlatformAdmin'
 import { useTitle } from '@/lib/useTitle'
@@ -41,6 +42,7 @@ export function Admin() {
     <div className="space-y-12">
       <PageHeader eyebrow="Platform admin" title="Workspaces" description="Every coach on Athlos. Suspend a workspace to take it off the marketplace; its customers keep what they bought." />
       <Metrics />
+      <Payouts />
       <Workspaces />
     </div>
   )
@@ -75,6 +77,75 @@ function Metrics() {
         </Card>
       ))}
     </div>
+  )
+}
+
+// Coach shares whose transfer failed after payment (ordering-api's payout retries, design §2.2): they
+// are retried with backoff; the admin can retry one now, for example once the coach fixed their
+// Stripe account. Hidden while there are none.
+function Payouts() {
+  const { api } = useApp()
+  const queryClient = useQueryClient()
+  const payouts = useQuery({
+    queryKey: ['admin', 'payouts'],
+    queryFn: async () => (await api.GET('/api/v1/admin/payouts')).data ?? [],
+  })
+  const retry = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data, error } = await api.POST('/api/v1/admin/payouts/{orderId}/retry', { params: { path: { orderId } } })
+      if (!data) throw new Error(problemTitle(error) ?? 'Could not retry the payout.')
+      if (!data.paid) throw new Error('Stripe still refused the transfer; it stays queued.')
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin', 'payouts'] }),
+  })
+
+  if (!payouts.data?.length) return null
+  return (
+    <Section title="Coach payouts waiting">
+      <p className="text-sm text-muted-foreground">
+        The customers paid and have their programs; these coaches' shares could not be transferred yet. They are retried automatically.
+      </p>
+      {retry.error && (
+        <Alert variant="destructive">
+          <AlertDescription>{retry.error.message}</AlertDescription>
+        </Alert>
+      )}
+      <Card>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Coach</TableHead>
+                <TableHead className="text-right">Share</TableHead>
+                <TableHead className="hidden sm:table-cell">Last error</TableHead>
+                <TableHead className="hidden md:table-cell">Next try</TableHead>
+                <TableHead className="text-right">
+                  <span className="sr-only">Retry</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {payouts.data.map((p) => (
+                <TableRow key={p.orderId}>
+                  <TableCell>
+                    <span className="font-medium">/c/{p.coachSlug}</span>
+                    <span className="block text-xs text-muted-foreground">{Number(p.attempts)} {Number(p.attempts) === 1 ? 'attempt' : 'attempts'}</span>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{formatMoney(p.amount, p.currency)}</TableCell>
+                  <TableCell className="hidden font-mono text-xs sm:table-cell">{p.lastError ?? '—'}</TableCell>
+                  <TableCell className="hidden text-muted-foreground md:table-cell">{new Date(p.nextAttemptAt).toLocaleString()}</TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="outline" disabled={retry.isPending} onClick={() => retry.mutate(p.orderId)}>
+                      Retry now
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </Section>
   )
 }
 

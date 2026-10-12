@@ -66,7 +66,10 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         { "POST", "/api/v1/orders/checkout" },
         { "GET", "/api/v1/me/orders" },
         { "GET", "/api/v1/studio/some-coach/sales" },
+        { "POST", $"/api/v1/studio/some-coach/sales/{Guid.Empty}/refund" },
         { "POST", "/webhooks/stripe" },
+        { "GET", "/api/v1/admin/payouts" },
+        { "POST", $"/api/v1/admin/payouts/{Guid.Empty}/retry" },
     };
 
     [Theory]
@@ -169,6 +172,22 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         var bobDeletes = await Execute(null, _bob, $"DELETE FROM checkouts WHERE id = '{checkout.CheckoutId}'");
 
         Assert.Equal((1L, 0L, 0L, 0), (asAlice, asBob, asCoachA, bobDeletes));
+    }
+
+    // A refund is a tenant's own action: B's owner, naming A's sale (under either address), finds
+    // nothing, and A's sale is untouched.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task B_cannot_refund_As_sale(bool underAsAddress)
+    {
+        var slug = underAsAddress ? _a.Slug : _b.Slug;
+        var response = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/v1/studio/{slug}/sales/{_aliceBuysFromA}/refund"), _b.OwnerId, _b.TenantId, TenantRole.Owner);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.False(_api.CheckoutSessions.Refunds.ContainsKey(_aliceBuysFromA));
+        Assert.Equal("Paid", await Scalar<string>(null, null, $"SELECT status FROM orders WHERE id = '{_aliceBuysFromA}'", asOwner: true));
     }
 
     // Layer 4 alone: raw SQL as ordering-api's role.

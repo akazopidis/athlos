@@ -12,6 +12,8 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
 
     public DbSet<Checkout> Checkouts => Set<Checkout>();
 
+    public DbSet<PayoutRetry> PayoutRetries => Set<PayoutRetry>();
+
     public DbSet<ProcessedStripeEvent> ProcessedStripeEvents => Set<ProcessedStripeEvent>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
@@ -35,6 +37,8 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
             order.Property(o => o.CheckoutUrl).HasMaxLength(2000);
             order.Property(o => o.SellerAccountId).HasMaxLength(255);
             order.Property(o => o.StripeTransferId).HasMaxLength(255);
+            order.Property(o => o.StripePaymentIntentId).HasMaxLength(255);
+            order.HasIndex(o => o.StripePaymentIntentId);
         });
 
         modelBuilder.Entity<Checkout>(checkout =>
@@ -44,6 +48,15 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
             checkout.Property(c => c.IdempotencyKey).HasMaxLength(100);
             checkout.Property(c => c.StripeCheckoutSessionId).HasMaxLength(255);
             checkout.Property(c => c.CheckoutUrl).HasMaxLength(2000);
+        });
+
+        modelBuilder.Entity<PayoutRetry>(retry =>
+        {
+            retry.HasKey(r => r.OrderId);
+            retry.HasIndex(r => r.NextAttemptAt);
+            retry.Property(r => r.CoachSlug).HasMaxLength(40);
+            retry.Property(r => r.Currency).HasMaxLength(3).IsFixedLength();
+            retry.Property(r => r.LastError).HasMaxLength(200);
         });
 
         modelBuilder.Entity<ProcessedStripeEvent>(e =>

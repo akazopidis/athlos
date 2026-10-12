@@ -44,6 +44,11 @@ public sealed class Order : ITenantOwned, IHasTimestamps
     // The Stripe Transfer of the coach's share, once paid (separate charges and transfers).
     public string? StripeTransferId { get; set; }
 
+    // The customer's payment, set when the order is paid: refunds and disputes name it.
+    public string? StripePaymentIntentId { get; set; }
+
+    public DateTimeOffset? RefundedAt { get; set; }
+
     // One Checkout Session can pay for several orders, of several coaches.
     public string? StripeCheckoutSessionId { get; set; }
 
@@ -83,6 +88,32 @@ public sealed class Checkout : IHasTimestamps
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+}
+
+// A coach's share that could not be transferred after payment (for example, a restricted Connect
+// account), waiting for PayoutRetries to try again (design §2.2). Not tenant data: like the outbox,
+// a work queue of the service, with an allow-all policy. The row only names the order and its tenant;
+// the retry enters that tenant to read the order. The admin lists these rows (no cross-tenant read).
+public sealed class PayoutRetry
+{
+    public required Guid OrderId { get; init; }
+
+    public required Guid TenantId { get; init; }
+
+    // Copied for the admin's list, so it needs no read of the tenant's orders.
+    public required string CoachSlug { get; init; }
+
+    public required long Amount { get; init; }
+
+    public required string Currency { get; init; }
+
+    public int Attempts { get; set; }
+
+    public DateTimeOffset NextAttemptAt { get; set; }
+
+    public string? LastError { get; set; }
+
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 }
 
 // Stripe retries webhooks; each event is handled once (design §5.1: dedupe on event id).

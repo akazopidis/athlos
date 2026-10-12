@@ -48,8 +48,14 @@ public sealed class FakeCheckoutSessions : ICheckoutSessions
 
     public ConcurrentDictionary<string, bool> PaidAtStripe { get; } = new();
 
-    // Order id -> amount given back.
-    public ConcurrentDictionary<Guid, long> Refunds { get; } = new();
+    // Order id -> amount given back, and Stripe's refund reason.
+    public ConcurrentDictionary<Guid, (long Amount, string Reason)> Refunds { get; } = new();
+
+    // Orders whose transfer to the coach was taken back.
+    public ConcurrentDictionary<Guid, bool> Reversals { get; } = new();
+
+    // The payment intent the fake Stripe gives a session (the same id StripeEvents puts in events).
+    public static string PaymentIntentOf(string sessionId) => $"pi_test_{sessionId}";
 
     public bool IsConfigured => true;
 
@@ -87,11 +93,29 @@ public sealed class FakeCheckoutSessions : ICheckoutSessions
         return Task.FromResult(true);
     }
 
-    public Task<string> RefundAsync(Order order, string paymentIntentId, CancellationToken cancellationToken)
+    public Task<string> RefundAsync(Order order, string paymentIntentId, string reason, CancellationToken cancellationToken)
     {
-        Refunds[order.Id] = order.Amount;
+        Refunds[order.Id] = (order.Amount, reason);
         return Task.FromResult($"re_test_{order.Id:N}");
     }
+
+    public Task<string> ReverseTransferAsync(Order order, CancellationToken cancellationToken)
+    {
+        Reversals[order.Id] = true;
+        return Task.FromResult($"trr_test_{order.Id:N}");
+    }
+
+    public Task<(List<(Guid TenantId, Guid OrderId)> Orders, bool Legacy)> OrdersOfPaymentAsync(string paymentIntentId, CancellationToken cancellationToken)
+    {
+        var session = Sessions.FirstOrDefault(s => PaymentIntentOf(s.Key) == paymentIntentId);
+        return Task.FromResult((session.Value?.Orders.Select(o => (o.TenantId, o.Id)).ToList() ?? [], false));
+    }
+
+    public Task<string?> PaymentIntentOfSessionAsync(string sessionId, CancellationToken cancellationToken) =>
+        Task.FromResult<string?>(PaymentIntentOf(sessionId));
+
+    // Transfers to this coach work again (the restricted account was fixed).
+    public void ResumeTransfersTo(Guid tenantId) => _failingTransfers.TryRemove(tenantId, out _);
 }
 
 // Service Bus, as the outbox publisher sees it.
@@ -117,6 +141,52 @@ public static class StripeEvents
 
     public static string CheckoutExpired(string eventId, string sessionId, IEnumerable<(Guid TenantId, Guid OrderId)> orders) =>
         Event(eventId, "checkout.session.expired", sessionId, Metadata(orders), "unpaid");
+
+    // A full refund made at Stripe (the dashboard), or a partial one.
+    public static string ChargeRefunded(string eventId, string paymentIntentId, long amount, long amountRefunded) =>
+        JsonSerializer.Serialize(new
+        {
+            id = eventId,
+            @object = "event",
+            api_version = "2025-01-01",
+            created = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            livemode = false,
+            type = "charge.refunded",
+            data = new
+            {
+                @object = new
+                {
+                    id = $"ch_{eventId}",
+                    @object = "charge",
+                    payment_intent = paymentIntentId,
+                    amount,
+                    amount_refunded = amountRefunded,
+                    refunded = amountRefunded >= amount,
+                },
+            },
+        });
+
+    // A dispute the platform lost (or won).
+    public static string DisputeClosed(string eventId, string paymentIntentId, string status = "lost") =>
+        JsonSerializer.Serialize(new
+        {
+            id = eventId,
+            @object = "event",
+            api_version = "2025-01-01",
+            created = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            livemode = false,
+            type = "charge.dispute.closed",
+            data = new
+            {
+                @object = new
+                {
+                    id = $"dp_{eventId}",
+                    @object = "dispute",
+                    payment_intent = paymentIntentId,
+                    status,
+                },
+            },
+        });
 
     // A session created before the cart: one order, a destination charge, the old metadata keys.
     public static string LegacyCheckoutCompleted(string eventId, string sessionId, Guid orderId, Guid tenantId) =>

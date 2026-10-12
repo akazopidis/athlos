@@ -30,6 +30,9 @@ EVENTS = [
     "checkout.session.async_payment_succeeded",
     "checkout.session.async_payment_failed",
     "checkout.session.expired",
+    # Refunds made at Stripe and lost disputes refund the orders in Athlos (design §2.2).
+    "charge.refunded",
+    "charge.dispute.closed",
 ]
 SECRETS_OFFICER_ROLE = "Key Vault Secrets Officer"
 
@@ -61,7 +64,7 @@ def webhook_secret(key, stage, url):
     created = stripe(key, "POST", "/webhook_endpoints", {
         "url": url,
         "enabled_events[]": EVENTS,
-        "description": f"Athlos {stage}: ordering-api checkout events",
+        "description": f"Athlos {stage}: ordering-api checkout, refund and dispute events",
     })
     return created["secret"]
 

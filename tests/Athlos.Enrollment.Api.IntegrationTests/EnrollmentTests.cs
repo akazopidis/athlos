@@ -48,6 +48,36 @@ public sealed class EnrollmentTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Contains(program.Title, new EmailRenderer().Render(email.Template, email.Data).Subject, StringComparison.Ordinal);
     }
 
+    // A refund (design §2.2) removes the access that order gave, with its progress; delivered again,
+    // nothing more happens.
+    [Fact]
+    public async Task OrderRefunded_removes_the_access_the_order_gave()
+    {
+        var program = _api.Programs.Add(_coach.TenantId, _coach.Slug);
+        var paid = Paid(_customer, _coach.TenantId, _coach.Slug, program);
+        await _api.Deliver(paid);
+        await _api.Complete(_customer, program.ProgramId, program.Workouts[0].Id);
+        var refunded = new OrderRefunded(paid.OrderId, _coach.TenantId, _customer, program.ProgramId, DateTimeOffset.UtcNow);
+
+        var first = await _api.Deliver(refunded);
+        var again = await _api.Deliver(refunded);
+
+        Assert.Equal(("completed", "completed"), (first, again));
+        Assert.Empty((await _api.MyPrograms(_customer)).Items);
+        Assert.Equal(HttpStatusCode.NotFound, (await _api.AsCustomer(_customer, HttpMethod.Get, $"/api/v1/me/programs/{program.ProgramId}")).StatusCode);
+    }
+
+    // Only the refunded order's enrollment goes: a refund of another order changes nothing.
+    [Fact]
+    public async Task A_refund_of_another_order_keeps_the_access()
+    {
+        var program = await _api.Enroll(_customer, _coach);
+
+        await _api.Deliver(new OrderRefunded(Guid.CreateVersion7(), _coach.TenantId, _customer, program.ProgramId, DateTimeOffset.UtcNow));
+
+        Assert.Single((await _api.MyPrograms(_customer)).Items);
+    }
+
     [Fact]
     public async Task A_second_paid_order_for_the_same_program_keeps_one_enrollment()
     {

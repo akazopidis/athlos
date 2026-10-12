@@ -44,6 +44,16 @@ public sealed class EnrollmentApiFactory(AthlosDatabases databases) : ServiceApi
     // One delivery of an OrderPaid, as Service Bus would make it; returns how it was settled.
     public async Task<string> Deliver(OrderPaid message) => await DeliverRaw(BinaryData.FromObjectAsJson(message, JsonSerializerOptions.Web));
 
+    // One delivery of an OrderRefunded (design §2.2).
+    public async Task<string> Deliver(OrderRefunded message)
+    {
+        var settlement = new RecordingSettlement();
+        await Services.GetRequiredService<QueueConsumer<OrderRefunded>>()
+            .ProcessAsync(BinaryData.FromObjectAsJson(message, JsonSerializerOptions.Web), Guid.NewGuid().ToString(), deliveryCount: 1, settlement,
+                TestContext.Current.CancellationToken);
+        return settlement.Outcome ?? "none";
+    }
+
     public async Task<string> DeliverRaw(BinaryData body)
     {
         var settlement = new RecordingSettlement();

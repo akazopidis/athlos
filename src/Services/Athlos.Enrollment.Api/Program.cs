@@ -25,6 +25,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 
 // OrderPaid arrives from ordering-api through Service Bus (design §2.2).
 builder.AddQueueConsumer<OrderPaid, EnrollOnOrderPaid>(OrderPaid.Queue);
+builder.AddQueueConsumer<OrderRefunded, RevokeOnOrderRefunded>(OrderRefunded.Queue);
 // The purchase confirmation email leaves through the outbox to the notifications queue (design §5.3).
 builder.AddOutbox<EnrollmentDbContext>();
 

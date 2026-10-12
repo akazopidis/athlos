@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v13, built; v1.2.0 in production, the cart in v1.3.0 (2026-10-11)
+**Status:** v13, built; v1.3.0 in production (2026-10-11)
+
+**Changes in v14 (v1.4.0):** refunds by the coach, at Stripe or through a lost dispute, with transfer reversals and access removed (`OrderRefunded`); failed coach payouts retried, and listed for the platform admin (§2.2).
 
 **Changes in v13 (the shop):** a cart across coaches paid in one Stripe payment, with separate charges and transfers (§2.2, ordering notes); the marketplace as an e-shop: header search and categories, filters, sorting, product cards and pages (§8).
 
@@ -126,7 +128,21 @@ Rules that keep it clean:
 - the customer pays the platform, in one Checkout Session for the whole cart;
 - after payment, the webhook sends each coach their share (price minus the platform fee) as a Transfer to their Connect account, tied to the charge with `source_transaction`.
 
-The trade-off: the platform is the merchant of record, so refunds and disputes are the platform's to handle, then reversed from the coach's transfer. "Buy now" on a program page is a cart of one.
+The trade-off: the platform is the merchant of record, so refunds and disputes are the platform's to handle; the coach's share is then taken back with a transfer reversal. "Buy now" on a program page is a cart of one.
+
+**Refunds, disputes and coach payouts (as built, v1.4.0).** The platform holds the money between the customer and the coaches, so it also gives money back and makes sure coaches get paid.
+- *Ways a paid order is refunded.* The coach refunds a sale in the studio (`POST /api/v1/studio/{slug}/sales/{orderId}/refund`, owners only), or the platform refunds a whole payment in the Stripe dashboard (`charge.refunded`), or a dispute is lost (`charge.dispute.closed`, status `lost`). Partial refunds made by hand at Stripe are logged, not mapped to orders.
+- *One routine for all three* (`OrderRefunds`):
+  1. the customer's money: refunded at Stripe for that order's amount, unless Stripe already did;
+  2. the coach's share: the transfer is reversed, or a waiting payout retry is dropped;
+  3. inside the order's tenant, in one transaction: `Paid → Refunded` (once) and `OrderRefunded` to the outbox.
+
+  enrollment-api receives `OrderRefunded` on its own `order-refunded` queue and removes the access that order gave, inside the order's tenant (its progress cascades). Every step is idempotent per order.
+- *Orders paid before the cart* (destination charges) are refunded in the Stripe dashboard, which reverses their transfer and updates Athlos through `charge.refunded`.
+- *Coach payouts that fail.* A transfer refused after payment (for example, a restricted Connect account) no longer only logs. The order is Paid, because the customer paid, and the share goes to `payout_retries`:
+  - *Retries.* A work queue of the service, like the outbox, retried with backoff (5 minutes, doubling to 6 hours). Each retry enters the order's tenant to read it.
+  - *Admin.* The platform admin's page lists what waits (`GET /api/v1/admin/payouts`, ordering-api) and can retry one at once (`POST /api/v1/admin/payouts/{orderId}/retry`).
+  - *No cross-tenant read.* The row carries what the list needs, so the admin never reads tenants' orders across tenants.
 
 ### 2.3 Data model essentials
 
@@ -140,7 +156,8 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 | tenancy | `staff_invites` **T** | `email`, `token_hash`, `expires_at`, `accepted_at` |
 | catalog | `programs` **T** | `title`, `slug`, `description`, `level`, `duration_weeks`, `price_amount` (integer cents), `currency`, `is_published`, `cover_image_path` |
 | catalog | `workouts` **T** | `program_id`, `week`, `day`, `title`, `content` (Markdown), `video_url` |
-| ordering | `orders` **T** | `customer_id`, `customer_email`, `program_id`, `program_title` (copy at purchase time), `amount`, `currency`, `platform_fee`, `status` (Pending, Paid, Failed, Refunded), `stripe_checkout_session_id` (shared by a cart's orders), `checkout_id`, `seller_account_id` (the coach's Connect account at checkout), `stripe_transfer_id` |
+| ordering | `orders` **T** | `customer_id`, `customer_email`, `program_id`, `program_title` (copy at purchase time), `amount`, `currency`, `platform_fee`, `status` (Pending, Paid, Failed, Refunded), `stripe_checkout_session_id` (shared by a cart's orders), `checkout_id`, `seller_account_id` (the coach's Connect account at checkout), `stripe_transfer_id`, `stripe_payment_intent_id`, `refunded_at` |
+| ordering | `payout_retries` | `order_id` (primary key), `tenant_id`, `coach_slug`, `amount`, `currency`, `attempts`, `next_attempt_at`, `last_error`. A work queue of the service (allow-all policy, like the outbox) |
 | ordering | `checkouts` | `customer_id`, `idempotency_key` (unique per customer), `stripe_checkout_session_id`, `checkout_url`. The customer's, not a tenant's: RLS `customer_id = app.user_id` |
 | ordering | `processed_stripe_events` | `stripe_event_id` (primary key, for webhook idempotency) |
 | ordering | `outbox_messages` | `type`, `payload` (jsonb), `occurred_at`, `sent_at` |

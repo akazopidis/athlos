@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Athlos.Messaging;
 using Athlos.Ordering.Api.Data;
 using Athlos.Tenancy;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -65,6 +66,16 @@ public static class OrderingArrange
 
     public static Task<HttpResponseMessage> AsCoach(this OrderingApiFactory api, Coach coach, string path) =>
         api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/studio/{coach.Slug}{path}"), coach.OwnerId, coach.TenantId, TenantRole.Owner);
+
+    // Every message ordering-api wrote to its outbox, sent or not. Read from the table: test apps share
+    // it and each runs a publisher, so which app's sender sends a row is a race, but the row is there.
+    public static async Task<List<(string Queue, OutboxMessage Message)>> Outbox(this OrderingApiFactory api)
+    {
+        await using var scope = api.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+        var rows = await db.OutboxMessages.AsNoTracking().ToListAsync(TestContext.Current.CancellationToken);
+        return rows.Select(m => (m.Queue, m)).ToList();
+    }
 
     // One pass of the outbox publisher.
     public static Task<int> PublishOutbox(this OrderingApiFactory api) =>

@@ -18,7 +18,8 @@ public static class OrderLists
     // to can find the orders of that payment.
     public sealed record MyOrder(Guid Id, Guid ProgramId, string ProgramTitle, string CoachSlug, long Amount, string Currency, OrderStatus Status, DateTimeOffset CreatedAt, DateTimeOffset? PaidAt, Guid? CheckoutId);
 
-    public sealed record Sale(Guid Id, Guid ProgramId, string ProgramTitle, string CustomerEmail, long Amount, long PlatformFee, string Currency, DateTimeOffset PaidAt);
+    // Status: Paid or Refunded (a refunded sale stays in the list, marked, and earns nothing).
+    public sealed record Sale(Guid Id, Guid ProgramId, string ProgramTitle, string CustomerEmail, long Amount, long PlatformFee, string Currency, DateTimeOffset PaidAt, OrderStatus Status, DateTimeOffset? RefundedAt);
 
     public sealed record Paging([property: Range(1, 10_000)] int Page = 1, [property: Range(1, MaxPageSize)] int PageSize = 20);
 
@@ -53,12 +54,14 @@ public static class OrderLists
         studio.MapGet("/sales", async (string tenantSlug, [AsParameters] Paging paging, OrderingDbContext db, CancellationToken cancellationToken) =>
             {
                 // The route's slug must match too, like tenancy's workspace endpoints: a mismatch is empty.
-                var sales = db.Orders.AsNoTracking().Where(o => o.Status == OrderStatus.Paid && o.CoachSlug == tenantSlug);
+                // Refunded sales stay listed if they had paid the coach; a program paid twice, refunded
+                // before any transfer, was never a sale.
+                var sales = db.Orders.AsNoTracking().Where(o => (o.Status == OrderStatus.Paid || (o.Status == OrderStatus.Refunded && o.CheckoutId != null && o.StripeTransferId != null)) && o.CoachSlug == tenantSlug);
 
                 return TypedResults.Ok(new SalesPage(
                     await sales.OrderByDescending(o => o.PaidAt)
                         .Skip((paging.Page - 1) * paging.PageSize).Take(paging.PageSize)
-                        .Select(o => new Sale(o.Id, o.ProgramId, o.ProgramTitle, o.CustomerEmail, o.Amount, o.PlatformFee, o.Currency, o.PaidAt!.Value))
+                        .Select(o => new Sale(o.Id, o.ProgramId, o.ProgramTitle, o.CustomerEmail, o.Amount, o.PlatformFee, o.Currency, o.PaidAt!.Value, o.Status, o.RefundedAt))
                         .ToListAsync(cancellationToken),
                     paging.Page, paging.PageSize, await sales.CountAsync(cancellationToken)));
             })

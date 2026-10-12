@@ -1,0 +1,16 @@
+import { useQuery } from '@tanstack/react-query'
+import { useApp } from './AppContext.tsx'
+
+// The addresses of the workspaces the signed-in user coaches in (owner or staff). The shop shows
+// their programs as "Your program" instead of offering to buy them: ordering-api refuses that
+// checkout too (design §2.2). Empty when signed out.
+export function useMyWorkspaces(): Set<string> {
+  const { api, msal } = useApp()
+  const signedIn = Boolean(msal?.getActiveAccount())
+  const memberships = useQuery({
+    queryKey: ['memberships'],
+    queryFn: async () => (await api.GET('/api/v1/me/memberships')).data ?? [],
+    enabled: signedIn,
+  })
+  return new Set((memberships.data ?? []).map((m) => m.slug))
+}

@@ -41,6 +41,28 @@ public sealed class RefundTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal((orderId, coach.TenantId, customer), (message.OrderId, message.TenantId, message.CustomerId));
     }
 
+    // The coach's refund window (14 days after payment by default, the EU withdrawal period).
+    [Fact]
+    public async Task A_sale_older_than_the_refund_window_cannot_be_refunded_by_the_coach()
+    {
+        var coach = NewCoach();
+        var orderId = await _api.Buy(Guid.CreateVersion7(), coach);
+        await using (var connection = new Npgsql.NpgsqlConnection(databases.OwnerConnectionString("ordering")))
+        {
+            await connection.OpenAsync(Cancel);
+            await using var command = new Npgsql.NpgsqlCommand("UPDATE orders SET paid_at = now() - interval '15 days' WHERE id = @id", connection);
+            command.Parameters.AddWithValue("id", orderId);
+            await command.ExecuteNonQueryAsync(Cancel);
+        }
+
+        var response = await Refund(coach, orderId, TenantRole.Owner);
+        var sale = Assert.Single(await Sales(coach));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.False(_api.CheckoutSessions.Refunds.ContainsKey(orderId));
+        Assert.True(sale.GetProperty("refundableUntil").GetDateTimeOffset() < DateTimeOffset.UtcNow);
+    }
+
     [Fact]
     public async Task Staff_cannot_refund_and_nothing_changes()
     {

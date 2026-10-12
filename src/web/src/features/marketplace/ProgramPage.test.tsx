@@ -36,7 +36,7 @@ const signedIn = {
   acquireTokenSilent: async () => ({ accessToken: 'token' }),
 } as unknown as PublicClientApplication
 
-function renderPage(checkout: (request: Request) => Response, owned: string[] = []) {
+function renderPage(checkout: (request: Request) => Response, owned: string[] = [], workspaces: string[] = []) {
   const requests: Request[] = []
   vi.stubGlobal(
     'fetch',
@@ -53,6 +53,9 @@ function renderPage(checkout: (request: Request) => Response, owned: string[] = 
         return Response.json({ items: [], page: 1, pageSize: 5, totalCount: 0, coaches: [] })
       }
       if (new URL(request.url).pathname === '/api/v1/marketplace/coaches') return Response.json([])
+      if (new URL(request.url).pathname === '/api/v1/me/memberships') {
+        return Response.json(workspaces.map((slug) => ({ tenantId: 't', slug, displayName: slug, role: 'Owner', status: 'Active' })))
+      }
       return Response.json(program)
     }),
   )
@@ -107,6 +110,14 @@ test('a customer who already owns the program gets Open program instead of Buy',
   expect(await screen.findByRole('link', { name: 'Open program' })).toHaveAttribute('href', `/me/programs/${program.id}`)
   expect(screen.queryByRole('button', { name: 'Buy now' })).toBeNull()
   expect(screen.queryByRole('button', { name: /Add to cart/ })).toBeNull()
+})
+
+test("a coach sees their own workspace's program as theirs, not for sale", async () => {
+  renderPage(() => Response.json({}), [], ['anna'])
+
+  expect(await screen.findByRole('link', { name: 'Open in studio' })).toHaveAttribute('href', '/studio/anna')
+  expect(screen.queryByRole('button', { name: /Add to cart/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Buy now' })).toBeNull()
 })
 
 test('Add to cart keeps the program in the cart, in this browser', async () => {

@@ -2,7 +2,7 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v13, built; v1.3.0 in production (2026-10-11)
+**Status:** v14, built; v1.4.0 in production (2026-10-12)
 
 **Changes in v14 (v1.4.0):** refunds by the coach, at Stripe or through a lost dispute, with transfer reversals and access removed (`OrderRefunded`); failed coach payouts retried, and listed for the platform admin (§2.2).
 
@@ -131,7 +131,7 @@ Rules that keep it clean:
 The trade-off: the platform is the merchant of record, so refunds and disputes are the platform's to handle; the coach's share is then taken back with a transfer reversal. "Buy now" on a program page is a cart of one.
 
 **Refunds, disputes and coach payouts (as built, v1.4.0).** The platform holds the money between the customer and the coaches, so it also gives money back and makes sure coaches get paid.
-- *Ways a paid order is refunded.* The coach refunds a sale in the studio (`POST /api/v1/studio/{slug}/sales/{orderId}/refund`, owners only), or the platform refunds a whole payment in the Stripe dashboard (`charge.refunded`), or a dispute is lost (`charge.dispute.closed`, status `lost`). Partial refunds made by hand at Stripe are logged, not mapped to orders.
+- *Ways a paid order is refunded.* The coach refunds a sale in the studio (`POST /api/v1/studio/{slug}/sales/{orderId}/refund`, owners only, within the refund window: `Payments:RefundWindowDays`, default 14 days after payment, the EU's withdrawal period for online purchases; each sale in the list carries `refundableUntil`), or the platform refunds a whole payment in the Stripe dashboard (`charge.refunded`), or a dispute is lost (`charge.dispute.closed`, status `lost`). Partial refunds made by hand at Stripe are logged, not mapped to orders.
 - *One routine for all three* (`OrderRefunds`):
   1. the customer's money: refunded at Stripe for that order's amount, unless Stripe already did;
   2. the coach's share: the transfer is reversed, or a waiting payout retry is dropped;
@@ -174,7 +174,7 @@ Catalog notes (phase 3):
 Ordering notes (phase 4):
 - **Checkout** (`POST /api/v1/orders/checkout`, `{ programIds }` with 1 to 10 programs from any coaches, optional `Idempotency-Key`):
   - *Checks.* The buyer is not in any coach's tenant. Each program's tenant comes from catalog-api's signed answer (`GET /internal/programs/{id}/offer`, published programs of active coaches only), never from the request.
-  - *Refusals.* Every coach must have an active, onboarded payout account, the cart must be in one currency, and no program may already be owned. Otherwise nothing is created, and the `ProblemDetails` carries a `reason` (`notForSale`, `currencies`, `cannotSell`, `owned`) and the `programIds` at fault, which the cart drops or flags.
+  - *Refusals.* Every coach must have an active, onboarded payout account, the cart must be in one currency, the buyer must not be an owner or staff of a coach's workspace (tenancy's membership lookup; found on dev: a coach could buy their own program, paying the fees to themselves), and no program may already be owned. Otherwise nothing is created, and the `ProblemDetails` carries a `reason` (`notForSale`, `currencies`, `cannotSell`, `ownWorkspace`, `owned`) and the `programIds` at fault, which the cart drops or flags.
   - *Writes.* Stripe creates one Checkout Session for the cart first, with `transfer_group` set to the checkout id and one `athlos_order_{i}` = `{tenant}:{order}` metadata entry per program. Then the customer's `checkouts` row (holding the Idempotency-Key) and one `orders` row per program are written. Each order goes inside its coach's tenant, one tenant at a time (`InTenantAsync`), so the EF filter and RLS check every insert. Creating the session first means a failure never leaves an order pending without a payment page.
   - *Fee.* `Payments:PlatformFeePercent`, default 10 %, per order.
 - **Webhook** (`POST /webhooks/stripe`, through the gateway). Stripe.net verifies `Stripe-Signature` with a 5-minute tolerance. Then, for each (tenant, order) pair in the session's metadata, inside that tenant, so a signed event naming another tenant finds nothing:

@@ -131,7 +131,7 @@ Rules that keep it clean:
 The trade-off: the platform is the merchant of record, so refunds and disputes are the platform's to handle; the coach's share is then taken back with a transfer reversal. "Buy now" on a program page is a cart of one.
 
 **Refunds, disputes and coach payouts (as built, v1.4.0).** The platform holds the money between the customer and the coaches, so it also gives money back and makes sure coaches get paid.
-- *Ways a paid order is refunded.* The coach refunds a sale in the studio (`POST /api/v1/studio/{slug}/sales/{orderId}/refund`, owners only), or the platform refunds a whole payment in the Stripe dashboard (`charge.refunded`), or a dispute is lost (`charge.dispute.closed`, status `lost`). Partial refunds made by hand at Stripe are logged, not mapped to orders.
+- *Ways a paid order is refunded.* The coach refunds a sale in the studio (`POST /api/v1/studio/{slug}/sales/{orderId}/refund`, owners only, within the refund window: `Payments:RefundWindowDays`, default 14 days after payment, the EU's withdrawal period for online purchases; each sale in the list carries `refundableUntil`), or the platform refunds a whole payment in the Stripe dashboard (`charge.refunded`), or a dispute is lost (`charge.dispute.closed`, status `lost`). Partial refunds made by hand at Stripe are logged, not mapped to orders.
 - *One routine for all three* (`OrderRefunds`):
   1. the customer's money: refunded at Stripe for that order's amount, unless Stripe already did;
   2. the coach's share: the transfer is reversed, or a waiting payout retry is dropped;

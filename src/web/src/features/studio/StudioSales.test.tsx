@@ -9,7 +9,7 @@ import { StudioSales } from './StudioSales.tsx'
 
 afterEach(() => vi.unstubAllGlobals())
 
-const sale = (id: string, status: 'Paid' | 'Refunded') => ({
+const sale = (id: string, status: 'Paid' | 'Refunded', refundableUntil = '2999-01-01T00:00:00Z') => ({
   id,
   programId: 'p',
   programTitle: `Program ${id}`,
@@ -20,6 +20,7 @@ const sale = (id: string, status: 'Paid' | 'Refunded') => ({
   paidAt: '2026-10-11T10:00:00Z',
   status,
   refundedAt: status === 'Refunded' ? '2026-10-12T10:00:00Z' : null,
+  refundableUntil,
 })
 
 const signedIn = {
@@ -36,7 +37,9 @@ function renderSales(role: 'Owner' | 'Staff') {
       const path = new URL(request.url).pathname
       if (request.method === 'POST') return new Response(null, { status: 204 })
       if (path === '/api/v1/me/memberships') return Response.json([{ tenantId: 't', slug: 'anna', displayName: 'Anna', role, status: 'Active' }])
-      if (path.endsWith('/sales')) return Response.json({ items: [sale('a', 'Paid'), sale('b', 'Refunded')], page: 1, pageSize: 20, totalCount: 2 })
+      if (path.endsWith('/sales')) {
+        return Response.json({ items: [sale('a', 'Paid'), sale('b', 'Refunded'), sale('c', 'Paid', '2026-01-01T00:00:00Z')], page: 1, pageSize: 20, totalCount: 3 })
+      }
       return Response.json({ slug: 'anna', displayName: 'Anna' })
     }),
   )
@@ -59,8 +62,11 @@ test('the owner refunds a sale after confirming, and refunded sales earn nothing
   const requests = renderSales('Owner')
 
   expect(await screen.findByText('Refunded')).toBeInTheDocument()
-  // Only the paid sale counts: €49.00 minus the €4.90 fee.
-  expect(screen.getByText('€44.10', { selector: 'div' })).toBeInTheDocument()
+  // Only the paid sales count: twice €49.00 minus the €4.90 fee.
+  expect(screen.getByText('€88.20', { selector: 'div' })).toBeInTheDocument()
+  // An old sale is past the refund window.
+  expect(screen.queryByRole('button', { name: 'Refund Program c' })).toBeNull()
+  expect(screen.getByText('Refund window closed')).toBeInTheDocument()
   fireEvent.click(await screen.findByRole('button', { name: 'Refund Program a' }))
   fireEvent.click(screen.getByRole('button', { name: 'Refund €49.00' }))
 

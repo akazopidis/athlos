@@ -18,14 +18,17 @@ const PageSize = 20
 
 // The coach's sales (ordering-api's paid orders of this workspace, design §8 "/studio": sales).
 // The customer's address is shown to the coach here (and only here), so they can reach their buyers.
-// The owner can refund a sale (design §2.2): the customer is paid back, the coach's share is taken
-// back, and the customer loses access to the program. Refunded sales stay listed, marked.
+// The owner can refund a sale (design §2.2) within the refund window (14 days after payment by
+// default): the customer is paid back, the coach's share is taken back, and the customer loses access
+// to the program. Refunded sales stay listed, marked.
 export function StudioSales() {
   const { slug, isOwner } = useStudio()
   const { api } = useApp()
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [confirming, setConfirming] = useState<string | null>(null)
+  // When the page opened: the refund window is checked against it (the server checks again).
+  const [now] = useState(() => Date.now())
 
   const sales = useQuery({
     queryKey: ['sales', slug, page],
@@ -104,6 +107,7 @@ export function StudioSales() {
                   key={s.id}
                   sale={s}
                   canRefund={isOwner}
+                  now={now}
                   confirming={confirming === s.id}
                   busy={refund.isPending}
                   onAsk={() => setConfirming(s.id)}
@@ -135,6 +139,7 @@ export function StudioSales() {
 function SaleRow({
   sale: s,
   canRefund,
+  now,
   confirming,
   busy,
   onAsk,
@@ -143,6 +148,7 @@ function SaleRow({
 }: {
   sale: Sale
   canRefund: boolean
+  now: number
   confirming: boolean
   busy: boolean
   onAsk: () => void
@@ -150,6 +156,7 @@ function SaleRow({
   onRefund: () => void
 }) {
   const refunded = s.status === 'Refunded'
+  const windowClosed = new Date(s.refundableUntil).getTime() < now
   return (
     <TableRow className={refunded ? 'text-muted-foreground' : undefined}>
       <TableCell>{new Date(s.paidAt).toLocaleDateString()}</TableCell>
@@ -164,7 +171,11 @@ function SaleRow({
       </TableCell>
       {canRefund && (
         <TableCell className="text-right">
-          {refunded ? null : confirming ? (
+          {refunded ? null : windowClosed ? (
+            <span className="text-xs text-muted-foreground" title={`Refunds close ${new Date(s.refundableUntil).toLocaleDateString()}`}>
+              Refund window closed
+            </span>
+          ) : confirming ? (
             <span className="inline-flex gap-1">
               <Button size="sm" variant="destructive" disabled={busy} onClick={onRefund}>
                 {busy ? 'Refunding…' : `Refund ${formatMoney(s.amount, s.currency)}`}

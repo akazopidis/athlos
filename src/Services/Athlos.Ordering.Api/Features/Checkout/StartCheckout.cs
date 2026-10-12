@@ -13,8 +13,9 @@ namespace Athlos.Ordering.Api.Features.Checkout;
 // (design §2.2). "Buy now" is a cart of one.
 //
 // 1. Every program must be on sale (catalog's offer), in one currency, from a coach who can take
-//    payments (tenancy), and not already owned. Otherwise nothing is created, and the problem names
-//    the programIds at fault and a reason (notForSale, currencies, cannotSell, owned), so the cart
+//    payments (tenancy), not from a workspace the buyer works in (a coach's own programs are theirs in
+//    the studio), and not already owned. Otherwise nothing is created, and the problem names
+//    the programIds at fault and a reason (notForSale, currencies, cannotSell, ownWorkspace, owned), so the cart
 //    can drop or flag them.
 // 2. Stripe creates one Checkout Session for all of them (separate charges and transfers).
 // 3. The customer's Checkout row (the Idempotency-Key) and one Order per program are written; each
@@ -105,6 +106,11 @@ public static class StartCheckout
             }
 
             accounts[coach.Key] = seller.StripeAccountId!;
+
+            if (await sellers.IsMemberAsync(coach.First().CoachSlug, customerId, cancellationToken))
+            {
+                return Problem(StatusCodes.Status409Conflict, "ownWorkspace", "You cannot buy programs from a workspace you coach in.", coach.Select(o => o.ProgramId));
+            }
         }
 
         var owned = new List<Guid>();

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useApp } from '@/lib/AppContext'
 import { useCoaches } from '@/lib/useCoaches'
+import { useMyWorkspaces } from '@/lib/useMyWorkspaces'
 import { useOwnedPrograms } from '@/lib/useOwnedPrograms'
 import { cn } from '@/lib/utils'
 import { ProductCard } from './ProductCard.tsx'
@@ -31,6 +32,7 @@ export function Catalog({
 }) {
   const { api } = useApp()
   const owned = useOwnedPrograms()
+  const mine = useMyWorkspaces()
   const [filtersOpen, setFiltersOpen] = useState(false)
   const coach = fixedCoach ?? search.coach
   const page = search.page ?? 1
@@ -118,7 +120,7 @@ export function Catalog({
           <ul className={cn('grid gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3', programs.isPlaceholderData && 'opacity-60 transition-opacity')} aria-busy={programs.isFetching}>
             {data.items.map((p) => (
               <li key={p.id}>
-                <ProductCard program={p} coach={coaches.get(p.coachSlug)} owned={owned.has(p.id)} />
+                <ProductCard program={p} coach={coaches.get(p.coachSlug)} owned={owned.has(p.id)} mine={mine.has(p.coachSlug)} />
               </li>
             ))}
           </ul>

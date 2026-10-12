@@ -52,8 +52,8 @@ export function Cart() {
       })
       if (data) return data
       const { reason, programIds: refused } = refusal(error)
-      if (reason === 'notForSale' || reason === 'owned') {
-        // Gone or already owned: out of the cart, and the customer is told which.
+      if (reason === 'notForSale' || reason === 'owned' || reason === 'ownWorkspace') {
+        // Gone, already owned, or the buyer's own workspace's: out of the cart, and the customer is told which.
         const titles = cart.items.filter((i) => refused.includes(i.programId)).map((i) => i.title)
         cart.remove(...refused)
         setNotice(`${problemTitle(error) ?? 'Some programs cannot be bought.'} Removed from your cart: ${titles.join(', ')}.`)

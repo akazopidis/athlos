@@ -84,6 +84,24 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.DoesNotContain(_api.CheckoutSessions.Sessions.Values, s => s.Orders.Any(o => o.ProgramId == offer.ProgramId));
     }
 
+    // Found on dev: a coach could buy their own program. Owners and staff of a workspace cannot buy its
+    // programs (they have them in the studio); the rest of a cart is not bought either.
+    [Fact]
+    public async Task A_coach_cannot_buy_from_their_own_workspace()
+    {
+        var (own, other) = (NewCoach(), NewCoach());
+        var mine = _api.Sellers.Sell(own.TenantId, own.Slug);
+        var theirs = _api.Sellers.Sell(other.TenantId, other.Slug);
+        _api.Sellers.AddMember(own.Slug, own.OwnerId);
+
+        var response = await _api.StartCheckout(own.OwnerId, [theirs.ProgramId, mine.ProgramId]);
+        var elsewhere = await _api.StartCheckout(own.OwnerId, theirs.ProgramId);
+
+        Assert.Equal((HttpStatusCode.Conflict, "ownWorkspace"), (response.StatusCode, await ReasonOf(response)));
+        Assert.Equal([mine.ProgramId], await ProgramIdsIn(response));
+        Assert.Equal(HttpStatusCode.OK, elsewhere.StatusCode); // buying from another coach is fine
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(11)]

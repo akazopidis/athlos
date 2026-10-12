@@ -12,7 +12,8 @@ type Program = components['schemas']['SearchProgramsItem']
 
 // A program as a shop product: cover, level and length, the coach, the price, and a quick
 // "Add to cart".
-export function ProductCard({ program: p, coach, owned }: { program: Program; coach?: Coach; owned: boolean }) {
+// mine: a program of a workspace the visitor coaches in; it is theirs in the studio, not for sale to them.
+export function ProductCard({ program: p, coach, owned, mine = false }: { program: Program; coach?: Coach; owned: boolean; mine?: boolean }) {
   const weeks = Number(p.durationWeeks)
   const href = `/c/${p.coachSlug}/programs/${p.slug}`
   const coachName = coach?.displayName ?? p.coachSlug
@@ -50,10 +51,18 @@ export function ProductCard({ program: p, coach, owned }: { program: Program; co
         <div className="mt-auto flex items-center justify-between gap-3">
           <span className="font-heading text-xl font-black tabular-nums">{formatMoney(p.priceAmount, p.currency)}</span>
           {/* Above the card's stretched link, so it gets its own clicks. */}
-          <div className="relative z-10">{owned ? <OwnedLink /> : <AddToCart program={p} />}</div>
+          <div className="relative z-10">{mine ? <StudioLink slug={p.coachSlug} /> : owned ? <OwnedLink /> : <AddToCart program={p} />}</div>
         </div>
       </div>
     </article>
+  )
+}
+
+function StudioLink({ slug }: { slug: string }) {
+  return (
+    <Button asChild size="sm" variant="outline">
+      <Link to={`/studio/${slug}`}>Your program</Link>
+    </Button>
   )
 }
 

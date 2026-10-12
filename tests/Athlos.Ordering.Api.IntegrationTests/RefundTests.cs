@@ -1,0 +1,165 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Athlos.Messaging.Contracts;
+using Athlos.Ordering.Api.Data;
+using Athlos.Ordering.Api.Features.Payouts;
+using Athlos.Tenancy;
+using Athlos.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using static Athlos.Testing.OrderingArrange;
+
+namespace Athlos.Ordering.Api.IntegrationTests;
+
+// Refunds, disputes and coach payouts (design §2.2): with the cart the platform takes the payment, so
+// it gives money back, takes the coach's share back, and pays shares whose transfer failed.
+public sealed class RefundTests(AthlosDatabases databases) : IAsyncLifetime
+{
+    private readonly OrderingApiFactory _api = new(databases);
+
+    private static CancellationToken Cancel => TestContext.Current.CancellationToken;
+
+    [Fact]
+    public async Task The_owner_refunds_a_sale_the_customer_is_paid_back_and_the_coachs_share_is_taken_back()
+    {
+        var coach = NewCoach();
+        var customer = Guid.CreateVersion7();
+        var orderId = await _api.Buy(customer, coach);
+
+        var refunded = await Refund(coach, orderId, TenantRole.Owner);
+        var again = await Refund(coach, orderId, TenantRole.Owner);
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NotFound), (refunded.StatusCode, again.StatusCode));
+        Assert.Equal((4900L, "requested_by_customer"), _api.CheckoutSessions.Refunds[orderId]);
+        Assert.True(_api.CheckoutSessions.Reversals.ContainsKey(orderId));
+        Assert.Equal(OrderStatus.Refunded, (await MyOrders(customer)).Single().Status);
+        var sale = Assert.Single(await Sales(coach));
+        Assert.Equal("Refunded", sale.GetProperty("status").GetString());
+        await _api.PublishOutbox();
+        var revoked = Assert.Single(await _api.Outbox(), m => m.Queue == OrderRefunded.Queue && m.Message.Payload.Contains(orderId.ToString(), StringComparison.Ordinal));
+        var message = JsonSerializer.Deserialize<OrderRefunded>(revoked.Message.Payload, Json)!;
+        Assert.Equal((orderId, coach.TenantId, customer), (message.OrderId, message.TenantId, message.CustomerId));
+    }
+
+    [Fact]
+    public async Task Staff_cannot_refund_and_nothing_changes()
+    {
+        var coach = NewCoach();
+        var orderId = await _api.Buy(Guid.CreateVersion7(), coach);
+
+        var response = await Refund(coach, orderId, TenantRole.Staff);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.False(_api.CheckoutSessions.Refunds.ContainsKey(orderId));
+    }
+
+    // A full refund made in the Stripe dashboard refunds every order of that payment in Athlos too.
+    [Fact]
+    public async Task A_full_refund_at_Stripe_refunds_every_order_of_the_payment()
+    {
+        var (anna, ben) = (NewCoach(), NewCoach());
+        var customer = Guid.CreateVersion7();
+        var checkout = await _api.Checkout(customer, [_api.Sellers.Sell(anna.TenantId, anna.Slug).ProgramId, _api.Sellers.Sell(ben.TenantId, ben.Slug).ProgramId]);
+        await _api.Pay(checkout);
+        var paymentIntent = FakeCheckoutSessions.PaymentIntentOf(checkout.SessionId);
+
+        var webhook = await _api.SendWebhook(StripeEvents.ChargeRefunded($"evt_{Guid.NewGuid():N}", paymentIntent, amount: 9800, amountRefunded: 9800));
+
+        Assert.Equal(HttpStatusCode.OK, webhook.StatusCode);
+        Assert.All(await MyOrders(customer), o => Assert.Equal(OrderStatus.Refunded, o.Status));
+        Assert.All(_api.OrdersOf(checkout), o => Assert.True(_api.CheckoutSessions.Reversals.ContainsKey(o.Id)));
+        Assert.Empty(_api.CheckoutSessions.Refunds.Keys.Intersect(_api.OrdersOf(checkout).Select(o => o.Id))); // Stripe already paid it back
+    }
+
+    [Fact]
+    public async Task A_partial_refund_at_Stripe_and_a_won_dispute_change_nothing_and_a_lost_dispute_refunds()
+    {
+        var coach = NewCoach();
+        var customer = Guid.CreateVersion7();
+        var checkout = await _api.Checkout(customer, _api.Sellers.Sell(coach.TenantId, coach.Slug).ProgramId);
+        await _api.Pay(checkout);
+        var paymentIntent = FakeCheckoutSessions.PaymentIntentOf(checkout.SessionId);
+
+        await _api.SendWebhook(StripeEvents.ChargeRefunded($"evt_{Guid.NewGuid():N}", paymentIntent, amount: 4900, amountRefunded: 1000));
+        await _api.SendWebhook(StripeEvents.DisputeClosed($"evt_{Guid.NewGuid():N}", paymentIntent, status: "won"));
+        var stillPaid = (await MyOrders(customer)).Single().Status;
+        await _api.SendWebhook(StripeEvents.DisputeClosed($"evt_{Guid.NewGuid():N}", paymentIntent, status: "lost"));
+
+        Assert.Equal((OrderStatus.Paid, OrderStatus.Refunded), (stillPaid, (await MyOrders(customer)).Single().Status));
+    }
+
+    // A failed transfer waits in payout_retries; a later pass pays the coach once their account works.
+    [Fact]
+    public async Task A_failed_payout_is_retried_until_the_coach_is_paid()
+    {
+        var coach = NewCoach();
+        _api.CheckoutSessions.FailTransfersTo(coach.TenantId);
+        var orderId = await _api.Buy(Guid.CreateVersion7(), coach);
+        var waiting = await AdminPayouts();
+        Assert.Contains(waiting, p => p.GetProperty("orderId").GetGuid() == orderId);
+
+        var stillFailing = await RetryNow(orderId);
+        _api.CheckoutSessions.ResumeTransfersTo(coach.TenantId);
+        var paid = await RetryNow(orderId);
+
+        Assert.False(stillFailing);
+        Assert.True(paid);
+        Assert.True(_api.CheckoutSessions.Transfers.ContainsKey(orderId));
+        Assert.DoesNotContain(await AdminPayouts(), p => p.GetProperty("orderId").GetGuid() == orderId);
+    }
+
+    [Fact]
+    public async Task A_refund_drops_a_share_still_waiting_for_its_transfer()
+    {
+        var coach = NewCoach();
+        _api.CheckoutSessions.FailTransfersTo(coach.TenantId);
+        var orderId = await _api.Buy(Guid.CreateVersion7(), coach);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await Refund(coach, orderId, TenantRole.Owner)).StatusCode);
+
+        Assert.False(_api.CheckoutSessions.Reversals.ContainsKey(orderId)); // nothing was transferred
+        Assert.DoesNotContain(await AdminPayouts(), p => p.GetProperty("orderId").GetGuid() == orderId);
+        Assert.Equal(0, await PayoutRetries.RetryDueAsync(_api.Services.GetRequiredService<IServiceScopeFactory>(), Cancel));
+    }
+
+    [Theory]
+    [InlineData("GET", "/api/v1/admin/payouts")]
+    [InlineData("POST", "/api/v1/admin/payouts/0199a000-0000-7000-8000-000000000001/retry")]
+    public async Task Payouts_are_for_the_platform_admin_only(string method, string path)
+    {
+        var coach = await _api.SendAsGateway(new HttpRequestMessage(new HttpMethod(method), path), Guid.CreateVersion7());
+
+        Assert.Equal(HttpStatusCode.Forbidden, coach.StatusCode);
+    }
+
+    private Task<HttpResponseMessage> Refund(Coach coach, Guid orderId, TenantRole role) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/api/v1/studio/{coach.Slug}/sales/{orderId}/refund"), coach.OwnerId, coach.TenantId, role);
+
+    private async Task<List<JsonElement>> AdminPayouts()
+    {
+        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/admin/payouts"), Guid.CreateVersion7(), appRoles: ["Platform.Admin"]);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<List<JsonElement>>(Cancel))!;
+    }
+
+    private async Task<bool> RetryNow(Guid orderId)
+    {
+        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/payouts/{orderId}/retry"), Guid.CreateVersion7(), appRoles: ["Platform.Admin"]);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<JsonElement>(Cancel)).GetProperty("paid").GetBoolean();
+    }
+
+    private async Task<List<MyOrder>> MyOrders(Guid customer) =>
+        (await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/me/orders"), customer)).Content.ReadFromJsonAsync<MyOrdersPage>(Json, Cancel))!.Items;
+
+    private async Task<List<JsonElement>> Sales(Coach coach) =>
+        (await (await _api.AsCoach(coach, "/sales")).Content.ReadFromJsonAsync<JsonElement>(Cancel)).GetProperty("items").EnumerateArray().ToList();
+
+    private sealed record MyOrder(Guid Id, OrderStatus Status);
+
+    private sealed record MyOrdersPage(List<MyOrder> Items);
+
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
+
+    public ValueTask DisposeAsync() => _api.DisposeAsync();
+}

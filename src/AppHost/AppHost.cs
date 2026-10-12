@@ -46,6 +46,7 @@ var enrollmentDb = ServiceDatabase("enrollment");
 // Service Bus emulator with the queues of design §7 (Basic tier in Azure: queues only).
 var messaging = builder.AddAzureServiceBus("messaging").RunAsEmulator();
 messaging.AddServiceBusQueue("order-paid");
+messaging.AddServiceBusQueue("order-refunded");
 messaging.AddServiceBusQueue("notifications");
 
 // Entra External ID (design §5). Locally the dev app registrations are used; set them with

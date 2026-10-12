@@ -4,6 +4,8 @@ using Athlos.Ordering.Api.Data;
 using Athlos.Ordering.Api.Features.Checkout;
 using Athlos.Ordering.Api.Features.Customers;
 using Athlos.Ordering.Api.Features.Orders;
+using Athlos.Ordering.Api.Features.Payouts;
+using Athlos.Ordering.Api.Features.Refunds;
 using Athlos.Ordering.Api.Features.Webhooks;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Data;
@@ -16,6 +18,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.Services.AddGatewaySignature(builder.Configuration);
 builder.Services.AddAthlosAuthentication(builder.Configuration);
+builder.Services.AddPlatformAdmin();
 builder.Services.AddTenantContext();
 builder.Services.AddTenantDbContext<OrderingDbContext>(options => options
     .UseNpgsql(
@@ -28,6 +31,8 @@ builder.AddOutbox<OrderingDbContext>();
 
 // Stripe Checkout and webhook verification; checkout asks catalog and tenancy with signed calls.
 builder.Services.AddPayments(builder.Configuration);
+// Coach shares whose transfer failed after payment are tried again (design §2.2).
+builder.Services.AddHostedService<PayoutRetries>();
 builder.Services.AddHttpClient(SellerDirectory.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api")).AddSignedRequests();
 builder.Services.AddHttpClient(SellerDirectory.Tenancy, http => http.BaseAddress = new Uri("https+http://tenancy-api")).AddSignedRequests();
 builder.Services.AddSingleton<ISellerDirectory, SellerDirectory>();
@@ -71,6 +76,15 @@ app.MapGroup("/api/v1/studio/{tenantSlug}")
     .RequireTenant()
     .WithTenantTransaction<OrderingDbContext>()
     .MapListSales();
+
+// The coach refunds a sale: Stripe calls first, then short transactions inside the tenant (OrderRefunds)
+app.MapGroup("/api/v1/studio/{tenantSlug}")
+    .RequireAuthorization()
+    .RequireTenant()
+    .MapRefundSale();
+
+// Platform admin (Entra app role Platform.Admin): coach shares waiting for a transfer
+app.MapAdminPayouts();
 
 // Stripe, through the gateway (no user; the Stripe-Signature is the authentication)
 app.MapStripeWebhook();

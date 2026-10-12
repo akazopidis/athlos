@@ -155,10 +155,168 @@
           }
         }
       }
+    },
+    "/api/v1/studio/{tenantSlug}/sales/{orderId}/refund": {
+      "post": {
+        "tags": [
+          "Sales"
+        ],
+        "operationId": "RefundSale",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/payouts": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminListPayouts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminPayoutsItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/payouts/{orderId}/retry": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminRetryPayout",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPayoutsRetryResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AdminPayoutsItem": {
+        "required": [
+          "orderId",
+          "coachSlug",
+          "amount",
+          "currency",
+          "attempts",
+          "lastError",
+          "nextAttemptAt",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "coachSlug": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "attempts": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lastError": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nextAttemptAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminPayoutsRetryResult": {
+        "required": [
+          "paid"
+        ],
+        "type": "object",
+        "properties": {
+          "paid": {
+            "type": "boolean"
+          }
+        }
+      },
       "OrderListsMyOrder": {
         "required": [
           "id",
@@ -272,7 +430,9 @@
           "amount",
           "platformFee",
           "currency",
-          "paidAt"
+          "paidAt",
+          "status",
+          "refundedAt"
         ],
         "type": "object",
         "properties": {
@@ -311,6 +471,16 @@
           },
           "paidAt": {
             "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "refundedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "date-time"
           }
         }
@@ -405,6 +575,9 @@
     },
     {
       "name": "Sales"
+    },
+    {
+      "name": "Admin"
     }
   ]
 }

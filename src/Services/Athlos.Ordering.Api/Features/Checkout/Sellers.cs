@@ -12,6 +12,10 @@ public interface ISellerDirectory
 
     // Where the seller's money goes, or null if the workspace is gone.
     Task<PayoutAccount?> GetPayoutAccountAsync(Guid tenantId, CancellationToken cancellationToken);
+
+    // Whether the user is an owner or staff of the coach's workspace (tenancy's membership lookup,
+    // the one the gateway uses). Coaches do not buy their own programs.
+    Task<bool> IsMemberAsync(string coachSlug, Guid userId, CancellationToken cancellationToken);
 }
 
 public sealed record ProgramOffer(Guid ProgramId, Guid TenantId, string CoachSlug, string Title, long PriceAmount, string Currency);
@@ -31,6 +35,19 @@ public sealed class SellerDirectory(IHttpClientFactory clients) : ISellerDirecto
 
     public Task<PayoutAccount?> GetPayoutAccountAsync(Guid tenantId, CancellationToken cancellationToken) =>
         GetOrNullAsync<PayoutAccount>(Tenancy, $"/internal/tenants/{tenantId}/payout-account", cancellationToken);
+
+    public async Task<bool> IsMemberAsync(string coachSlug, Guid userId, CancellationToken cancellationToken)
+    {
+        using var response = await clients.CreateClient(Tenancy)
+            .GetAsync($"/internal/tenants/{Uri.EscapeDataString(coachSlug)}/members/{userId}", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return false;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return true;
+    }
 
     private async Task<T?> GetOrNullAsync<T>(string service, string path, CancellationToken cancellationToken)
         where T : class

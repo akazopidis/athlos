@@ -14,6 +14,13 @@ public sealed class FakeSellerDirectory : ISellerDirectory
 {
     private readonly ConcurrentDictionary<Guid, ProgramOffer> _offers = new();
     private readonly ConcurrentDictionary<Guid, PayoutAccount> _accounts = new();
+    private readonly ConcurrentDictionary<(string CoachSlug, Guid UserId), bool> _members = new();
+
+    // The user is an owner or staff of the coach's workspace.
+    public void AddMember(string coachSlug, Guid userId) => _members[(coachSlug, userId)] = true;
+
+    public Task<bool> IsMemberAsync(string coachSlug, Guid userId, CancellationToken cancellationToken) =>
+        Task.FromResult(_members.ContainsKey((coachSlug, userId)));
 
     // A published program of a workspace that can take payments.
     public ProgramOffer Sell(Guid tenantId, string coachSlug, long price = 4900, string currency = "EUR")

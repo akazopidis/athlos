@@ -14,6 +14,7 @@ import { formatMoney } from '@/lib/money'
 import { leaveTo } from '@/lib/navigation'
 import { problemTitle } from '@/lib/problem'
 import { useCoaches } from '@/lib/useCoaches'
+import { useMyWorkspaces } from '@/lib/useMyWorkspaces'
 import { useOwnedPrograms } from '@/lib/useOwnedPrograms'
 import { useSlow } from '@/lib/useSlow'
 import { useTitle } from '@/lib/useTitle'
@@ -46,6 +47,8 @@ export function ProgramPage() {
   // A customer who already bought it gets the way in, not a second checkout (which would be a 409).
   const owned = useOwnedPrograms()
   const ownsIt = Boolean(program.data && owned.has(program.data.id))
+  // A program of a workspace the visitor coaches in: theirs in the studio, not for sale to them.
+  const mine = useMyWorkspaces().has(slug)
   useTitle(program.data?.title)
 
   const buy = useMutation({
@@ -172,7 +175,14 @@ export function ProgramPage() {
                 <p className="font-heading text-2xl font-black tabular-nums lg:text-4xl">{formatMoney(p.priceAmount, p.currency)}</p>
                 <p className="hidden text-sm text-muted-foreground lg:block">One payment. All workouts, yours to keep.</p>
               </div>
-              {ownsIt ? (
+              {mine ? (
+                <div className="flex-1 space-y-2 lg:flex-none">
+                  <p className="hidden text-sm font-medium lg:block">This is your workspace's program.</p>
+                  <Button asChild className="w-full" size="lg" variant="outline">
+                    <Link to={`/studio/${p.coachSlug}`}>Open in studio</Link>
+                  </Button>
+                </div>
+              ) : ownsIt ? (
                 <div className="flex-1 space-y-2 lg:flex-none">
                   <p className="hidden text-sm font-medium lg:block">You own this program.</p>
                   <Button asChild className="w-full" size="lg">
@@ -225,6 +235,7 @@ export function ProgramPage() {
 function MoreFromCoach({ coachSlug, coachName, exclude }: { coachSlug: string; coachName: string; exclude: string }) {
   const { api } = useApp()
   const owned = useOwnedPrograms()
+  const mine = useMyWorkspaces()
   const coaches = useCoaches([coachSlug])
   const more = useQuery({
     queryKey: ['programs', coachSlug, 'more'],
@@ -238,7 +249,7 @@ function MoreFromCoach({ coachSlug, coachName, exclude }: { coachSlug: string; c
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {items.map((i) => (
           <li key={i.id}>
-            <ProductCard program={i} coach={coaches.get(i.coachSlug)} owned={owned.has(i.id)} />
+            <ProductCard program={i} coach={coaches.get(i.coachSlug)} owned={owned.has(i.id)} mine={mine.has(i.coachSlug)} />
           </li>
         ))}
       </ul>

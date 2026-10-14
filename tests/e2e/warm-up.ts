@@ -2,7 +2,7 @@
 // about 90 s (design §15.3). The marketplace search touches the gateway and catalog-api; the coach
 // lookup wakes tenancy-api.
 export default async function warmUp() {
-  const base = process.env.E2E_BASE_URL ?? 'https://ca-athlos-gateway-staging.ashybush-033a4967.italynorth.azurecontainerapps.io'
+  const base = process.env.E2E_BASE_URL || 'https://ca-athlos-gateway-staging.ashybush-033a4967.italynorth.azurecontainerapps.io'
   const paths = ['/api/v1/marketplace/programs?pageSize=1', '/api/v1/marketplace/coaches?slug=demo-forge']
   const deadline = Date.now() + 240_000
 

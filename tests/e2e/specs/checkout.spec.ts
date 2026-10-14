@@ -10,9 +10,9 @@ import { expect, test } from '@playwright/test'
 //   E2E_PROGRAM_PATH: a program of a coach who finished Stripe onboarding (demo coaches cannot sell),
 //                     for example /c/some-coach/programs/some-program
 // Without them the test is skipped.
-const email = process.env.E2E_USER_EMAIL
-const password = process.env.E2E_USER_PASSWORD
-const programPath = process.env.E2E_PROGRAM_PATH
+const email = process.env.E2E_USER_EMAIL || undefined
+const password = process.env.E2E_USER_PASSWORD || undefined
+const programPath = process.env.E2E_PROGRAM_PATH || undefined
 
 test.skip(!email || !password || !programPath, 'E2E_USER_EMAIL, E2E_USER_PASSWORD and E2E_PROGRAM_PATH are not set')
 

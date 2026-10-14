@@ -10,6 +10,11 @@ updates:
         patterns: ["Aspire.*"]
       opentelemetry:
         patterns: ["OpenTelemetry.*", "Azure.Monitor.OpenTelemetry.*"]
+      # The build-time OpenAPI generator and ASP.NET Core's OpenAPI package load the same
+      # Microsoft.OpenApi, so they move together (listed before microsoft-extensions, which would
+      # otherwise take the generator).
+      openapi:
+        patterns: ["Microsoft.AspNetCore.OpenApi", "Microsoft.Extensions.ApiDescription.Server"]
       microsoft-extensions:
         patterns: ["Microsoft.Extensions.*"]
       # The xunit v3 packages pin each other's versions: they can only move together (see #87).

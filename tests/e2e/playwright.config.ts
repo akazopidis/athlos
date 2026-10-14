@@ -3,8 +3,9 @@ import { defineConfig, devices } from '@playwright/test'
 // End-to-end tests against a deployed environment (design §15.1): staging after every deploy, or any
 // environment with E2E_BASE_URL. The shop is checked at three sizes, phone to desktop (design §8).
 // Locally, E2E_CHANNEL=chrome uses the installed Chrome instead of downloading Playwright's Chromium.
-const baseURL = process.env.E2E_BASE_URL ?? 'https://ca-athlos-gateway-staging.ashybush-033a4967.italynorth.azurecontainerapps.io'
-const channel = process.env.E2E_CHANNEL
+const baseURL = process.env.E2E_BASE_URL || 'https://ca-athlos-gateway-staging.ashybush-033a4967.italynorth.azurecontainerapps.io'
+// Unset GitHub variables arrive as empty strings, hence || rather than ??.
+const channel = process.env.E2E_CHANNEL || undefined
 
 export default defineConfig({
   testDir: './specs',

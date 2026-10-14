@@ -794,7 +794,7 @@ Build a deployable "walking skeleton" first, so IaC and CI/CD grow with the code
 | Isolation | same | The cross-tenant suite from §3.3; **a failing isolation test blocks the merge** | every PR |
 | Contract | OpenAPI documents checked into the repo | CI fails if an endpoint's OpenAPI changes without the file being updated, and if the SPA's generated client differs from the documents, so the client never drifts | every PR |
 | Frontend | Vitest + Testing Library | Components with API calls mocked | every PR |
-| End-to-end | Playwright (optional) | Sign in, buy a program with a Stripe test card, see it in "my programs" | on every staging deploy |
+| End-to-end | Playwright (`tests/e2e`) | At phone, tablet and desktop sizes: the catalog and its filters, header search, the cart, a storefront, and no sideways scrolling on any main page (with a full-page screenshot of each in the report). Signed in (test customer in GitHub secrets): sign in through Entra, check out a cart, arrive on Stripe with the right total, without paying, so it can run on every deploy | after every staging deploy (`deploy-staging.yml`); type-checked on every PR |
 | Load | k6 | Noisy-neighbor experiment (§4) | on demand against staging |
 
 Stripe in tests: unit and integration tests use a fake `IPaymentGateway`; the real Stripe test mode is exercised only end to end.

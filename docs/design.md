@@ -2,7 +2,7 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v14, built; v1.4.0 in production (2026-10-12)
+**Status:** v14, built; v1.4.1 in production (2026-10-12)
 
 **Changes in v14 (v1.4.0):** refunds by the coach, at Stripe or through a lost dispute, with transfer reversals and access removed (`OrderRefunded`); failed coach payouts retried, and listed for the platform admin (§2.2).
 
@@ -794,7 +794,7 @@ Build a deployable "walking skeleton" first, so IaC and CI/CD grow with the code
 | Isolation | same | The cross-tenant suite from §3.3; **a failing isolation test blocks the merge** | every PR |
 | Contract | OpenAPI documents checked into the repo | CI fails if an endpoint's OpenAPI changes without the file being updated, and if the SPA's generated client differs from the documents, so the client never drifts | every PR |
 | Frontend | Vitest + Testing Library | Components with API calls mocked | every PR |
-| End-to-end | Playwright (optional) | Sign in, buy a program with a Stripe test card, see it in "my programs" | on every staging deploy |
+| End-to-end | Playwright (`tests/e2e`) | At phone, tablet and desktop sizes: the catalog and its filters, header search, the cart, a storefront, and no sideways scrolling on any main page (with a full-page screenshot of each in the report). Signed in (test customer in GitHub secrets): sign in through Entra, check out a cart, arrive on Stripe with the right total, without paying, so it can run on every deploy | after every staging deploy (`deploy-staging.yml`); type-checked on every PR |
 | Load | k6 | Noisy-neighbor experiment (§4) | on demand against staging |
 
 Stripe in tests: unit and integration tests use a fake `IPaymentGateway`; the real Stripe test mode is exercised only end to end.

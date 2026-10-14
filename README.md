@@ -65,6 +65,7 @@ Sign-in uses the Entra External ID tenant. Payments need Stripe test keys in use
 dotnet test                                                        # backend, needs Docker
 cd src/web && npm run lint && npm run typecheck && npm test && npm run build
 az bicep lint --file infra/env.bicep
+cd tests/e2e && npm ci && E2E_CHANNEL=chrome npx playwright test   # end-to-end, against staging
 ```
 
 ## Environments and releases

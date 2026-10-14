@@ -88,6 +88,16 @@ jobs:
       - run: npm test
       - run: npm run build
 
+      # The end-to-end tests run against staging after a deploy (deploy-staging.yml); here they are
+      # only type-checked, so a broken spec is caught in the PR.
+      - name: Type-check the end-to-end tests
+        working-directory: tests/e2e
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          npm ci
+          npx tsc -p .
+
   infra:
     runs-on: ubuntu-latest
     steps:

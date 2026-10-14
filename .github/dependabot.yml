@@ -12,9 +12,22 @@ updates:
         patterns: ["OpenTelemetry.*", "Azure.Monitor.OpenTelemetry.*"]
       microsoft-extensions:
         patterns: ["Microsoft.Extensions.*"]
+      # The xunit v3 packages pin each other's versions: they can only move together (see #87).
+      xunit:
+        patterns: ["xunit.v3.*"]
 
   - package-ecosystem: github-actions
     directory: /
     target-branch: dev
     schedule:
       interval: weekly
+
+  # The end-to-end tests (Playwright), run after every staging deploy.
+  - package-ecosystem: npm
+    directory: /tests/e2e
+    target-branch: dev
+    schedule:
+      interval: monthly
+    groups:
+      e2e:
+        patterns: ["*"]

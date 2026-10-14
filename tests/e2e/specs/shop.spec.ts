@@ -6,16 +6,22 @@ import { expect, test, type Page } from '@playwright/test'
 const products = (page: Page) => page.locator('main article')
 
 // The level filter: radios in the sidebar on large screens, in the "Filters" drawer on smaller ones.
+// The radios follow the URL, so a click checks one only once the new URL has rendered: click, then
+// wait for it (check() would insist on an immediate change).
 async function pickLevel(page: Page, level: string) {
   const drawerButton = page.getByRole('button', { name: /^Filters/ })
   if (await drawerButton.isVisible()) {
     await drawerButton.click()
     const drawer = page.getByRole('dialog', { name: 'Filters' })
-    await drawer.getByRole('radio', { name: level }).check()
+    const radio = drawer.getByRole('radio', { name: level })
+    await radio.click()
+    await expect(radio).toBeChecked()
     await drawer.getByRole('button', { name: /^Show \d+ programs?$/ }).click()
     await expect(drawer).toBeHidden()
   } else {
-    await page.getByRole('complementary', { name: 'Filters' }).getByRole('radio', { name: level }).check()
+    const radio = page.getByRole('complementary', { name: 'Filters' }).getByRole('radio', { name: level })
+    await radio.click()
+    await expect(radio).toBeChecked()
   }
 }
 

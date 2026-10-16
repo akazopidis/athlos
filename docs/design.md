@@ -2,7 +2,7 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v15, built; v1.5.0 in production (2026-10-16)
+**Status:** v15.1, built; v1.5.1 in production (2026-10-16)
 
 **Changes in v15.1 (v1.5.1):** refund edge cases (§2.2): a refund at Stripe that arrives before the payment's own event waits for it; a coach's refund takes the coach's share back first; refunds and reversals are found again at Stripe by their order, so a retry after 24 hours does not refund twice; a dashboard refund naming an order refunds that program; no refund email to a deleted account. Prod alerts on dead-lettered messages (§5.3, §6).
 

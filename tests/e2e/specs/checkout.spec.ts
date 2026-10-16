@@ -29,10 +29,12 @@ test('a signed-in customer checks out a cart and reaches Stripe', async ({ page 
   await page.getByRole('button', { name: /next/i }).click()
   await page.getByLabel(/password/i).fill(password!)
   await page.getByRole('button', { name: /sign in/i }).click()
-  // "Stay signed in?" appears for some accounts.
-  const staySignedIn = page.getByRole('button', { name: /^(no|yes)$/i })
-  await page.waitForURL((url) => !url.hostname.includes('ciamlogin.com') || url.pathname.includes('kmsi'))
-  if (await staySignedIn.first().isVisible().catch(() => false)) await staySignedIn.first().click()
+  // Entra then asks "Stay signed in?" (on the same /login address), or goes straight back to Athlos.
+  const leftEntra = (url: URL) => !url.hostname.includes('ciamlogin.com')
+  const staySignedIn = page.getByRole('heading', { name: 'Stay signed in?' })
+  await Promise.race([page.waitForURL(leftEntra), staySignedIn.waitFor()])
+  if (await staySignedIn.isVisible()) await page.getByRole('button', { name: 'No', exact: true }).click()
+  await page.waitForURL(leftEntra)
   await expect(page.getByRole('button', { name: 'Account' })).toBeVisible()
 
   await page.goto(programPath!)

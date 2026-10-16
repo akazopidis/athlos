@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Athlos.Tenancy.Api.Features.Storefront;
 
-// Public coach page header: name and branding (design §8, /c/{slug}). No sign-in.
+// Public coach page header: name, branding and contact address (design §8, /c/{slug}). No sign-in.
 // Suspended and deleted workspaces are 404 (design §3.4).
 public static class GetStorefront
 {

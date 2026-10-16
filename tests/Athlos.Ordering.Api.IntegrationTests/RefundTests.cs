@@ -211,6 +211,40 @@ public sealed class RefundTests(AthlosDatabases databases) : IAsyncLifetime
             && m.Message.Payload.Contains(coach.Slug, StringComparison.Ordinal));
     }
 
+    // The coach hears about what they did not do themselves: a dispute opened, a refund at Stripe, a lost
+    // dispute. Their own refund in the studio needs no email.
+    [Fact]
+    public async Task The_coach_is_emailed_about_disputes_and_refunds_they_did_not_make()
+    {
+        var (anna, ben, cleo) = (NewCoach(), NewCoach(), NewCoach());
+        var customer = Guid.CreateVersion7();
+        var disputed = await _api.Checkout(customer, _api.Sellers.Sell(anna.TenantId, anna.Slug).ProgramId);
+        await _api.Pay(disputed);
+        var refundedAtStripe = await _api.Checkout(Guid.CreateVersion7(), _api.Sellers.Sell(ben.TenantId, ben.Slug).ProgramId);
+        await _api.Pay(refundedAtStripe);
+        var cleosSale = await _api.Buy(Guid.CreateVersion7(), cleo);
+
+        var opened = await _api.SendWebhook(StripeEvents.DisputeCreated($"evt_{Guid.NewGuid():N}", FakeCheckoutSessions.PaymentIntentOf(disputed.SessionId)));
+        var stillPaid = (await MyOrders(customer)).Single().Status;
+        await _api.SendWebhook(StripeEvents.DisputeClosed($"evt_{Guid.NewGuid():N}", FakeCheckoutSessions.PaymentIntentOf(disputed.SessionId)));
+        await _api.SendWebhook(StripeEvents.ChargeRefunded(
+            $"evt_{Guid.NewGuid():N}", FakeCheckoutSessions.PaymentIntentOf(refundedAtStripe.SessionId), amount: 4900, amountRefunded: 4900));
+        await Refund(cleo, cleosSale, TenantRole.Owner);
+
+        Assert.Equal((HttpStatusCode.OK, OrderStatus.Paid), (opened.StatusCode, stillPaid));
+        var coachEmails = (await _api.Outbox())
+            .Where(m => m.Queue == EmailNotification.Queue)
+            .Select(m => JsonSerializer.Deserialize<EmailNotification>(m.Message.Payload, Json)!)
+            .Where(e => e.ToOwnersOfTenant is { } t && (t == anna.TenantId || t == ben.TenantId || t == cleo.TenantId) && e.Template != EmailTemplates.SaleMade)
+            .Select(e => (e.ToOwnersOfTenant, e.Template, Reason: e.Data.GetValueOrDefault("reason")))
+            .ToList();
+        Assert.Equal(3, coachEmails.Count);
+        Assert.Contains((anna.TenantId, EmailTemplates.SaleDisputed, (string?)null), coachEmails.Select(e => (e.ToOwnersOfTenant!.Value, e.Template, e.Reason)));
+        Assert.Contains(coachEmails, e => e.ToOwnersOfTenant == anna.TenantId && e.Template == EmailTemplates.SaleRefunded && e.Reason!.Contains("dispute", StringComparison.Ordinal));
+        Assert.Contains(coachEmails, e => e.ToOwnersOfTenant == ben.TenantId && e.Template == EmailTemplates.SaleRefunded && e.Reason!.Contains("Stripe", StringComparison.Ordinal));
+        Assert.DoesNotContain(coachEmails, e => e.ToOwnersOfTenant == cleo.TenantId);
+    }
+
     // A failed transfer waits in payout_retries; a later pass pays the coach once their account works.
     [Fact]
     public async Task A_failed_payout_is_retried_until_the_coach_is_paid()

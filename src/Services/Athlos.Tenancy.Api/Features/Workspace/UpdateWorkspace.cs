@@ -5,13 +5,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Athlos.Tenancy.Api.Features.Workspace;
 
-// Owners change the workspace name and storefront branding. Staff can read but not change it.
+// Owners change the workspace name, storefront branding and public contact address. Staff can read
+// but not change it.
 public static class UpdateWorkspace
 {
     public sealed record Request(
         [property: Required, StringLength(100, MinimumLength = 1)] string DisplayName,
         [property: Url, StringLength(500)] string? LogoUrl,
-        [property: RegularExpression("^#[0-9a-fA-F]{6}$")] string? PrimaryColor);
+        [property: RegularExpression("^#[0-9a-fA-F]{6}$")] string? PrimaryColor,
+        [property: EmailAddress, StringLength(254)] string? ContactEmail = null);
 
     public static void MapUpdateWorkspace(this IEndpointRouteBuilder app) =>
         app.MapPut("/workspace", Handle)
@@ -34,7 +36,12 @@ public static class UpdateWorkspace
         }
 
         workspace.DisplayName = request.DisplayName.Trim();
-        workspace.Branding = new Branding { LogoUrl = request.LogoUrl, PrimaryColor = request.PrimaryColor };
+        workspace.Branding = new Branding
+        {
+            LogoUrl = request.LogoUrl,
+            PrimaryColor = request.PrimaryColor,
+            ContactEmail = string.IsNullOrWhiteSpace(request.ContactEmail) ? null : request.ContactEmail.Trim(),
+        };
         await db.SaveChangesAsync(cancellationToken);
 
         return TypedResults.NoContent();

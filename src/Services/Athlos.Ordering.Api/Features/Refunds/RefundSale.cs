@@ -55,7 +55,7 @@ public static class RefundSale
         }
 
         var logger = loggers.CreateLogger("Athlos.Ordering.Refunds");
-        return await OrderRefunds.RefundAsync(tenant.TenantId!.Value, orderId, refundAtStripe: true, stripe, scopes, logger, cancellationToken) switch
+        return await OrderRefunds.RefundAsync(tenant.TenantId!.Value, orderId, OrderRefunds.Cause.Coach, stripe, scopes, configuration, logger, cancellationToken) switch
         {
             OrderRefunds.Outcome.Refunded => TypedResults.NoContent(),
             OrderRefunds.Outcome.ShareNotRecovered => TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,

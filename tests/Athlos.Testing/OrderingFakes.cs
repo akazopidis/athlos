@@ -199,6 +199,13 @@ public static class StripeEvents
 
     // A dispute the platform lost (or won).
     public static string DisputeClosed(string eventId, string paymentIntentId, string status = "lost") =>
+        Dispute(eventId, "charge.dispute.closed", paymentIntentId, status);
+
+    // A customer disputed a payment with their bank; the bank has not decided yet.
+    public static string DisputeCreated(string eventId, string paymentIntentId) =>
+        Dispute(eventId, "charge.dispute.created", paymentIntentId, "needs_response");
+
+    private static string Dispute(string eventId, string type, string paymentIntentId, string status) =>
         JsonSerializer.Serialize(new
         {
             id = eventId,
@@ -206,7 +213,7 @@ public static class StripeEvents
             api_version = "2025-01-01",
             created = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             livemode = false,
-            type = "charge.dispute.closed",
+            type,
             data = new
             {
                 @object = new

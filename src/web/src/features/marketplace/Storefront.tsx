@@ -1,4 +1,4 @@
-import { Info } from 'lucide-react'
+import { Info, Mail } from 'lucide-react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { BrandScope, StorefrontBanner } from '@/components/brand'
 import { Loading, Notice, Section } from '@/components/page'
@@ -53,7 +53,18 @@ export function Storefront() {
             <AlertDescription>Checkout cancelled. You have not been charged.</AlertDescription>
           </Alert>
         )}
-        <Section title={`Programs by ${displayName}`}>
+        <Section
+          title={`Programs by ${displayName}`}
+          action={
+            branding.contactEmail && (
+              <Button asChild variant="outline" size="sm">
+                <a href={`mailto:${branding.contactEmail}`}>
+                  <Mail aria-hidden /> Contact {displayName}
+                </a>
+              </Button>
+            )
+          }
+        >
           <Catalog search={search} update={update} clear={clear} fixedCoach={slug} />
         </Section>
       </div>

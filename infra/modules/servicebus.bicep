@@ -29,7 +29,7 @@ resource queue 'Microsoft.ServiceBus/namespaces/queues@2024-01-01' = [for queueN
   parent: namespace
   name: queueName
   properties: {
-    // Failed deliveries retry, then land in the dead-letter queue that the 5xx alert also watches (design §5.3).
+    // Failed deliveries retry, then land in the dead-letter queue, which prod's dead-letter alert watches (design §5.3).
     maxDeliveryCount: 10
     lockDuration: 'PT1M'
     defaultMessageTimeToLive: 'P14D'
@@ -50,3 +50,4 @@ resource receivers 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for p
 }]
 
 output fullyQualifiedNamespace string = '${namespace.name}.servicebus.windows.net'
+output id string = namespace.id

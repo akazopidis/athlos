@@ -22,12 +22,13 @@ public interface ICheckoutSessions
     // Closes an older, unpaid session, so it can no longer be paid. False if it was already paid.
     Task<bool> ExpireAsync(string sessionId, CancellationToken cancellationToken);
 
-    // Gives one order's amount back to the customer; returns the refund id. Idempotent per order.
+    // Gives one order's amount back to the customer; returns the refund id. Idempotent per order, for
+    // good: an existing refund of the order is returned instead of making a second one.
     // reason: Stripe's refund reason, "duplicate" or "requested_by_customer".
     Task<string> RefundAsync(Order order, string paymentIntentId, string reason, CancellationToken cancellationToken);
 
     // Takes the coach's share back from their Connect account (the order was refunded or disputed);
-    // returns the reversal id. Idempotent per order.
+    // returns the reversal id. Idempotent per order, like RefundAsync.
     Task<string> ReverseTransferAsync(Order order, CancellationToken cancellationToken);
 
     // The orders a payment paid for, from the payment's metadata (written at checkout).
@@ -35,6 +36,10 @@ public interface ICheckoutSessions
 
     // The payment of a paid session (orders paid before payment intents were stored on them).
     Task<string?> PaymentIntentOfSessionAsync(string sessionId, CancellationToken cancellationToken);
+
+    // The refunds of a payment that went through (or are on their way), each with the order named in its
+    // metadata, or null for a refund made without one.
+    Task<List<Guid?>> RefundsOfPaymentAsync(string paymentIntentId, CancellationToken cancellationToken);
 }
 
 public sealed record CheckoutRequest(Guid CheckoutId, string CustomerEmail, string Currency, IReadOnlyList<Order> Orders, Uri SuccessUrl, Uri CancelUrl);
@@ -161,6 +166,13 @@ public sealed class StripeCheckoutSessions(IStripeClient stripe) : ICheckoutSess
 
     public async Task<string> RefundAsync(Order order, string paymentIntentId, string reason, CancellationToken cancellationToken)
     {
+        // Stripe keeps idempotency keys for 24 hours; a later retry finds the refund by its order instead.
+        var existing = (await ListRefundsAsync(paymentIntentId, cancellationToken)).FirstOrDefault(r => OrderOf(r.Metadata) == order.Id);
+        if (existing is not null)
+        {
+            return existing.Id;
+        }
+
         var refund = await new RefundService(stripe).CreateAsync(new RefundCreateOptions
         {
             PaymentIntent = paymentIntentId,
@@ -174,6 +186,12 @@ public sealed class StripeCheckoutSessions(IStripeClient stripe) : ICheckoutSess
 
     public async Task<string> ReverseTransferAsync(Order order, CancellationToken cancellationToken)
     {
+        var transfer = await new TransferService(stripe).GetAsync(order.StripeTransferId, cancellationToken: cancellationToken);
+        if (transfer.Reversed)
+        {
+            return transfer.Reversals?.Data.FirstOrDefault()?.Id ?? transfer.Id;
+        }
+
         var reversal = await new TransferReversalService(stripe).CreateAsync(order.StripeTransferId, new TransferReversalCreateOptions
         {
             Metadata = new Dictionary<string, string> { [CheckoutMetadata.OrderId] = order.Id.ToString() },
@@ -190,6 +208,20 @@ public sealed class StripeCheckoutSessions(IStripeClient stripe) : ICheckoutSess
 
     public async Task<string?> PaymentIntentOfSessionAsync(string sessionId, CancellationToken cancellationToken) =>
         (await new SessionService(stripe).GetAsync(sessionId, cancellationToken: cancellationToken)).PaymentIntentId;
+
+    public async Task<List<Guid?>> RefundsOfPaymentAsync(string paymentIntentId, CancellationToken cancellationToken) =>
+        [.. (await ListRefundsAsync(paymentIntentId, cancellationToken)).Select(r => OrderOf(r.Metadata))];
+
+    // A payment's refunds that went through or are on their way (failed and canceled ones gave nothing back).
+    private async Task<List<Refund>> ListRefundsAsync(string paymentIntentId, CancellationToken cancellationToken)
+    {
+        var refunds = await new RefundService(stripe).ListAsync(
+            new RefundListOptions { PaymentIntent = paymentIntentId, Limit = 100 }, cancellationToken: cancellationToken);
+        return [.. refunds.Data.Where(r => r.Status is not ("failed" or "canceled"))];
+    }
+
+    private static Guid? OrderOf(Dictionary<string, string>? metadata) =>
+        metadata is not null && metadata.TryGetValue(CheckoutMetadata.OrderId, out var value) && Guid.TryParse(value, out var orderId) ? orderId : null;
 }
 
 // Without a Stripe key, checkout answers 503 instead of pretending to take money.
@@ -216,6 +248,9 @@ public sealed class CheckoutNotConfigured : ICheckoutSessions
         throw new InvalidOperationException("Stripe is not configured.");
 
     public Task<string?> PaymentIntentOfSessionAsync(string sessionId, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Stripe is not configured.");
+
+    public Task<List<Guid?>> RefundsOfPaymentAsync(string paymentIntentId, CancellationToken cancellationToken) =>
         throw new InvalidOperationException("Stripe is not configured.");
 }
 

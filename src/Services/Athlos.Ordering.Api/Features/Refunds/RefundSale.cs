@@ -21,7 +21,7 @@ public static class RefundSale
 
     private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> Handle(
         string tenantSlug, Guid orderId, ITenantContext tenant, OrderingDbContext db, ICheckoutSessions stripe, IServiceScopeFactory scopes,
-        IConfiguration configuration, CancellationToken cancellationToken)
+        IConfiguration configuration, ILoggerFactory loggers, CancellationToken cancellationToken)
     {
         // The sale must be this tenant's, under this address (read in the tenant, so RLS applies).
         DateTimeOffset? paidAt;
@@ -54,9 +54,13 @@ public static class RefundSale
             return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Payments are not configured for this environment.");
         }
 
-        return await OrderRefunds.RefundAsync(tenant.TenantId!.Value, orderId, refundAtStripe: true, stripe, scopes, cancellationToken) switch
+        var logger = loggers.CreateLogger("Athlos.Ordering.Refunds");
+        return await OrderRefunds.RefundAsync(tenant.TenantId!.Value, orderId, refundAtStripe: true, stripe, scopes, logger, cancellationToken) switch
         {
             OrderRefunds.Outcome.Refunded => TypedResults.NoContent(),
+            OrderRefunds.Outcome.ShareNotRecovered => TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "Stripe could not take your share of this sale back from your Stripe account, so nothing was refunded.",
+                detail: "Check your Stripe balance, then try again."),
             OrderRefunds.Outcome.BeforeTheCart => TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
                 title: "This sale was paid before the cart; refund it in the Stripe dashboard, which updates Athlos."),
             _ => TypedResults.NotFound(),

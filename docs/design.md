@@ -4,6 +4,8 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v15, built; v1.5.0 in production (2026-10-16)
 
+**Changes in v15.1 (v1.5.1):** refund edge cases (§2.2): a refund at Stripe that arrives before the payment's own event waits for it; a coach's refund takes the coach's share back first; refunds and reversals are found again at Stripe by their order, so a retry after 24 hours does not refund twice; a dashboard refund naming an order refunds that program; no refund email to a deleted account. Prod alerts on dead-lettered messages (§5.3, §6).
+
 **Changes in v15 (v1.5.0):** programs have a category (bodybuilding, powerlifting, CrossFit, weightlifting, calisthenics, running, mobility, general fitness) instead of a level, and the shop's header and filters use it (§8); the price filter comes first; the customer gets a refund email (§2.2, §5.3); the account menu opens each account page directly (§8).
 
 **Changes in v14 (v1.4.0):** refunds by the coach, at Stripe or through a lost dispute, with transfer reversals and access removed (`OrderRefunded`); failed coach payouts retried, and listed for the platform admin (§2.2).
@@ -133,13 +135,16 @@ Rules that keep it clean:
 The trade-off: the platform is the merchant of record, so refunds and disputes are the platform's to handle; the coach's share is then taken back with a transfer reversal. "Buy now" on a program page is a cart of one.
 
 **Refunds, disputes and coach payouts (as built, v1.4.0).** The platform holds the money between the customer and the coaches, so it also gives money back and makes sure coaches get paid.
-- *Ways a paid order is refunded.* The coach refunds a sale in the studio (`POST /api/v1/studio/{slug}/sales/{orderId}/refund`, owners only, within the refund window: `Payments:RefundWindowDays`, default 14 days after payment, the EU's withdrawal period for online purchases; each sale in the list carries `refundableUntil`), or the platform refunds a whole payment in the Stripe dashboard (`charge.refunded`), or a dispute is lost (`charge.dispute.closed`, status `lost`). Partial refunds made by hand at Stripe are logged, not mapped to orders.
+- *Ways a paid order is refunded.* The coach refunds a sale in the studio (`POST /api/v1/studio/{slug}/sales/{orderId}/refund`, owners only, within the refund window: `Payments:RefundWindowDays`, default 14 days after payment, the EU's withdrawal period for online purchases; each sale in the list carries `refundableUntil`), or the platform refunds a whole payment in the Stripe dashboard (`charge.refunded`), or a dispute is lost (`charge.dispute.closed`, status `lost`). A partial refund (`charge.refunded`, not fully refunded) refunds the orders its refunds name in their `athlos_order_id` metadata: Athlos' own refunds carry it, and a refund made in the dashboard does when it is given one; a refund without it is logged for a person to settle.
 - *One routine for all three* (`OrderRefunds`):
-  1. the customer's money: refunded at Stripe for that order's amount, unless Stripe already did;
-  2. the coach's share: the transfer is reversed, or a waiting payout retry is dropped;
-  3. inside the order's tenant, in one transaction: `Paid → Refunded` (once), `OrderRefunded` and the customer's refund email to the outbox.
+  1. the money at Stripe:
+     - a coach's refund reverses the coach's transfer *first*, then refunds the customer. If Stripe refuses the reversal (for example, the coach's balance cannot cover it), nothing has changed and the studio answers `409`, so the platform never pays a refund the coach's share does not cover;
+     - a refund made at Stripe or a lost dispute has already returned the money; the reversal follows, and if Stripe refuses it the order is refunded anyway and the error is logged for a person to settle with the coach;
+     - a share never transferred (waiting in `payout_retries`) is dropped instead;
+  2. inside the order's tenant, in one transaction: `Paid → Refunded` (once), `OrderRefunded` and the customer's refund email to the outbox (no email to a customer who deleted their account).
 
-  enrollment-api receives `OrderRefunded` on its own `order-refunded` queue and removes the access that order gave, inside the order's tenant (its progress cascades). Every step is idempotent per order.
+  enrollment-api receives `OrderRefunded` on its own `order-refunded` queue and removes the access that order gave, inside the order's tenant (its progress cascades). Every step is idempotent per order, at Stripe too: before refunding or reversing, the existing refund (by its `athlos_order_id` metadata) or reversal is looked up, because Stripe's idempotency keys last only 24 hours.
+- *Events out of order.* If the payment's own event failed (a cold start, say) and Stripe is still retrying it, a refund or lost dispute for that payment can arrive first. Its orders are still `Pending`, so the webhook answers `500` and Stripe sends the refund again later, after the payment is recorded. Otherwise the late payment event would hand out access and the coach's share for money already returned.
 - *Orders paid before the cart* (destination charges) are refunded in the Stripe dashboard, which reverses their transfer and updates Athlos through `charge.refunded`.
 - *Coach payouts that fail.* A transfer refused after payment (for example, a restricted Connect account) no longer only logs. The order is Paid, because the customer paid, and the share goes to `payout_retries`:
   - *Retries.* A work queue of the service, like the outbox, retried with backoff (5 minutes, doubling to 6 hours). Each retry enters the order's tenant to read it.
@@ -425,7 +430,7 @@ Emails Athlos itself sends, all through the `notifications` queue:
 
 - **Service:** Azure Communication Services Email with an **Azure-managed domain** (`...azurecomm.net` sender, no DNS setup). A custom domain can be added later if you own one. Stripe also emails its own receipts to customers in live mode; test mode does not.
 - **Message:** `{ type, to, locale, templateData }`. The worker renders HTML and plain-text templates kept in the repo (Razor or simple Liquid-style templates) and calls the ACS SDK with its managed identity.
-- **Delivery guarantee:** at least once. A rare duplicate email is accepted and documented; the worker keeps no database. Failed sends retry through Service Bus and end in the dead-letter queue, which the 5xx alert also watches.
+- **Delivery guarantee:** at least once. A rare duplicate email is accepted and documented; the worker keeps no database. Failed sends retry through Service Bus and end in the dead-letter queue, which prod's dead-letter alert watches (§6).
 - **Local development:** the worker writes emails to the console and to a local folder instead of sending them, so no real email leaves your machine; dev and staging can use the same "sink" mode.
 - **Privacy:** email addresses are passed in the message only; they are not logged, and the `to` field is redacted in traces.
 
@@ -456,7 +461,9 @@ Built in phase 5:
   - *Release.* `service.version` is a resource attribute, but App Insights fills `application_Version` with the Container Apps revision instead. So `ReleaseTagProcessor` tags every span with `athlos.release` (the `APP_VERSION` tag), and the workbook filters on it.
   - *Never in telemetry:* user ids or email addresses.
   - *The workbook.* `infra/modules/workbook.bicep`, one per environment, "Athlos per coach (env)". The request charts are filterable by release. Requests are sampled, so request counts sum `itemCount`; 429s and paid orders come from the exact metrics. The slowest-requests table lists `operation_Id` for Transaction search, instead of a clickable trace link.
-  - *The alert.* `infra/modules/alerts.bicep`: more than 5 gateway 5xx in 5 minutes, on the container app's `Requests` metric, emailed through an action group. Prod only, created once the prod environment's `ALERT_EMAIL` variable is set.
+  - *The alerts.* `infra/modules/alerts.bicep`, emailed through an action group, prod only, created once the prod environment's `ALERT_EMAIL` variable is set:
+    - more than 5 gateway 5xx in 5 minutes, on the container app's `Requests` metric;
+    - any dead-lettered Service Bus message (`DeadletteredMessages` above 0, per queue): a message that failed every delivery, such as an enrollment after payment, a refund's access removal or an email, is retried by nothing, so a person has to look.
 - **Cost guard:** Log Analytics daily cap of 0.15 GB (the first 5 GB/month are free, then €2.57/GB). Turn off Container Apps console-log forwarding if OpenTelemetry logs already cover it, so logs are not ingested twice.
 
 ---

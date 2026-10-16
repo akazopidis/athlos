@@ -12,10 +12,9 @@ import { Field, selectClassName } from '@/components/field'
 import { Loading } from '@/components/page'
 import { ProgramCover } from '@/components/program-cover'
 import { useApp } from '@/lib/AppContext'
+import { Categories, type Category } from '@/lib/categories'
 import { problemTitle } from '@/lib/problem'
 import { useStudio } from './useStudio.ts'
-
-type Level = 'Beginner' | 'Intermediate' | 'Advanced'
 
 interface Workout {
   id: string
@@ -59,7 +58,7 @@ export function StudioProgramEditor() {
         body: {
           title: text('title'),
           description: text('description'),
-          level: text('level') as Level,
+          category: text('category') as Category,
           durationWeeks: Number(text('durationWeeks')),
           priceAmount: Math.round(Number(text('price')) * 100),
           currency: 'EUR',
@@ -141,11 +140,13 @@ export function StudioProgramEditor() {
               <Field id="description" label="Description" className="sm:col-span-2">
                 <Textarea id="description" name="description" rows={4} defaultValue={p.description} />
               </Field>
-              <Field id="level" label="Level">
-                <select id="level" name="level" defaultValue={p.level} className={selectClassName}>
-                  <option>Beginner</option>
-                  <option>Intermediate</option>
-                  <option>Advanced</option>
+              <Field id="category" label="Category">
+                <select id="category" name="category" defaultValue={p.category} className={selectClassName}>
+                  {Categories.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <div className="grid grid-cols-2 gap-4">

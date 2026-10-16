@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useApp } from '@/lib/AppContext'
 import { MaxCartItems, useCart } from '@/lib/cart'
+import { categoryLabel } from '@/lib/categories'
 import { formatMoney } from '@/lib/money'
 import { leaveTo } from '@/lib/navigation'
 import { problemTitle } from '@/lib/problem'
@@ -137,7 +138,7 @@ export function ProgramPage() {
             <ProgramCover url={p.coverImageUrl} title={p.title} className="aspect-video rounded-3xl" />
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">{p.level}</Badge>
+                <Badge variant="secondary">{categoryLabel(p.category)}</Badge>
                 <Badge variant="outline">
                   {weeks} {weeks === 1 ? 'week' : 'weeks'}
                 </Badge>

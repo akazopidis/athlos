@@ -1,0 +1,7 @@
+Subject: Your refund for {{programTitle}}
+Your purchase of {{programTitle}} by {{coachSlug}} has been refunded.
+
+{{price}} is on its way back to your card; it usually arrives within 5 to 10 business days.
+The program is no longer in your account.
+
+Athlos

@@ -4,6 +4,7 @@ using Athlos.Messaging;
 using Athlos.Messaging.Contracts;
 using Athlos.Notifications.Worker;
 using Athlos.Ordering.Api.Data;
+using Athlos.Ordering.Api.Features.Refunds;
 using Athlos.Ordering.Api.Features.Webhooks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -83,6 +84,21 @@ public sealed class NotificationsWorkerTests
 
         Assert.Contains("44.10 EUR", email.PlainText, StringComparison.Ordinal);
         Assert.Contains("https://athlos.test/studio/anna", email.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Ordering_s_refund_email_renders()
+    {
+        var order = new Order
+        {
+            TenantId = Tenant, CustomerId = Guid.CreateVersion7(), CustomerEmail = "buyer@test.local", ProgramId = Guid.CreateVersion7(),
+            ProgramTitle = "Strong start", CoachSlug = "anna", Amount = 4900, Currency = "EUR", PlatformFee = 490,
+        };
+
+        var email = new EmailRenderer().Render(EmailTemplates.RefundConfirmation, OrderRefunds.RefundEmail(order).Data);
+
+        Assert.Equal("Your refund for Strong start", email.Subject);
+        Assert.Contains("49.00 EUR", email.Html, StringComparison.Ordinal);
     }
 
     [Theory]

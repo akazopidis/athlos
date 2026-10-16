@@ -16,7 +16,7 @@ public static class CreateProgram
         [property: Required, RegularExpression(ProgramRules.SlugPattern), StringLength(60, MinimumLength = 3)] string Slug,
         [property: Required, StringLength(120, MinimumLength = 1)] string Title,
         [property: StringLength(4000)] string? Description,
-        ProgramLevel Level,
+        ProgramCategory Category,
         [property: Range(1, 52)] int DurationWeeks,
         [property: Range(0, ProgramRules.MaxPriceAmount)] long PriceAmount,
         [property: Required, RegularExpression(ProgramRules.CurrencyPattern)] string Currency);
@@ -49,7 +49,7 @@ public static class CreateProgram
             Slug = request.Slug,
             Title = request.Title.Trim(),
             Description = request.Description?.Trim() ?? "",
-            Level = request.Level,
+            Category = request.Category,
             DurationWeeks = request.DurationWeeks,
             PriceAmount = request.PriceAmount,
             Currency = request.Currency,

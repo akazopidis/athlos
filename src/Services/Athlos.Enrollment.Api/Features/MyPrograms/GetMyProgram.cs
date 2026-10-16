@@ -12,7 +12,7 @@ public static class GetMyProgram
     public sealed record Workout(Guid Id, int Week, int Day, string Title, string Content, string? VideoUrl, DateTimeOffset? CompletedAt);
 
     public sealed record Response(
-        Guid ProgramId, string CoachSlug, string Title, string Description, string Level, int DurationWeeks, string? CoverImageUrl,
+        Guid ProgramId, string CoachSlug, string Title, string Description, string Category, int DurationWeeks, string? CoverImageUrl,
         DateTimeOffset EnrolledAt, List<Workout> Workouts);
 
     public static void MapGetMyProgram(this IEndpointRouteBuilder me) =>
@@ -51,7 +51,7 @@ public static class GetMyProgram
         }
 
         return TypedResults.Ok(new Response(
-            content.ProgramId, content.CoachSlug, content.Title, content.Description, content.Level, content.DurationWeeks, content.CoverImageUrl,
+            content.ProgramId, content.CoachSlug, content.Title, content.Description, content.Category, content.DurationWeeks, content.CoverImageUrl,
             enrollment.EnrolledAt,
             content.Workouts
                 .Select(w => new Workout(w.Id, w.Week, w.Day, w.Title, w.Content, w.VideoUrl, completed.TryGetValue(w.Id, out var at) ? at : null))

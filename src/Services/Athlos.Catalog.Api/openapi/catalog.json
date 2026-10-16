@@ -20,10 +20,10 @@
             }
           },
           {
-            "name": "Level",
+            "name": "Category",
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/ProgramLevel"
+              "$ref": "#/components/schemas/ProgramCategory"
             }
           },
           {
@@ -764,7 +764,7 @@
           "slug",
           "title",
           "description",
-          "level",
+          "category",
           "durationWeeks",
           "priceAmount",
           "currency"
@@ -790,8 +790,8 @@
               "string"
             ]
           },
-          "level": {
-            "$ref": "#/components/schemas/ProgramLevel"
+          "category": {
+            "$ref": "#/components/schemas/ProgramCategory"
           },
           "durationWeeks": {
             "maximum": 52,
@@ -826,7 +826,7 @@
           "slug",
           "title",
           "description",
-          "level",
+          "category",
           "durationWeeks",
           "priceAmount",
           "currency",
@@ -850,8 +850,8 @@
           "description": {
             "type": "string"
           },
-          "level": {
-            "$ref": "#/components/schemas/ProgramLevel"
+          "category": {
+            "$ref": "#/components/schemas/ProgramCategory"
           },
           "durationWeeks": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -884,13 +884,25 @@
         "type": "string",
         "format": "binary"
       },
+      "ProgramCategory": {
+        "enum": [
+          "GeneralFitness",
+          "Bodybuilding",
+          "Powerlifting",
+          "CrossFit",
+          "Weightlifting",
+          "Calisthenics",
+          "Running",
+          "Mobility"
+        ]
+      },
       "ProgramDetails": {
         "required": [
           "id",
           "slug",
           "title",
           "description",
-          "level",
+          "category",
           "durationWeeks",
           "priceAmount",
           "currency",
@@ -915,8 +927,8 @@
           "description": {
             "type": "string"
           },
-          "level": {
-            "$ref": "#/components/schemas/ProgramLevel"
+          "category": {
+            "$ref": "#/components/schemas/ProgramCategory"
           },
           "durationWeeks": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -962,13 +974,6 @@
           }
         }
       },
-      "ProgramLevel": {
-        "enum": [
-          "Beginner",
-          "Intermediate",
-          "Advanced"
-        ]
-      },
       "SearchProgramsCoachFacet": {
         "required": [
           "coachSlug",
@@ -995,7 +1000,7 @@
           "coachSlug",
           "slug",
           "title",
-          "level",
+          "category",
           "durationWeeks",
           "priceAmount",
           "currency",
@@ -1016,8 +1021,8 @@
           "title": {
             "type": "string"
           },
-          "level": {
-            "$ref": "#/components/schemas/ProgramLevel"
+          "category": {
+            "$ref": "#/components/schemas/ProgramCategory"
           },
           "durationWeeks": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -1105,7 +1110,7 @@
         "required": [
           "title",
           "description",
-          "level",
+          "category",
           "durationWeeks",
           "priceAmount",
           "currency"
@@ -1125,8 +1130,8 @@
               "string"
             ]
           },
-          "level": {
-            "$ref": "#/components/schemas/ProgramLevel"
+          "category": {
+            "$ref": "#/components/schemas/ProgramCategory"
           },
           "durationWeeks": {
             "maximum": 52,

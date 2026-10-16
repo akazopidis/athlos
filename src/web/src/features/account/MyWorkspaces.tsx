@@ -5,9 +5,11 @@ import { Empty, Loading, Section } from '@/components/page'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useApp } from '@/lib/AppContext'
+import { useTitle } from '@/lib/useTitle'
 
 export function MyWorkspaces() {
   const { api } = useApp()
+  useTitle('Workspaces')
   const memberships = useQuery({
     queryKey: ['memberships'],
     queryFn: async () => (await api.GET('/api/v1/me/memberships')).data ?? [],
@@ -15,7 +17,7 @@ export function MyWorkspaces() {
 
   return (
     <Section
-      title="My workspaces"
+      title="Workspaces"
       action={
         <Button asChild variant="outline" size="sm">
           <Link to="/studio/new">

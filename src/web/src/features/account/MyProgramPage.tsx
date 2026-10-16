@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useApp } from '@/lib/AppContext'
+import { categoryLabel } from '@/lib/categories'
 import { useTitle } from '@/lib/useTitle'
 import { cn } from '@/lib/utils'
 
@@ -71,7 +72,7 @@ export function MyProgramPage() {
         <ProgramCover url={p.coverImageUrl} title={p.title} className="rounded-3xl" />
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">{p.level}</Badge>
+            <Badge variant="secondary">{categoryLabel(p.category)}</Badge>
             <Badge variant="outline">{Number(p.durationWeeks)} weeks</Badge>
           </div>
           <h1 className="text-4xl leading-tight font-black tracking-tight sm:text-5xl">{p.title}</h1>

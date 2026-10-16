@@ -11,6 +11,7 @@ import { Field, selectClassName } from '@/components/field'
 import { Empty, Loading, Section } from '@/components/page'
 import { ProgramCover } from '@/components/program-cover'
 import { useApp } from '@/lib/AppContext'
+import { Categories, categoryLabel, type Category } from '@/lib/categories'
 import { formatMoney } from '@/lib/money'
 import { problemTitle } from '@/lib/problem'
 
@@ -43,7 +44,7 @@ export function StudioPrograms({ slug, plan }: { slug: string; plan?: string }) 
           slug: text('slug'),
           title: text('title'),
           description: text('description'),
-          level: text('level') as 'Beginner' | 'Intermediate' | 'Advanced',
+          category: text('category') as Category,
           durationWeeks: Number(text('durationWeeks')),
           // The form takes a price in euros; the API takes minor units (CLAUDE.md: money).
           priceAmount: Math.round(Number(text('price')) * 100),
@@ -87,7 +88,7 @@ export function StudioPrograms({ slug, plan }: { slug: string; plan?: string }) 
                     <div className="min-w-0 flex-1 space-y-1">
                       <p className="truncate font-semibold underline-offset-4 group-hover:underline">{p.title}</p>
                       <p className="truncate text-sm text-muted-foreground">
-                        {formatMoney(p.priceAmount, p.currency)} · {p.level} · {Number(p.durationWeeks)} weeks
+                        {formatMoney(p.priceAmount, p.currency)} · {categoryLabel(p.category)} · {Number(p.durationWeeks)} weeks
                       </p>
                       <Badge variant={p.isPublished ? 'default' : 'secondary'} className="sm:hidden">
                         {p.isPublished ? 'Published' : 'Draft'}
@@ -122,11 +123,13 @@ export function StudioPrograms({ slug, plan }: { slug: string; plan?: string }) 
             <Field id="new-description" label="Description" className="sm:col-span-2">
               <Textarea id="new-description" name="description" rows={3} />
             </Field>
-            <Field id="new-level" label="Level">
-              <select id="new-level" name="level" defaultValue="Beginner" className={selectClassName}>
-                <option>Beginner</option>
-                <option>Intermediate</option>
-                <option>Advanced</option>
+            <Field id="new-category" label="Category">
+              <select id="new-category" name="category" defaultValue="GeneralFitness" className={selectClassName}>
+                {Categories.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
               </select>
             </Field>
             <div className="grid grid-cols-2 gap-4">

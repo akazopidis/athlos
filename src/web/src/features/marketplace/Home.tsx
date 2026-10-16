@@ -1,17 +1,18 @@
 import { ArrowRight, Check, CreditCard, Infinity as Forever, TrendingUp } from 'lucide-react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
+import { categoryLabel } from '@/lib/categories'
 import { useTitle } from '@/lib/useTitle'
 import { Catalog } from './Catalog.tsx'
 import { useProgramSearch } from './useProgramSearch.ts'
 
 // The marketplace (design §8, "/"), laid out as a shop: a short banner, the shop's promises, then the
-// catalog of every coach's published programs. The search box and the level categories are in the
+// catalog of every coach's published programs. The search box and the categories are in the
 // header, so they work from every page.
 export function Home() {
   const { search, update, clear } = useProgramSearch()
   useTitle(search.q ? `“${search.q}”` : 'Programs')
-  const heading = search.q ? `Results for “${search.q}”` : search.level ? `${search.level} programs` : 'All programs'
+  const heading = search.q ? `Results for “${search.q}”` : search.category ? `${categoryLabel(search.category)} programs` : 'All programs'
 
   return (
     <>

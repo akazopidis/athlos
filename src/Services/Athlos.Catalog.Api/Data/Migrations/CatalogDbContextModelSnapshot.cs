@@ -29,6 +29,12 @@ namespace Athlos.Catalog.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("category");
+
                     b.Property<string>("CoachSlug")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -68,12 +74,6 @@ namespace Athlos.Catalog.Api.Data.Migrations
                     b.Property<bool>("IsPublished")
                         .HasColumnType("boolean")
                         .HasColumnName("is_published");
-
-                    b.Property<string>("Level")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("level");
 
                     b.Property<long>("PriceAmount")
                         .HasColumnType("bigint")

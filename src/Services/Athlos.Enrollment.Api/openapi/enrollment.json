@@ -170,7 +170,7 @@
           "coachSlug",
           "title",
           "description",
-          "level",
+          "category",
           "durationWeeks",
           "coverImageUrl",
           "enrolledAt",
@@ -191,7 +191,7 @@
           "description": {
             "type": "string"
           },
-          "level": {
+          "category": {
             "type": "string"
           },
           "durationWeeks": {

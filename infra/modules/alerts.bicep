@@ -1,8 +1,13 @@
-// The gateway 5xx alert (design §6), prod only; the other alert, the monthly budget, is budget.bicep.
-// A metric alert on the container app's own Requests metric: about €0.10 a month, and email
-// notifications are free at this volume.
+// Prod's alerts (design §6); the other alert, the monthly budget, is budget.bicep. Metric alerts cost
+// about €0.10 a month each, and email notifications are free at this volume.
+// - Gateway 5xx: the container app's own Requests metric.
+// - Dead letters: a message that failed every delivery (an enrollment, a refund, an email) waits in a
+//   dead-letter queue, and nothing retries it; a person has to look (design §5.3).
 param environmentName string
 param gatewayAppId string
+
+@description('The stage\'s Service Bus namespace.')
+param serviceBusId string
 
 @description('Who gets the alert email (the ALERT_EMAIL repository variable).')
 param email string
@@ -45,6 +50,41 @@ resource gateway5xx 'Microsoft.Insights/metricAlerts@2018-03-01' = {
           operator: 'GreaterThan'
           threshold: 5
           timeAggregation: 'Total'
+        }
+      ]
+    }
+    actions: [
+      { actionGroupId: actionGroup.id }
+    ]
+  }
+}
+
+resource deadLetters 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+  name: 'alert-athlos-dead-letters-${environmentName}'
+  location: 'global'
+  properties: {
+    description: 'A ${environmentName} Service Bus message failed every delivery and is in a dead-letter queue (the EntityName dimension says which queue).'
+    severity: 2
+    enabled: true
+    scopes: [ serviceBusId ]
+    evaluationFrequency: 'PT15M'
+    windowSize: 'PT15M'
+    // Resolves once the dead-letter queues are emptied (handled or resent).
+    autoMitigate: true
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          name: 'dead-letters'
+          criterionType: 'StaticThresholdCriterion'
+          metricNamespace: 'Microsoft.ServiceBus/namespaces'
+          metricName: 'DeadletteredMessages'
+          dimensions: [
+            { name: 'EntityName', operator: 'Include', values: [ '*' ] }
+          ]
+          operator: 'GreaterThan'
+          threshold: 0
+          timeAggregation: 'Maximum'
         }
       ]
     }

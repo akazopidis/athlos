@@ -16,7 +16,7 @@ public static class GetProgramContent
     public sealed record Workout(Guid Id, int Week, int Day, string Title, string Content, string? VideoUrl);
 
     public sealed record Response(
-        Guid ProgramId, string CoachSlug, string Title, string Description, ProgramLevel Level, int DurationWeeks, string? CoverImageUrl, List<Workout> Workouts);
+        Guid ProgramId, string CoachSlug, string Title, string Description, ProgramCategory Category, int DurationWeeks, string? CoverImageUrl, List<Workout> Workouts);
 
     public static void MapGetProgramContent(this IEndpointRouteBuilder app) =>
         app.MapGet("/tenants/{tenantId:guid}/programs/{programId:guid}/content", Handle)
@@ -41,7 +41,7 @@ public static class GetProgramContent
             .ToListAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return TypedResults.Ok(new Response(program.Id, program.CoachSlug, program.Title, program.Description, program.Level,
+        return TypedResults.Ok(new Response(program.Id, program.CoachSlug, program.Title, program.Description, program.Category,
             program.DurationWeeks, await media.ReadLinkAsync(program.CoverImagePath, cancellationToken), workouts));
     }
 }

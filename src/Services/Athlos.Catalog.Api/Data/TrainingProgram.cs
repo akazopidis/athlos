@@ -21,7 +21,7 @@ public sealed class TrainingProgram : ITenantOwned, IHasTimestamps
 
     public string Description { get; set; } = "";
 
-    public ProgramLevel Level { get; set; }
+    public ProgramCategory Category { get; set; }
 
     public int DurationWeeks { get; set; }
 
@@ -50,9 +50,16 @@ public sealed class TrainingProgram : ITenantOwned, IHasTimestamps
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
-public enum ProgramLevel
+// The shop's categories (design §8): the sport a program trains for. Stored as text, so a category
+// can be added without a data migration; GeneralFitness is the default for anything else.
+public enum ProgramCategory
 {
-    Beginner,
-    Intermediate,
-    Advanced,
+    GeneralFitness,
+    Bodybuilding,
+    Powerlifting,
+    CrossFit,
+    Weightlifting,
+    Calisthenics,
+    Running,
+    Mobility,
 }

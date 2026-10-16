@@ -4,13 +4,14 @@ import type { components } from '@/api/catalog'
 import { ProgramCover } from '@/components/program-cover'
 import { Button } from '@/components/ui/button'
 import { MaxCartItems, useCart } from '@/lib/cart'
+import { categoryLabel } from '@/lib/categories'
 import { readableOn } from '@/lib/color'
 import type { Coach } from '@/lib/useCoaches'
 import { formatMoney } from '@/lib/money'
 
 type Program = components['schemas']['SearchProgramsItem']
 
-// A program as a shop product: cover, level and length, the coach, the price, and a quick
+// A program as a shop product: cover, category and length, the coach, the price, and a quick
 // "Add to cart".
 // mine: a program of a workspace the visitor coaches in; it is theirs in the studio, not for sale to them.
 export function ProductCard({ program: p, coach, owned, mine = false }: { program: Program; coach?: Coach; owned: boolean; mine?: boolean }) {
@@ -24,7 +25,7 @@ export function ProductCard({ program: p, coach, owned, mine = false }: { progra
         <div className="relative overflow-hidden bg-muted">
           <ProgramCover url={p.coverImageUrl} title={p.title} className="transition-transform duration-500 ease-out group-hover:scale-[1.04]" />
           <div className="absolute top-3 left-3 flex gap-1.5">
-            <span className="rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm backdrop-blur">{p.level}</span>
+            <span className="rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm backdrop-blur">{categoryLabel(p.category)}</span>
             <span className="rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm backdrop-blur">
               {weeks} {weeks === 1 ? 'week' : 'weeks'}
             </span>

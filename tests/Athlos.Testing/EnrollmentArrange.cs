@@ -87,7 +87,7 @@ public sealed class FakeProgramContent : IProgramContent
 
     public ProgramContentResponse Add(Guid tenantId, string coachSlug, int workouts = 3)
     {
-        var content = new ProgramContentResponse(Guid.CreateVersion7(), coachSlug, $"Program {Guid.NewGuid():N}"[..20], "Strength basics.", "Beginner", 4, null,
+        var content = new ProgramContentResponse(Guid.CreateVersion7(), coachSlug, $"Program {Guid.NewGuid():N}"[..20], "Strength basics.", "Powerlifting", 4, null,
             [.. Enumerable.Range(1, workouts).Select(day => new ProgramContentWorkout(Guid.CreateVersion7(), 1, day, $"Day {day}", "5x5", null))]);
         _programs[(tenantId, content.ProgramId)] = content;
         return content;

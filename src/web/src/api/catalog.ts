@@ -156,7 +156,7 @@ export interface components {
             slug: string;
             title: string;
             description: null | string;
-            level: components["schemas"]["ProgramLevel"];
+            category: components["schemas"]["ProgramCategory"];
             /** Format: int32 */
             durationWeeks: number | string;
             /** Format: int64 */
@@ -170,7 +170,7 @@ export interface components {
             slug: string;
             title: string;
             description: string;
-            level: components["schemas"]["ProgramLevel"];
+            category: components["schemas"]["ProgramCategory"];
             /** Format: int32 */
             durationWeeks: number | string;
             /** Format: int64 */
@@ -180,13 +180,15 @@ export interface components {
         };
         /** Format: binary */
         IFormFile: string;
+        /** @enum {unknown} */
+        ProgramCategory: "GeneralFitness" | "Bodybuilding" | "Powerlifting" | "CrossFit" | "Weightlifting" | "Calisthenics" | "Running" | "Mobility";
         ProgramDetails: {
             /** Format: uuid */
             id: string;
             slug: string;
             title: string;
             description: string;
-            level: components["schemas"]["ProgramLevel"];
+            category: components["schemas"]["ProgramCategory"];
             /** Format: int32 */
             durationWeeks: number | string;
             /** Format: int64 */
@@ -200,8 +202,6 @@ export interface components {
             coverImageUrl: null | string;
             everPublished: boolean;
         };
-        /** @enum {unknown} */
-        ProgramLevel: "Beginner" | "Intermediate" | "Advanced";
         SearchProgramsCoachFacet: {
             coachSlug: string;
             /** Format: int32 */
@@ -213,7 +213,7 @@ export interface components {
             coachSlug: string;
             slug: string;
             title: string;
-            level: components["schemas"]["ProgramLevel"];
+            category: components["schemas"]["ProgramCategory"];
             /** Format: int32 */
             durationWeeks: number | string;
             /** Format: int64 */
@@ -236,7 +236,7 @@ export interface components {
         UpdateProgramRequest: {
             title: string;
             description: null | string;
-            level: components["schemas"]["ProgramLevel"];
+            category: components["schemas"]["ProgramCategory"];
             /** Format: int32 */
             durationWeeks: number | string;
             /** Format: int64 */
@@ -277,7 +277,7 @@ export interface operations {
         parameters: {
             query?: {
                 Q?: string;
-                Level?: components["schemas"]["ProgramLevel"];
+                Category?: components["schemas"]["ProgramCategory"];
                 Coach?: string;
                 MinPrice?: number | string;
                 MaxPrice?: number | string;

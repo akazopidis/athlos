@@ -1,8 +1,5 @@
 import { useSearchParams } from 'react-router'
-
-export type Level = 'Beginner' | 'Intermediate' | 'Advanced'
-
-export const Levels: Level[] = ['Beginner', 'Intermediate', 'Advanced']
+import { isCategory, type Category } from '@/lib/categories'
 
 export type Sort = 'Newest' | 'PriceLowToHigh' | 'PriceHighToLow'
 
@@ -24,7 +21,7 @@ export type Length = (typeof Lengths)[number]['value']
 
 export interface ProgramSearch {
   q?: string
-  level?: Level
+  category?: Category
   coach?: string
   // Whole currency units in the URL and the form; the API takes minor units.
   minPrice?: number
@@ -43,18 +40,18 @@ const wholeNumber = (value: string | null) => {
   return value !== null && value !== '' && Number.isInteger(n) && n >= 0 ? n : undefined
 }
 
-// The search lives in the URL (?q=&level=&coach=&minPrice=&maxPrice=&length=&sort=&page=), so a search
+// The search lives in the URL (?q=&category=&coach=&minPrice=&maxPrice=&length=&sort=&page=), so a search
 // can be shared and the back button works.
 export function useProgramSearch() {
   const [params, setParams] = useSearchParams()
 
-  const level = params.get('level')
+  const category = params.get('category')
   const length = params.get('length')
   const sort = params.get('sort')
   const page = Number(params.get('page'))
   const search: ProgramSearch = {
     q: params.get('q') ?? undefined,
-    level: Levels.includes(level as Level) ? (level as Level) : undefined,
+    category: isCategory(category) ? category : undefined,
     coach: params.get('coach') ?? undefined,
     minPrice: wholeNumber(params.get('minPrice')),
     maxPrice: wholeNumber(params.get('maxPrice')),
@@ -87,5 +84,5 @@ export function useProgramSearch() {
 
 // How many filters are set (not the text search or the sort), for the phone's "Filters (2)" button.
 export function activeFilters(search: ProgramSearch) {
-  return [search.level, search.coach, search.minPrice, search.maxPrice, search.length].filter((v) => v !== undefined).length
+  return [search.category, search.coach, search.minPrice, search.maxPrice, search.length].filter((v) => v !== undefined).length
 }

@@ -6,6 +6,8 @@ import { ProgramCover } from '@/components/program-cover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useApp } from '@/lib/AppContext'
+import { useTitle } from '@/lib/useTitle'
+import { CheckoutConfirmation } from './CheckoutConfirmation.tsx'
 import { useMyOrders } from './useMyOrders.ts'
 
 // The programs the customer bought (design §8, "/me": purchased programs and progress).
@@ -14,6 +16,7 @@ import { useMyOrders } from './useMyOrders.ts'
 export function MyPrograms() {
   const { api } = useApp()
   const { returned } = useMyOrders()
+  useTitle('My programs')
 
   const programs = useQuery({
     queryKey: ['my-programs'],
@@ -26,6 +29,7 @@ export function MyPrograms() {
 
   return (
     <Section title="My programs">
+      <CheckoutConfirmation />
       {waiting.length > 0 && (
         <Alert>
           <Loader2 className="animate-spin" aria-hidden />

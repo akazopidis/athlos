@@ -14,7 +14,7 @@ const program = (n: number) => ({
   coachSlug: 'anna',
   slug: `program-${n}`,
   title: `Program ${n}`,
-  level: 'Advanced',
+  category: 'CrossFit',
   durationWeeks: 8,
   priceAmount: 4900,
   currency: 'EUR',
@@ -39,7 +39,7 @@ test('the search in the URL reaches the API and Next loads the following page', 
     <AppContext.Provider value={{ config, msal: null, api: createApi(null, null) }}>
       <QueryClientProvider client={new QueryClient()}>
         <CartProvider>
-          <MemoryRouter initialEntries={['/?q=strength&level=Advanced']}>
+          <MemoryRouter initialEntries={['/?q=strength&category=CrossFit']}>
             <Routes>
               <Route path="/" element={<Home />} />
             </Routes>
@@ -51,7 +51,7 @@ test('the search in the URL reaches the API and Next loads the following page', 
 
   expect(await screen.findByText('Program 1')).toBeInTheDocument()
   expect(searches[0].get('Q')).toBe('strength')
-  expect(searches[0].get('Level')).toBe('Advanced')
+  expect(searches[0].get('Category')).toBe('CrossFit')
   expect(searches[0].get('PageSize')).toBe('12')
   expect(screen.getByText('Page 1 of 2')).toBeInTheDocument()
   // The coach facet shows the coach's name, from tenancy's lookup.

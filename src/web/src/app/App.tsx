@@ -17,6 +17,10 @@ const Cart = lazyPage(() => import('@/features/cart/Cart'), 'Cart')
 const AcceptInvite = lazyPage(() => import('@/features/studio/AcceptInvite'), 'AcceptInvite')
 const CreateWorkspace = lazyPage(() => import('@/features/studio/CreateWorkspace'), 'CreateWorkspace')
 const Me = lazyPage(() => import('@/features/account/Me'), 'Me')
+const MyPrograms = lazyPage(() => import('@/features/account/MyPrograms'), 'MyPrograms')
+const MyOrders = lazyPage(() => import('@/features/account/MyOrders'), 'MyOrders')
+const MyWorkspaces = lazyPage(() => import('@/features/account/MyWorkspaces'), 'MyWorkspaces')
+const AccountSettings = lazyPage(() => import('@/features/account/AccountSettings'), 'AccountSettings')
 const MyProgramPage = lazyPage(() => import('@/features/account/MyProgramPage'), 'MyProgramPage')
 const Studio = lazyPage(() => import('@/features/studio/Studio'), 'Studio')
 const StudioOverview = lazyPage(() => import('@/features/studio/StudioOverview'), 'StudioOverview')
@@ -53,7 +57,12 @@ export default function App() {
                 <Route path="settings" element={<StudioSettings />} />
               </Route>
               <Route path="/cart" element={<Cart />} />
-              <Route path="/me" element={<Me />} />
+              <Route path="/me" element={<Me />}>
+                <Route index element={<MyPrograms />} />
+                <Route path="orders" element={<MyOrders />} />
+                <Route path="workspaces" element={<MyWorkspaces />} />
+                <Route path="account" element={<AccountSettings />} />
+              </Route>
               <Route path="/me/programs/:programId" element={<MyProgramPage />} />
               <Route path="/admin" element={<Admin />} />
               <Route

@@ -39,6 +39,11 @@ public sealed class RefundTests(AthlosDatabases databases) : IAsyncLifetime
         var revoked = Assert.Single(await _api.Outbox(), m => m.Queue == OrderRefunded.Queue && m.Message.Payload.Contains(orderId.ToString(), StringComparison.Ordinal));
         var message = JsonSerializer.Deserialize<OrderRefunded>(revoked.Message.Payload, Json)!;
         Assert.Equal((orderId, coach.TenantId, customer), (message.OrderId, message.TenantId, message.CustomerId));
+        var email = Assert.Single((await _api.Outbox())
+            .Where(m => m.Queue == EmailNotification.Queue)
+            .Select(m => JsonSerializer.Deserialize<EmailNotification>(m.Message.Payload, Json)!),
+            e => e.Template == EmailTemplates.RefundConfirmation && e.Data["coachSlug"] == coach.Slug);
+        Assert.Equal((1, "49.00 EUR"), (email.To.Count, email.Data["price"]));
     }
 
     // The coach's refund window (14 days after payment by default, the EU withdrawal period).

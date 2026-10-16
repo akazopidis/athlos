@@ -50,7 +50,7 @@ const draft = {
   slug: 'strong-start',
   title: 'Strong start',
   description: 'Basics',
-  level: 'Beginner',
+  category: 'Powerlifting',
   durationWeeks: 4,
   priceAmount: 1900,
   currency: 'EUR',

@@ -26,6 +26,9 @@ public static class EmailTemplates
     // To the coach's owners, queued by ordering-api when the order is paid.
     public const string SaleMade = "sale-made";
 
+    // To the customer, queued by ordering-api with OrderRefunded (design §2.2), whoever refunded.
+    public const string RefundConfirmation = "refund-confirmation";
+
     // To the invitee, queued by tenancy-api with the invite (design §5.2).
     public const string StaffInvite = "staff-invite";
 }

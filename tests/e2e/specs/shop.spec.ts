@@ -5,41 +5,41 @@ import { expect, test, type Page } from '@playwright/test'
 
 const products = (page: Page) => page.locator('main article')
 
-// The level filter: radios in the sidebar on large screens, in the "Filters" drawer on smaller ones.
+// The category filter: radios in the sidebar on large screens, in the "Filters" drawer on smaller ones.
 // The radios follow the URL, so a click checks one only once the new URL has rendered: click, then
 // wait for it (check() would insist on an immediate change).
-async function pickLevel(page: Page, level: string) {
+async function pickCategory(page: Page, category: string) {
   const drawerButton = page.getByRole('button', { name: /^Filters/ })
   if (await drawerButton.isVisible()) {
     await drawerButton.click()
     const drawer = page.getByRole('dialog', { name: 'Filters' })
-    const radio = drawer.getByRole('radio', { name: level })
+    const radio = drawer.getByRole('radio', { name: category, exact: true })
     await radio.click()
     await expect(radio).toBeChecked()
     await drawer.getByRole('button', { name: /^Show \d+ programs?$/ }).click()
     await expect(drawer).toBeHidden()
   } else {
-    const radio = page.getByRole('complementary', { name: 'Filters' }).getByRole('radio', { name: level })
+    const radio = page.getByRole('complementary', { name: 'Filters' }).getByRole('radio', { name: category, exact: true })
     await radio.click()
     await expect(radio).toBeChecked()
   }
 }
 
-test('the marketplace lists programs and filters them by level', async ({ page }) => {
+test('the marketplace lists programs and filters them by category', async ({ page }) => {
   await page.goto('/')
 
   await expect(page.getByRole('heading', { name: 'All programs' })).toBeVisible()
   await expect(products(page).first()).toBeVisible()
   await expect(page.getByText(/^\d+ programs?$/)).toBeVisible()
 
-  await pickLevel(page, 'Beginner')
+  await pickCategory(page, 'Running')
 
-  await expect(page).toHaveURL(/level=Beginner/)
-  await expect(page.getByRole('heading', { name: 'Beginner programs' })).toBeVisible()
+  await expect(page).toHaveURL(/category=Running/)
+  await expect(page.getByRole('heading', { name: 'Running programs' })).toBeVisible()
   // The previous results stay on screen while the filtered ones load (aria-busy on the list).
   await expect(page.locator('main ul[aria-busy="true"]')).toHaveCount(0)
   for (const card of await products(page).all()) {
-    await expect(card).toContainText('Beginner')
+    await expect(card).toContainText('Running')
   }
 })
 

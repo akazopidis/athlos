@@ -23,7 +23,7 @@ const program = {
   slug: 'strong-start',
   title: 'Strong start',
   description: 'Eight weeks of basics.',
-  level: 'Beginner',
+  category: 'Powerlifting',
   durationWeeks: 8,
   priceAmount: 4900,
   currency: 'EUR',

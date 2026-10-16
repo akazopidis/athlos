@@ -7,12 +7,13 @@ import { CardGridSkeleton, Empty } from '@/components/page'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useApp } from '@/lib/AppContext'
+import { Categories } from '@/lib/categories'
 import { useCoaches } from '@/lib/useCoaches'
 import { useMyWorkspaces } from '@/lib/useMyWorkspaces'
 import { useOwnedPrograms } from '@/lib/useOwnedPrograms'
 import { cn } from '@/lib/utils'
 import { ProductCard } from './ProductCard.tsx'
-import { activeFilters, Lengths, Levels, PageSize, Sorts, type ProgramSearch, type SearchChange, type Sort } from './useProgramSearch.ts'
+import { activeFilters, Lengths, PageSize, Sorts, type ProgramSearch, type SearchChange, type Sort } from './useProgramSearch.ts'
 
 type Results = components['schemas']['SearchProgramsSearchResults']
 
@@ -39,14 +40,14 @@ export function Catalog({
   const length = Lengths.find((l) => l.value === search.length)
 
   const programs = useQuery({
-    queryKey: ['programs', coach ?? null, search.q ?? '', search.level ?? null, search.minPrice ?? null, search.maxPrice ?? null, search.length ?? null, search.sort ?? null, page],
+    queryKey: ['programs', coach ?? null, search.q ?? '', search.category ?? null, search.minPrice ?? null, search.maxPrice ?? null, search.length ?? null, search.sort ?? null, page],
     queryFn: async () =>
       (
         await api.GET('/api/v1/marketplace/programs', {
           params: {
             query: {
               Q: search.q || undefined,
-              Level: search.level,
+              Category: search.category,
               Coach: coach,
               MinPrice: search.minPrice !== undefined ? search.minPrice * 100 : undefined,
               MaxPrice: search.maxPrice !== undefined ? search.maxPrice * 100 : undefined,
@@ -175,10 +176,14 @@ function Filters({
         )}
       </div>
 
-      <FilterGroup title="Level">
-        <Choice name="level" label="All levels" checked={!search.level} onChange={() => update({ level: null })} />
-        {Levels.map((level) => (
-          <Choice key={level} name="level" label={level} checked={search.level === level} onChange={() => update({ level })} />
+      <FilterGroup title="Price (€)">
+        <PriceRange key={`${search.minPrice}-${search.maxPrice}`} min={search.minPrice} max={search.maxPrice} onApply={(minPrice, maxPrice) => update({ minPrice, maxPrice })} />
+      </FilterGroup>
+
+      <FilterGroup title="Category">
+        <Choice name="category" label="All categories" checked={!search.category} onChange={() => update({ category: null })} />
+        {Categories.map((c) => (
+          <Choice key={c.value} name="category" label={c.label} checked={search.category === c.value} onChange={() => update({ category: c.value })} />
         ))}
       </FilterGroup>
 
@@ -203,10 +208,6 @@ function Filters({
         {Lengths.map((l) => (
           <Choice key={l.value} name="length" label={l.label} checked={search.length === l.value} onChange={() => update({ length: l.value })} />
         ))}
-      </FilterGroup>
-
-      <FilterGroup title="Price (€)">
-        <PriceRange key={`${search.minPrice}-${search.maxPrice}`} min={search.minPrice} max={search.maxPrice} onApply={(minPrice, maxPrice) => update({ minPrice, maxPrice })} />
       </FilterGroup>
     </div>
   )

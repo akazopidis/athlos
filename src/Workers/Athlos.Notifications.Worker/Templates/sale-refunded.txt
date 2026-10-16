@@ -1,0 +1,7 @@
+Subject: A sale was refunded: {{programTitle}}
+A sale of {{programTitle}} ({{price}}) was refunded: {{reason}}.
+
+Your share of {{earnings}} was taken back from your Stripe account, and the customer no longer has the program.
+See your sales: {{salesUrl}}
+
+Athlos

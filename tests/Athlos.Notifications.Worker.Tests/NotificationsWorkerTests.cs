@@ -102,6 +102,24 @@ public sealed class NotificationsWorkerTests
     }
 
     [Theory]
+    [InlineData(EmailTemplates.SaleRefunded, "the platform refunded it in Stripe")]
+    [InlineData(EmailTemplates.SaleDisputed, null)]
+    public void Ordering_s_coach_emails_render(string template, string? reason)
+    {
+        var order = new Order
+        {
+            TenantId = Tenant, CustomerId = Guid.CreateVersion7(), CustomerEmail = "buyer@test.local", ProgramId = Guid.CreateVersion7(),
+            ProgramTitle = "Strong start", CoachSlug = "anna", Amount = 4900, Currency = "EUR", PlatformFee = 490,
+        };
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["App:PublicUrl"] = "https://athlos.test" }).Build();
+
+        var email = new EmailRenderer().Render(template, OrderRefunds.CoachEmail(template, order, configuration, reason).Data);
+
+        Assert.Contains("44.10 EUR", email.PlainText, StringComparison.Ordinal);
+        Assert.Contains("https://athlos.test/studio/anna/sales", email.Html, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData(4900, "EUR", "49.00 EUR")]
     [InlineData(123456, "USD", "1,234.56 USD")]
     [InlineData(5000, "JPY", "5,000 JPY")]

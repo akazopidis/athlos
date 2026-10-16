@@ -24,13 +24,14 @@ export function StudioSettings() {
   const current = workspace.data
   const [color, setColor] = useState(current?.branding.primaryColor ?? DefaultColor)
   const [logo, setLogo] = useState(current?.branding.logoUrl ?? '')
+  const [contact, setContact] = useState(current?.branding.contactEmail ?? '')
   const [name, setName] = useState(current?.displayName ?? '')
 
   const save = useMutation({
     mutationFn: async () => {
       const { error, response } = await api.PUT('/api/v1/studio/{tenantSlug}/workspace', {
         params: { path: { tenantSlug: slug } },
-        body: { displayName: name.trim(), logoUrl: logo.trim() || null, primaryColor: color },
+        body: { displayName: name.trim(), logoUrl: logo.trim() || null, primaryColor: color, contactEmail: contact.trim() || null },
       })
       if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not save the settings.')
     },
@@ -69,6 +70,13 @@ export function StudioSettings() {
                   </Field>
                   <Field id="ws-logo" label="Logo URL (optional)" hint="A link to a square image, for example from your website.">
                     <Input id="ws-logo" type="url" maxLength={500} value={logo} onChange={(e) => setLogo(e.target.value)} />
+                  </Field>
+                  <Field
+                    id="ws-contact"
+                    label="Contact email (optional)"
+                    hint="Shown on your storefront and to your customers in their orders, so they can reach you about a purchase or a refund."
+                  >
+                    <Input id="ws-contact" type="email" maxLength={254} value={contact} onChange={(e) => setContact(e.target.value)} />
                   </Field>
                   <Field id="ws-color" label="Brand color">
                     <div className="flex items-center gap-3">

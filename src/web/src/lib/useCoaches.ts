@@ -4,6 +4,10 @@ import { useApp } from './AppContext.tsx'
 
 export type Coach = components['schemas']['GetStorefrontResponse']
 
+// A mailto link to the coach's public contact address (set in their studio settings), or null.
+export const contactLink = (coach: Coach | undefined, subject: string) =>
+  coach?.branding.contactEmail ? `mailto:${coach.branding.contactEmail}?subject=${encodeURIComponent(subject)}` : null
+
 // Coaches' names and logos by address (tenancy-api's storefront lookup), for product cards, the coach
 // filter and the cart: catalog knows a program's coach only by slug. Missing coaches (suspended) are
 // simply absent; callers fall back to the slug.

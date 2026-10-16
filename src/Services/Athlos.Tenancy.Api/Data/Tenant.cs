@@ -35,10 +35,14 @@ public enum TenantStatus
     Deleted,
 }
 
-// Storefront look (design §8). Stored as jsonb.
+// Storefront look and public contact (design §8). Stored as jsonb.
 public sealed class Branding
 {
     public string? LogoUrl { get; set; }
 
     public string? PrimaryColor { get; set; }
+
+    // The address customers may write to (storefront, "My orders"). Public by the coach's choice; it is
+    // not the owners' sign-in addresses, which never leave tenancy-api. Never logged.
+    public string? ContactEmail { get; set; }
 }

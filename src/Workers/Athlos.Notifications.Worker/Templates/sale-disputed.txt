@@ -1,0 +1,7 @@
+Subject: A customer disputed a payment for {{programTitle}}
+A customer disputed the card payment for {{programTitle}} ({{price}}) with their bank.
+
+Nothing changes for you yet: the customer keeps the program while the bank decides. If the dispute is lost, the sale is refunded and your share of {{earnings}} is taken back; if it is won, nothing changes.
+See your sales: {{salesUrl}}
+
+Athlos

@@ -723,6 +723,12 @@
               "null",
               "string"
             ]
+          },
+          "contactEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -1197,6 +1203,14 @@
           },
           "primaryColor": {
             "pattern": "^#[0-9a-fA-F]{6}$",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "contactEmail": {
+            "maxLength": 254,
+            "minLength": 0,
             "type": [
               "null",
               "string"

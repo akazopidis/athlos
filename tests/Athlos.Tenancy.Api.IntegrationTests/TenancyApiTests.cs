@@ -70,14 +70,35 @@ public sealed class TenancyApiTests(AthlosDatabases database) : IAsyncLifetime
         var update = await _api.SendAsGateway(
             new HttpRequestMessage(HttpMethod.Put, $"/api/v1/studio/{workspace.Slug}/workspace")
             {
-                Content = JsonContent.Create(new { displayName = "Strong Coaching", logoUrl = "https://example.com/logo.png", primaryColor = "#1a2b3c" }),
+                Content = JsonContent.Create(new
+                {
+                    displayName = "Strong Coaching", logoUrl = "https://example.com/logo.png", primaryColor = "#1a2b3c", contactEmail = "hello@strong.test",
+                }),
             },
             workspace.OwnerId, workspace.TenantId, TenantRole.Owner);
         Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
 
         var read = await Get<WorkspaceSettings>($"/api/v1/studio/{workspace.Slug}/workspace", workspace.OwnerId, workspace.TenantId, TenantRole.Owner);
         Assert.Equal("Strong Coaching", read.DisplayName);
-        Assert.Equal("#1a2b3c", read.Branding.PrimaryColor);
+        Assert.Equal(("#1a2b3c", "hello@strong.test"), (read.Branding.PrimaryColor, read.Branding.ContactEmail));
+        var storefront = await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches?slug={workspace.Slug}")))
+            .Content.ReadFromJsonAsync<List<Storefront>>(Json, Cancel);
+        Assert.Equal("hello@strong.test", Assert.Single(storefront!).Branding.ContactEmail);
+    }
+
+    [Fact]
+    public async Task A_contact_address_that_is_not_an_email_is_refused()
+    {
+        var workspace = await _api.CreateWorkspace();
+
+        var update = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/studio/{workspace.Slug}/workspace")
+            {
+                Content = JsonContent.Create(new { displayName = "Strong Coaching", contactEmail = "not an address" }),
+            },
+            workspace.OwnerId, workspace.TenantId, TenantRole.Owner);
+
+        Assert.Equal(HttpStatusCode.BadRequest, update.StatusCode);
     }
 
     [Fact]
@@ -161,7 +182,9 @@ public sealed class TenancyApiTests(AthlosDatabases database) : IAsyncLifetime
 
     private sealed record Membership(Guid TenantId, string Slug, string DisplayName, TenantRole Role);
 
-    private sealed record Branding(string? LogoUrl, string? PrimaryColor);
+    private sealed record Branding(string? LogoUrl, string? PrimaryColor, string? ContactEmail);
+
+    private sealed record Storefront(string Slug, string DisplayName, Branding Branding);
 
     private sealed record WorkspaceSettings(Guid Id, string Slug, string DisplayName, Branding Branding);
 

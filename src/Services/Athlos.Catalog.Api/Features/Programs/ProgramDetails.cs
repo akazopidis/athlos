@@ -9,7 +9,7 @@ public sealed record ProgramDetails(
     string Slug,
     string Title,
     string Description,
-    ProgramLevel Level,
+    ProgramCategory Category,
     int DurationWeeks,
     long PriceAmount,
     string Currency,
@@ -22,7 +22,7 @@ public sealed record ProgramDetails(
     bool EverPublished)
 {
     public static async Task<ProgramDetails> FromAsync(TrainingProgram p, MediaStore media, CancellationToken cancellationToken) =>
-        new(p.Id, p.Slug, p.Title, p.Description, p.Level, p.DurationWeeks, p.PriceAmount, p.Currency, p.IsPublished, p.PublishedAt, p.UpdatedAt,
+        new(p.Id, p.Slug, p.Title, p.Description, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency, p.IsPublished, p.PublishedAt, p.UpdatedAt,
             await media.ReadLinkAsync(p.CoverImagePath, cancellationToken), p.FirstPublishedAt is not null);
 }
 

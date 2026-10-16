@@ -11,8 +11,8 @@ namespace Athlos.Ordering.Api.Features.Refunds;
 // full refund made at Stripe, or a lost dispute.
 // 1. The customer's money: given back here (RefundAtStripe) or already given back by Stripe.
 // 2. The coach's share: the transfer is reversed, or a waiting PayoutRetry is dropped.
-// 3. Inside the order's tenant, in one transaction: Paid -> Refunded (only once), and OrderRefunded
-//    to the outbox, so enrollment-api removes the access.
+// 3. Inside the order's tenant, in one transaction: Paid -> Refunded (only once), OrderRefunded to the
+//    outbox, so enrollment-api removes the access, and the customer's refund email (design §5.3).
 // Every step is idempotent per order, so a retry completes a refund that stopped halfway.
 public static class OrderRefunds
 {
@@ -78,11 +78,21 @@ public static class OrderRefunds
             await db.PayoutRetries.Where(r => r.OrderId == orderId).ExecuteDeleteAsync(cancellationToken);
             db.OutboxMessages.Add(OutboxMessage.For(OrderRefunded.Queue,
                 new OrderRefunded(order.Id, order.TenantId, order.CustomerId, order.ProgramId, now)));
+            db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, RefundEmail(order)));
             await db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
 
         return Outcome.Refunded;
     }
+
+    public static EmailNotification RefundEmail(Order order) =>
+        new(EmailTemplates.RefundConfirmation, To: [order.CustomerEmail], ToOwnersOfTenant: null, Locale: "en",
+            new Dictionary<string, string>
+            {
+                ["programTitle"] = order.ProgramTitle,
+                ["coachSlug"] = order.CoachSlug,
+                ["price"] = MoneyText.Format(order.Amount, order.Currency),
+            });
 
     // A full refund or a lost dispute at Stripe: every order the payment paid for. The orders come from
     // the payment's metadata, each looked up inside the tenant named next to it.

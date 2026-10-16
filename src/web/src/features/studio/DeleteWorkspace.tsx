@@ -28,7 +28,7 @@ export function DeleteWorkspace({ slug }: { slug: string }) {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['memberships'] })
-      navigate('/me')
+      navigate('/me/workspaces')
     },
   })
 

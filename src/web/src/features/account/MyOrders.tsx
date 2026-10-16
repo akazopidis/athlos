@@ -1,32 +1,19 @@
-import { CircleCheck, Loader2, Receipt } from 'lucide-react'
+import { Receipt } from 'lucide-react'
 import { Link } from 'react-router'
 import { Empty, Loading, Section } from '@/components/page'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { formatMoney } from '@/lib/money'
+import { useTitle } from '@/lib/useTitle'
 import { useMyOrders } from './useMyOrders.ts'
 
-// The customer's orders across all coaches (design §8, "/me"). A list rather than a table, so it
+// The customer's orders across all coaches (design §8, "/me/orders"). A list rather than a table, so it
 // reads the same on a phone.
 export function MyOrders() {
-  const { orders, returned } = useMyOrders()
-  const pending = returned.some((o) => o.status === 'Pending')
-  const titles = returned.map((o) => o.programTitle).join(', ')
+  const { orders } = useMyOrders()
+  useTitle('Orders')
 
   return (
-    <Section title="My orders">
-      {returned.length > 0 && pending && (
-        <Alert>
-          <Loader2 className="animate-spin" aria-hidden />
-          <AlertDescription>Payment received. Confirming your {returned.length === 1 ? 'order' : 'orders'}…</AlertDescription>
-        </Alert>
-      )}
-      {returned.length > 0 && !pending && (
-        <Alert>
-          <CircleCheck aria-hidden />
-          <AlertDescription>Thank you! Your purchase of {titles} is confirmed.</AlertDescription>
-        </Alert>
-      )}
+    <Section title="Orders">
       {orders.isPending ? (
         <Loading />
       ) : orders.data?.items.length ? (

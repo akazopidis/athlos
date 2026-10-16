@@ -58,7 +58,7 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         {
             slug = TenancyArrange.NewSlug("program"),
             title = "One too many",
-            level = "Beginner",
+            category = "Powerlifting",
             durationWeeks = 4,
             priceAmount = 1900,
             currency = "EUR",
@@ -165,7 +165,7 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         {
             var program = await _api.CreateProgram(coach, title: $"{tag} {price}", publish: true);
             var update = await _api.AsCoach(coach, HttpMethod.Put, $"/programs/{program.Id}",
-                new { title = $"{tag} {price}", level = "Beginner", durationWeeks = weeks, priceAmount = price, currency = "EUR" });
+                new { title = $"{tag} {price}", category = "Powerlifting", durationWeeks = weeks, priceAmount = price, currency = "EUR" });
             Assert.Equal(HttpStatusCode.OK, update.StatusCode);
         }
 
@@ -234,7 +234,7 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
     public async Task Program_slugs_are_unique_per_coach_not_globally()
     {
         var (a, b) = (NewCoach(), NewCoach());
-        var body = new { slug = "twelve-week-strength", title = "Strength", level = "Beginner", durationWeeks = 12, priceAmount = 4900, currency = "EUR" };
+        var body = new { slug = "twelve-week-strength", title = "Strength", category = "Powerlifting", durationWeeks = 12, priceAmount = 4900, currency = "EUR" };
 
         var first = await _api.AsCoach(a, HttpMethod.Post, "/programs", body);
         var sameCoach = await _api.AsCoach(a, HttpMethod.Post, "/programs", body);

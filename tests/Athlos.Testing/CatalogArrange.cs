@@ -44,7 +44,7 @@ public static class CatalogArrange
             slug,
             title = title ?? $"Program {slug}",
             description = "Twelve weeks of strength work.",
-            level = "Beginner",
+            category = "Powerlifting",
             durationWeeks = 12,
             priceAmount = 4900,
             currency = "EUR",

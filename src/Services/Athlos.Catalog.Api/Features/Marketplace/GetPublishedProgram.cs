@@ -12,7 +12,7 @@ namespace Athlos.Catalog.Api.Features.Marketplace;
 public static class GetPublishedProgram
 {
     public sealed record Response(
-        Guid Id, string CoachSlug, string Slug, string Title, string Description, ProgramLevel Level, int DurationWeeks, long PriceAmount, string Currency, string? CoverImageUrl);
+        Guid Id, string CoachSlug, string Slug, string Title, string Description, ProgramCategory Category, int DurationWeeks, long PriceAmount, string Currency, string? CoverImageUrl);
 
     public static void MapGetPublishedProgram(this IEndpointRouteBuilder app) =>
         app.MapGet("/coaches/{coachSlug}/programs/{programSlug}", Handle)
@@ -29,7 +29,7 @@ public static class GetPublishedProgram
 
         return program is null
             ? TypedResults.NotFound()
-            : TypedResults.Ok(new Response(program.Id, program.CoachSlug, program.Slug, program.Title, program.Description, program.Level,
+            : TypedResults.Ok(new Response(program.Id, program.CoachSlug, program.Slug, program.Title, program.Description, program.Category,
                 program.DurationWeeks, program.PriceAmount, program.Currency, await media.ReadLinkAsync(program.CoverImagePath, cancellationToken)));
     }
 }

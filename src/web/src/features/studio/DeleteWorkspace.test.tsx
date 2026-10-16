@@ -31,7 +31,7 @@ test('the owner must type the address, then the workspace is deleted and they la
         <MemoryRouter initialEntries={['/studio/anna/settings']}>
           <Routes>
             <Route path="/studio/anna/settings" element={<DeleteWorkspace slug="anna" />} />
-            <Route path="/me" element={<p>My account page</p>} />
+            <Route path="/me/workspaces" element={<p>My account page</p>} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>

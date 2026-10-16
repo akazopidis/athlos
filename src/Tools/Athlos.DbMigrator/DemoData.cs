@@ -29,7 +29,7 @@ public static class DemoData
 
     private sealed record Coach(string Slug, string Name, PlanName Plan, string Color, string[] Workouts, DemoProgram[] Programs);
 
-    private sealed record DemoProgram(string Slug, string Title, ProgramLevel Level, int Weeks, long Price, string Description);
+    private sealed record DemoProgram(string Slug, string Title, ProgramCategory Category, int Weeks, long Price, string Description);
 
     private sealed record Purchase(int Customer, string Coach, string Program, DateTimeOffset PaidAt);
 
@@ -41,34 +41,34 @@ public static class DemoData
         new("demo-forge", "Forge Strength", PlanName.Pro, "#ea580c",
             ["Squat and press", "Deadlift and pull", "Full-body conditioning"],
             [
-                new("strong-start", "Strong Start", ProgramLevel.Beginner, 8, 4900, "Learn the big lifts with simple progressions, three sessions a week."),
-                new("barbell-basics", "Barbell Basics", ProgramLevel.Beginner, 6, 3900, "Technique first: squat, bench, deadlift and overhead press."),
-                new("kettlebell-engine", "Kettlebell Engine", ProgramLevel.Beginner, 4, 2900, "Swings, carries and get-ups for strength and conditioning at home."),
-                new("powerbuilding", "Powerbuilding 12", ProgramLevel.Intermediate, 12, 6900, "Heavy triples on the main lifts, volume work for size."),
-                new("upper-lower", "Upper / Lower Split", ProgramLevel.Intermediate, 8, 4900, "Four days a week, alternating upper and lower body."),
-                new("hybrid-athlete", "Hybrid Athlete", ProgramLevel.Intermediate, 10, 5900, "Lift heavy and run well in the same week."),
-                new("deadlift-peak", "Deadlift Peak", ProgramLevel.Advanced, 6, 4400, "A focused block to set a new deadlift max."),
-                new("strongman-intro", "Strongman Intro", ProgramLevel.Advanced, 8, 5400, "Yoke, stones and log press, with a gym-friendly variant for each."),
-                new("olympic-lifting", "Olympic Lifting Fundamentals", ProgramLevel.Advanced, 10, 7900, "Snatch and clean and jerk, broken into teachable pieces."),
-                new("minimalist", "Minimalist Strength", ProgramLevel.Beginner, 6, 1900, "Two 40-minute sessions a week for busy people."),
+                new("strong-start", "Strong Start", ProgramCategory.Powerlifting, 8, 4900, "Learn the big lifts with simple progressions, three sessions a week."),
+                new("barbell-basics", "Barbell Basics", ProgramCategory.Powerlifting, 6, 3900, "Technique first: squat, bench, deadlift and overhead press."),
+                new("kettlebell-engine", "Kettlebell Engine", ProgramCategory.CrossFit, 4, 2900, "Swings, carries and get-ups for strength and conditioning at home."),
+                new("powerbuilding", "Powerbuilding 12", ProgramCategory.Bodybuilding, 12, 6900, "Heavy triples on the main lifts, volume work for size."),
+                new("upper-lower", "Upper / Lower Split", ProgramCategory.Bodybuilding, 8, 4900, "Four days a week, alternating upper and lower body."),
+                new("hybrid-athlete", "Hybrid Athlete", ProgramCategory.CrossFit, 10, 5900, "Lift heavy and run well in the same week."),
+                new("deadlift-peak", "Deadlift Peak", ProgramCategory.Powerlifting, 6, 4400, "A focused block to set a new deadlift max."),
+                new("strongman-intro", "Strongman Intro", ProgramCategory.GeneralFitness, 8, 5400, "Yoke, stones and log press, with a gym-friendly variant for each."),
+                new("olympic-lifting", "Olympic Lifting Fundamentals", ProgramCategory.Weightlifting, 10, 7900, "Snatch and clean and jerk, broken into teachable pieces."),
+                new("minimalist", "Minimalist Strength", ProgramCategory.GeneralFitness, 6, 1900, "Two 40-minute sessions a week for busy people."),
             ]),
         new("demo-stride", "Stride Running Club", PlanName.Free, "#2563eb",
             ["Easy run", "Intervals", "Long run"],
             [
-                new("first-5k", "Your First 5K", ProgramLevel.Beginner, 8, 1900, "From walking breaks to running 5 km without stopping."),
-                new("10k-faster", "Faster 10K", ProgramLevel.Intermediate, 10, 2900, "Tempo runs and intervals to take minutes off your 10K."),
-                new("half-marathon", "Half Marathon Plan", ProgramLevel.Intermediate, 12, 3900, "Build up to 21.1 km with four runs a week."),
-                new("marathon-sub4", "Marathon Sub-4", ProgramLevel.Advanced, 16, 5900, "A structured block for a marathon under four hours."),
-                new("trail-ready", "Trail Ready", ProgramLevel.Intermediate, 8, 2900, "Hills, technical descents and strength for the trails."),
+                new("first-5k", "Your First 5K", ProgramCategory.Running, 8, 1900, "From walking breaks to running 5 km without stopping."),
+                new("10k-faster", "Faster 10K", ProgramCategory.Running, 10, 2900, "Tempo runs and intervals to take minutes off your 10K."),
+                new("half-marathon", "Half Marathon Plan", ProgramCategory.Running, 12, 3900, "Build up to 21.1 km with four runs a week."),
+                new("marathon-sub4", "Marathon Sub-4", ProgramCategory.Running, 16, 5900, "A structured block for a marathon under four hours."),
+                new("trail-ready", "Trail Ready", ProgramCategory.Running, 8, 2900, "Hills, technical descents and strength for the trails."),
             ]),
         new("demo-flow", "Flow Mobility", PlanName.Free, "#0d9488",
             ["Hips and spine", "Shoulders and upper back", "Full-body flow"],
             [
-                new("daily-mobility", "Daily Mobility", ProgramLevel.Beginner, 4, 1500, "Fifteen minutes a day to move and feel better."),
-                new("desk-reset", "Desk Reset", ProgramLevel.Beginner, 3, 900, "Undo long days at a desk: neck, hips and back."),
-                new("splits-progression", "Splits Progression", ProgramLevel.Intermediate, 8, 2400, "Front and middle splits, step by step."),
-                new("handstand-path", "Handstand Path", ProgramLevel.Advanced, 10, 3400, "Wrist prep, wall drills and your first freestanding hold."),
-                new("yoga-for-lifters", "Yoga for Lifters", ProgramLevel.Intermediate, 6, 1900, "Mobility that carries over to the squat and the overhead press."),
+                new("daily-mobility", "Daily Mobility", ProgramCategory.Mobility, 4, 1500, "Fifteen minutes a day to move and feel better."),
+                new("desk-reset", "Desk Reset", ProgramCategory.Mobility, 3, 900, "Undo long days at a desk: neck, hips and back."),
+                new("splits-progression", "Splits Progression", ProgramCategory.Mobility, 8, 2400, "Front and middle splits, step by step."),
+                new("handstand-path", "Handstand Path", ProgramCategory.Calisthenics, 10, 3400, "Wrist prep, wall drills and your first freestanding hold."),
+                new("yoga-for-lifters", "Yoga for Lifters", ProgramCategory.Mobility, 6, 1900, "Mobility that carries over to the squat and the overhead press."),
             ]),
     ];
 
@@ -138,12 +138,14 @@ public static class DemoData
     private static Task SeedCatalogAsync(NpgsqlDataSource owner, TenantContext tenant, Coach coach, CancellationToken cancellationToken) =>
         InTenantAsync<CatalogDbContext>(owner, tenant, (o, t) => new CatalogDbContext(o, t), async db =>
         {
-            var existing = await db.Programs.Select(p => p.Id).ToListAsync(cancellationToken);
+            var existing = await db.Programs.ToDictionaryAsync(p => p.Id, cancellationToken);
             foreach (var program in coach.Programs)
             {
                 var programId = ProgramId(coach, program);
-                if (existing.Contains(programId))
+                if (existing.TryGetValue(programId, out var seeded))
                 {
+                    // Programs seeded before categories replaced levels get theirs (design §8).
+                    seeded.Category = program.Category;
                     continue;
                 }
 
@@ -155,7 +157,7 @@ public static class DemoData
                     Slug = program.Slug,
                     Title = program.Title,
                     Description = program.Description,
-                    Level = program.Level,
+                    Category = program.Category,
                     DurationWeeks = program.Weeks,
                     PriceAmount = program.Price,
                     Currency = "EUR",

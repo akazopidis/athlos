@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v14, built; v1.4.2 in production (2026-10-14)
+**Status:** v15, built; v1.4.2 in production (2026-10-14)
+
+**Changes in v15 (v1.5.0):** programs have a category (bodybuilding, powerlifting, CrossFit, weightlifting, calisthenics, running, mobility, general fitness) instead of a level, and the shop's header and filters use it (§8); the price filter comes first; the customer gets a refund email (§2.2, §5.3); the account menu opens each account page directly (§8).
 
 **Changes in v14 (v1.4.0):** refunds by the coach, at Stripe or through a lost dispute, with transfer reversals and access removed (`OrderRefunded`); failed coach payouts retried, and listed for the platform admin (§2.2).
 
@@ -135,7 +137,7 @@ The trade-off: the platform is the merchant of record, so refunds and disputes a
 - *One routine for all three* (`OrderRefunds`):
   1. the customer's money: refunded at Stripe for that order's amount, unless Stripe already did;
   2. the coach's share: the transfer is reversed, or a waiting payout retry is dropped;
-  3. inside the order's tenant, in one transaction: `Paid → Refunded` (once) and `OrderRefunded` to the outbox.
+  3. inside the order's tenant, in one transaction: `Paid → Refunded` (once), `OrderRefunded` and the customer's refund email to the outbox.
 
   enrollment-api receives `OrderRefunded` on its own `order-refunded` queue and removes the access that order gave, inside the order's tenant (its progress cascades). Every step is idempotent per order.
 - *Orders paid before the cart* (destination charges) are refunded in the Stripe dashboard, which reverses their transfer and updates Athlos through `charge.refunded`.
@@ -154,7 +156,7 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 | tenancy | `memberships` **T** | `user_id` (Entra object id), `role` (Owner, Staff) |
 | tenancy | `user_profiles` | `user_id` (unique), `email`, `display_name` |
 | tenancy | `staff_invites` **T** | `email`, `token_hash`, `expires_at`, `accepted_at` |
-| catalog | `programs` **T** | `title`, `slug`, `description`, `level`, `duration_weeks`, `price_amount` (integer cents), `currency`, `is_published`, `cover_image_path` |
+| catalog | `programs` **T** | `title`, `slug`, `description`, `category`, `duration_weeks`, `price_amount` (integer cents), `currency`, `is_published`, `cover_image_path` |
 | catalog | `workouts` **T** | `program_id`, `week`, `day`, `title`, `content` (Markdown), `video_url` |
 | ordering | `orders` **T** | `customer_id`, `customer_email`, `program_id`, `program_title` (copy at purchase time), `amount`, `currency`, `platform_fee`, `status` (Pending, Paid, Failed, Refunded), `stripe_checkout_session_id` (shared by a cart's orders), `checkout_id`, `seller_account_id` (the coach's Connect account at checkout), `stripe_transfer_id`, `stripe_payment_intent_id`, `refunded_at` |
 | ordering | `payout_retries` | `order_id` (primary key), `tenant_id`, `coach_slug`, `amount`, `currency`, `attempts`, `next_attempt_at`, `last_error`. A work queue of the service (allow-all policy, like the outbox) |
@@ -389,7 +391,7 @@ Entra External ID does the account work, so Athlos never stores or handles passw
 | Coach staff invites | Owner enters an email; tenancy-api stores an invite token (valid 7 days) and queues an invite email; the invitee signs in and accepts | Athlos |
 
 **Account deletion as built:**
-- *Route.* `DELETE /api/v1/me` on tenancy-api, through the gateway. The SPA's My account page asks the user to type "delete my account", then signs them out.
+- *Route.* `DELETE /api/v1/me` on tenancy-api, through the gateway. The SPA's account settings page (`/me/account`) asks the user to type "delete my account", then signs them out.
 - *Owners first.* Someone who owns a workspace gets `409` naming it: they delete it first (§3.4), so nothing coaches' customers paid for disappears as a side effect.
 - *Order of steps.*
   1. ordering-api's `DELETE /internal/customers/{id}` anonymizes the customer's orders. They stay for the coaches' accounting, with the email replaced by `erased@deleted.invalid`; the customer id that stays is the object id of an Entra user that no longer exists.
@@ -428,7 +430,7 @@ Emails Athlos itself sends, all through the `notifications` queue:
 - **Privacy:** email addresses are passed in the message only; they are not logged, and the `to` field is redacted in traces.
 
 Built in phase 5:
-- **Contract** (`Athlos.Messaging.Contracts.EmailNotification`): `{ template, to, toOwnersOfTenant, locale, data }`. Services write it to their outbox in the same transaction as the change it announces: ordering-api with the order turning `Paid` (sale email), enrollment-api with the enrollment (purchase email, so it is sent once access exists, and only once per order).
+- **Contract** (`Athlos.Messaging.Contracts.EmailNotification`): `{ template, to, toOwnersOfTenant, locale, data }`. Services write it to their outbox in the same transaction as the change it announces: ordering-api with the order turning `Paid` (sale email) and with a refund (refund email to the customer), enrollment-api with the enrollment (purchase email, so it is sent once access exists, and only once per order).
 - **Coach recipients** (this was not decided before phase 5): the sale email names the tenant (`toOwnersOfTenant`), not addresses. The worker asks tenancy-api `GET /internal/tenants/{id}/owner-emails` (signed) when it sends, so ordering never handles coaches' addresses and the email reaches whoever owns the workspace at that moment. Tenancy enters that tenant to answer; a SELECT-only policy `tenant_members_read` on `user_profiles` lets a tenant session read the profiles of that tenant's members (writes still need `own_profile`). The customer's address is not in the sale email.
 - **Worker**: renders `Templates/{name}.txt` (first line `Subject: ...`) and `{name}.html` with `{{key}}` placeholders (HTML-encoded in the HTML part; a missing key fails the message, which retries and dead-letters), and sends one email per recipient so owners never see each other's addresses. `Email:Mode` is `Acs` in Azure and `Sink` locally (files in `src/AppHost/.emails`).
 - **Azure**: `acs-athlos-{env}` and `ecs-athlos-{env}` (Communication Services and Email Communication Services) are global resources with data in Europe; the region policy exempts `global` (§10). The worker's container app has no ingress and scales from zero on the `notifications` queue (KEDA `azure-servicebus`, its own identity).
@@ -562,9 +564,9 @@ athlos/
 **Look and responsiveness:** Athlos' own colors are ink (near-black) and volt (a sporty yellow-green), with Archivo for headings and Geist for text, both bundled (the CSP allows only self-hosted fonts). Dark mode follows the operating system. Inside a storefront and its program pages, the coach's brand color replaces the primary color, with black or white text picked by contrast. Mobile-first Tailwind breakpoints, touch targets of at least 40 px, and no UI library in the first page load beyond the shadcn copies (the menus are plain disclosures).
 
 **A shop (v1.3.0).** The marketplace looks and works like an e-shop:
-- *Header.* A search box, the levels as categories, and a cart icon with a count.
-- *Catalog.* A filter sidebar (level, coach with counts, length, price; a drawer on phones), a "Sort by" menu (newest, price up or down) and the result count. Catalog's search takes `minPrice`, `maxPrice`, `minWeeks`, `maxWeeks` and `sort`, and returns a coach facet. Coach names and logos come from tenancy-api's `GET /api/v1/marketplace/coaches?slug=…`.
-- *Product cards.* Level and length, the coach, the price, "Add to cart", and "Owned" for programs already bought.
+- *Header.* A search box, the categories (a program's sport: bodybuilding, powerlifting, CrossFit, weightlifting, calisthenics, running, mobility and yoga, general fitness), a cart icon with a count, and the account menu, which opens each account page directly (programs, orders, account settings, and the studio of each workspace).
+- *Catalog.* A filter sidebar (price first, then category, coach with counts, length; a drawer on phones), a "Sort by" menu (newest, price up or down) and the result count. Catalog's search takes `minPrice`, `maxPrice`, `minWeeks`, `maxWeeks` and `sort`, and returns a coach facet. Coach names and logos come from tenancy-api's `GET /api/v1/marketplace/coaches?slug=…`.
+- *Product cards.* Category and length, the coach, the price, "Add to cart", and "Owned" for programs already bought.
 - *Product pages.* Breadcrumbs, a buy box (Add to cart, Buy now), and "More from this coach".
 - *Cart.* `/cart` keeps the cart in the browser (`localStorage`, up to 10 programs), grouped by coach, and checks out once.
 
@@ -572,7 +574,7 @@ One SPA with four areas, plus the platform admin's `/admin`, shown to users with
 - `/` marketplace: browse, filter and search all coaches' published programs; `/cart` the cart.
 - `/c/{slug}` coach storefront: the tenant's branded page (logo, colors from workspace settings). This is the visible "configure your dedicated workspace" part of the thesis.
 - `/studio/{slug}` coach dashboard: programs, sales, settings, Stripe onboarding.
-- `/me` customer area: purchased programs and progress.
+- `/me` customer area, one page per subject: purchased programs and progress (`/me`, where Stripe returns the customer), `/me/orders`, `/me/workspaces` and `/me/account` (sign out, account deletion).
 
 The footer shows the running version (from the gateway's `/version` endpoint), which makes releases visible in demos.
 

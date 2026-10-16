@@ -53,7 +53,7 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         var body = withBody
             ? path.Contains("workouts", StringComparison.Ordinal)
                 ? new { week = 1, day = 2, title = "Hijacked" }
-                : (object)new { title = "Hijacked", level = "Advanced", durationWeeks = 1, priceAmount = 1, currency = "EUR" }
+                : (object)new { title = "Hijacked", category = "CrossFit", durationWeeks = 1, priceAmount = 1, currency = "EUR" }
             : null;
 
         var response = await _api.AsCoach(_b, new HttpMethod(method), Resolve(path), body);
@@ -220,7 +220,7 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
     [Fact]
     public async Task As_program_is_unchanged_after_Bs_attempts()
     {
-        await _api.AsCoach(_b, HttpMethod.Put, $"/programs/{_aDraft.Id}", new { title = "Hijacked", level = "Advanced", durationWeeks = 1, priceAmount = 1, currency = "EUR" });
+        await _api.AsCoach(_b, HttpMethod.Put, $"/programs/{_aDraft.Id}", new { title = "Hijacked", category = "CrossFit", durationWeeks = 1, priceAmount = 1, currency = "EUR" });
         await _api.AsCoach(_b, HttpMethod.Delete, $"/programs/{_aDraft.Id}");
 
         var mine = await _api.AsCoach(_a, HttpMethod.Get, $"/programs/{_aDraft.Id}");
@@ -329,8 +329,8 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
             .Where(w => w.TenantId == _a.TenantId)
             .ExecuteDeleteAsync(Cancel);
         var insert = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
-            INSERT INTO programs (id, tenant_id, coach_slug, slug, title, description, level, duration_weeks, price_amount, currency, is_published, created_at, updated_at)
-            VALUES ({Guid.CreateVersion7()}, {_a.TenantId}, {_a.Slug}, 'planted', 'Planted by B', '', 'Beginner', 1, 100, 'EUR', true, now(), now())
+            INSERT INTO programs (id, tenant_id, coach_slug, slug, title, description, category, duration_weeks, price_amount, currency, is_published, created_at, updated_at)
+            VALUES ({Guid.CreateVersion7()}, {_a.TenantId}, {_a.Slug}, 'planted', 'Planted by B', '', 'Powerlifting', 1, 100, 'EUR', true, now(), now())
             """, Cancel));
 
         Assert.Equal((0, 0), (renamed, deleted));

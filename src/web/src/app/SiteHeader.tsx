@@ -4,28 +4,25 @@ import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCart } from '@/lib/cart'
+import { Categories } from '@/lib/categories'
 import { cn } from '@/lib/utils'
 import { AccountMenu } from './AccountMenu.tsx'
 import { Logo } from './Logo.tsx'
 import { useDisclosure } from './useDisclosure.ts'
 
-// The shop's categories: the program levels, as filters of the catalog on "/".
-const categories = [
-  { label: 'All programs', level: null },
-  { label: 'Beginner', level: 'Beginner' },
-  { label: 'Intermediate', level: 'Intermediate' },
-  { label: 'Advanced', level: 'Advanced' },
-] as const
+// The shop's categories (design §8), as filters of the catalog on "/".
+const categories = [{ label: 'All programs', category: null as string | null }, ...Categories.map((c) => ({ label: c.label, category: c.value as string | null }))]
+const categoryLink = (category: string | null) => (category ? `/?category=${category}` : '/')
 
 // A shop header: logo, search, account and cart on top; the categories underneath from tablet width
-// up, and in a panel under the header on phones. Sticky, so search and cart are always at hand.
+// up (scrolling sideways when they do not fit), and in a panel under the header on phones. Sticky, so search and cart are always at hand.
 export function SiteHeader() {
   const header = useRef<HTMLElement>(null)
   const menu = useDisclosure(header)
   const { pathname } = useLocation()
   const [params] = useSearchParams()
   const onHome = pathname === '/'
-  const activeLevel = onHome ? params.get('level') : undefined
+  const activeCategory = onHome ? params.get('category') : undefined
 
   return (
     <header ref={header} className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur-lg">
@@ -49,15 +46,15 @@ export function SiteHeader() {
         <HeaderSearch key={`m${pathname}?${params.get('q') ?? ''}`} />
       </div>
       <nav className="hidden border-t md:block" aria-label="Categories">
-        <ul className="container-page flex h-11 items-center gap-1 text-sm font-medium">
+        <ul className="container-page flex h-11 items-center gap-1 overflow-x-auto text-sm font-medium [scrollbar-width:none]">
           {categories.map((c) => {
-            const active = onHome && (activeLevel ?? null) === c.level
+            const active = onHome && (activeCategory ?? null) === c.category
             return (
-              <li key={c.label}>
+              <li key={c.label} className="shrink-0">
                 <Link
-                  to={c.level ? `/?level=${c.level}` : '/'}
+                  to={categoryLink(c.category)}
                   aria-current={active ? 'page' : undefined}
-                  className={cn('rounded-full px-3 py-1.5 transition-colors hover:bg-muted hover:text-foreground', active ? 'bg-muted text-foreground' : 'text-muted-foreground')}
+                  className={cn('rounded-full px-3 py-1.5 whitespace-nowrap transition-colors hover:bg-muted hover:text-foreground', active ? 'bg-muted text-foreground' : 'text-muted-foreground')}
                 >
                   {c.label}
                 </Link>
@@ -69,9 +66,8 @@ export function SiteHeader() {
       {menu.open && (
         <nav id="mobile-menu" className="container-page flex flex-col border-t pt-2 pb-4 md:hidden" aria-label="Main">
           {[
-            ...categories.map((c) => ({ to: c.level ? `/?level=${c.level}` : '/', label: c.label })),
+            ...categories.map((c) => ({ to: categoryLink(c.category), label: c.label })),
             { to: '/cart', label: 'Cart' },
-            { to: '/me', label: 'My account' },
             { to: '/studio/new', label: 'Sell on Athlos' },
           ].map((l) => (
             <NavLink
@@ -90,7 +86,7 @@ export function SiteHeader() {
   )
 }
 
-// Searches the catalog from any page: the text goes to "/?q=", keeping the level picked there.
+// Searches the catalog from any page: the text goes to "/?q=", keeping the category picked there.
 function HeaderSearch({ className }: { className?: string }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()

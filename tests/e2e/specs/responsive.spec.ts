@@ -8,7 +8,7 @@ const pages = [
   { name: 'marketplace', path: '/' },
   { name: 'storefront', path: '/c/demo-forge' },
   { name: 'cart', path: '/cart' },
-  { name: 'filtered', path: '/?level=Intermediate&sort=PriceLowToHigh' },
+  { name: 'filtered', path: '/?category=Powerlifting&sort=PriceLowToHigh' },
 ]
 
 for (const { name, path } of pages) {

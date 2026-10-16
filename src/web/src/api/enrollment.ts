@@ -62,7 +62,7 @@ export interface components {
             coachSlug: string;
             title: string;
             description: string;
-            level: string;
+            category: string;
             /** Format: int32 */
             durationWeeks: number | string;
             coverImageUrl: null | string;

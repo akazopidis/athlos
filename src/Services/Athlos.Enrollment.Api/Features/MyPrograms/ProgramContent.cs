@@ -13,7 +13,7 @@ public interface IProgramContent
 }
 
 public sealed record ProgramContentResponse(
-    Guid ProgramId, string CoachSlug, string Title, string Description, string Level, int DurationWeeks, string? CoverImageUrl, List<ProgramContentWorkout> Workouts);
+    Guid ProgramId, string CoachSlug, string Title, string Description, string Category, int DurationWeeks, string? CoverImageUrl, List<ProgramContentWorkout> Workouts);
 
 public sealed record ProgramContentWorkout(Guid Id, int Week, int Day, string Title, string Content, string? VideoUrl);
 

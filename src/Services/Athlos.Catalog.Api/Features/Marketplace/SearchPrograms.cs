@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Catalog.Api.Features.Marketplace;
 
 // Browse and search every coach's published programs (design §8, "/"): the shop's catalog, with
-// filters (level, coach, price, length), sorting and a coach facet.
+// filters (category, coach, price, length), sorting and a coach facet.
 // CROSS-TENANT SLICE (design §3.2): ignores the tenant filter, runs in the public-read scope, and
 // filters on is_published (and a suspended coach, design §3.4) itself; RLS enforces the same rule, so
 // drafts cannot leak even if this filter were wrong.
@@ -19,7 +19,7 @@ public static class SearchPrograms
     // Id: what checkout takes, public like on the program page; the shop's "Add to cart" sends it.
     public sealed record Item(
         Guid Id,
-        string CoachSlug, string Slug, string Title, ProgramLevel Level, int DurationWeeks, long PriceAmount, string Currency, string? CoverImageUrl);
+        string CoachSlug, string Slug, string Title, ProgramCategory Category, int DurationWeeks, long PriceAmount, string Currency, string? CoverImageUrl);
 
     // How many programs each coach has among the results, ignoring the coach filter itself, for the
     // shop's coach filter.
@@ -38,7 +38,7 @@ public static class SearchPrograms
     // Prices in minor units, compared whatever the currency (programs are priced in EUR today).
     public sealed record Query(
         string? Q,
-        ProgramLevel? Level,
+        ProgramCategory? Category,
         string? Coach,
         [property: Range(0, long.MaxValue)] long? MinPrice,
         [property: Range(0, long.MaxValue)] long? MaxPrice,
@@ -66,9 +66,9 @@ public static class SearchPrograms
             programs = programs.Where(p => EF.Functions.ILike(p.Title, pattern, @"\") || EF.Functions.ILike(p.Description, pattern, @"\"));
         }
 
-        if (query.Level is { } level)
+        if (query.Category is { } category)
         {
-            programs = programs.Where(p => p.Level == level);
+            programs = programs.Where(p => p.Category == category);
         }
 
         if (query.MinPrice is { } minPrice)
@@ -113,13 +113,13 @@ public static class SearchPrograms
         var page = await sorted.ThenBy(p => p.Id)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(p => new { p.Id, p.CoachSlug, p.Slug, p.Title, p.Level, p.DurationWeeks, p.PriceAmount, p.Currency, p.CoverImagePath })
+            .Select(p => new { p.Id, p.CoachSlug, p.Slug, p.Title, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency, p.CoverImagePath })
             .ToListAsync(cancellationToken);
 
         var items = new List<Item>(page.Count);
         foreach (var p in page)
         {
-            items.Add(new Item(p.Id, p.CoachSlug, p.Slug, p.Title, p.Level, p.DurationWeeks, p.PriceAmount, p.Currency,
+            items.Add(new Item(p.Id, p.CoachSlug, p.Slug, p.Title, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency,
                 await media.ReadLinkAsync(p.CoverImagePath, cancellationToken)));
         }
 

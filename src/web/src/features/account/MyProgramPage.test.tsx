@@ -37,7 +37,7 @@ test('ticking a workout marks it done', async () => {
         coachSlug: 'anna',
         title: 'Strong start',
         description: 'Eight weeks of basics.',
-        level: 'Beginner',
+        category: 'Powerlifting',
         durationWeeks: 8,
         coverImageUrl: null,
         enrolledAt: '2026-10-01T10:00:00Z',

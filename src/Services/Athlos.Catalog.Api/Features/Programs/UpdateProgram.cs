@@ -13,7 +13,7 @@ public static class UpdateProgram
     public sealed record Request(
         [property: Required, StringLength(120, MinimumLength = 1)] string Title,
         [property: StringLength(4000)] string? Description,
-        ProgramLevel Level,
+        ProgramCategory Category,
         [property: Range(1, 52)] int DurationWeeks,
         [property: Range(0, ProgramRules.MaxPriceAmount)] long PriceAmount,
         [property: Required, RegularExpression(ProgramRules.CurrencyPattern)] string Currency);
@@ -34,7 +34,7 @@ public static class UpdateProgram
 
         program.Title = request.Title.Trim();
         program.Description = request.Description?.Trim() ?? "";
-        program.Level = request.Level;
+        program.Category = request.Category;
         program.DurationWeeks = request.DurationWeeks;
         program.PriceAmount = request.PriceAmount;
         program.Currency = request.Currency;

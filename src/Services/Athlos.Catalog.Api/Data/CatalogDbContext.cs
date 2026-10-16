@@ -24,7 +24,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options,
             program.Property(p => p.Slug).HasMaxLength(60);
             program.Property(p => p.Title).HasMaxLength(120);
             program.Property(p => p.Description).HasMaxLength(4000);
-            program.Property(p => p.Level).HasConversion<string>().HasMaxLength(20);
+            program.Property(p => p.Category).HasConversion<string>().HasMaxLength(20);
             program.Property(p => p.Currency).HasMaxLength(3).IsFixedLength();
             program.Property(p => p.CoverImagePath).HasMaxLength(300);
         });

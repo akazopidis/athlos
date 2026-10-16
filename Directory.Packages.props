@@ -9,12 +9,17 @@
     <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.6.1" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.1" />
   </ItemGroup>
+  <ItemGroup Label="Transitive security pins">
+    <!-- Pulled in by Aspire's AppHost; 2.5.302 has GHSA-qhrr-8q5h-9q3h (fixed in 2.5.303). Remove once
+         Aspire depends on a fixed version. -->
+    <PackageVersion Include="MessagePack" Version="2.5.307" />
+  </ItemGroup>
   <ItemGroup Label="ASP.NET Core">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Extensions.ApiDescription.Server" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery.Yarp" Version="10.11.0" />
-    <PackageVersion Include="Scalar.AspNetCore" Version="2.17.14" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.18.0" />
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
   </ItemGroup>
   <ItemGroup Label="Data">

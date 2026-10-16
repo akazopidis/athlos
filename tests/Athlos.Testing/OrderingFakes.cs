@@ -44,6 +44,7 @@ public sealed class FakeSellerDirectory : ISellerDirectory
 public sealed class FakeCheckoutSessions : ICheckoutSessions
 {
     private readonly ConcurrentDictionary<Guid, bool> _failingTransfers = new();
+    private readonly ConcurrentDictionary<Guid, bool> _failingReversals = new();
 
     public ConcurrentDictionary<string, CheckoutRequest> Sessions { get; } = new();
 
@@ -61,6 +62,9 @@ public sealed class FakeCheckoutSessions : ICheckoutSessions
     // Orders whose transfer to the coach was taken back.
     public ConcurrentDictionary<Guid, bool> Reversals { get; } = new();
 
+    // Refunds made in the Stripe dashboard: payment intent -> the order each names (null: none).
+    public ConcurrentDictionary<string, ConcurrentQueue<Guid?>> DashboardRefunds { get; } = new();
+
     // The payment intent the fake Stripe gives a session (the same id StripeEvents puts in events).
     public static string PaymentIntentOf(string sessionId) => $"pi_test_{sessionId}";
 
@@ -70,6 +74,13 @@ public sealed class FakeCheckoutSessions : ICheckoutSessions
 
     // Transfers to this coach fail, as for a restricted Connect account.
     public void FailTransfersTo(Guid tenantId) => _failingTransfers[tenantId] = true;
+
+    // Reversals from this coach fail, as when their Stripe balance cannot cover them.
+    public void FailReversalsFrom(Guid tenantId) => _failingReversals[tenantId] = true;
+
+    // A refund made in the Stripe dashboard, naming an order in its metadata or not.
+    public void RefundInDashboard(string paymentIntentId, Guid? orderId) =>
+        DashboardRefunds.GetOrAdd(paymentIntentId, _ => new ConcurrentQueue<Guid?>()).Enqueue(orderId);
 
     public Task<CheckoutSession> CreateAsync(CheckoutRequest request, CancellationToken cancellationToken)
     {
@@ -108,6 +119,11 @@ public sealed class FakeCheckoutSessions : ICheckoutSessions
 
     public Task<string> ReverseTransferAsync(Order order, CancellationToken cancellationToken)
     {
+        if (_failingReversals.ContainsKey(order.TenantId))
+        {
+            throw new Stripe.StripeException("Insufficient funds in the destination account to reverse this transfer.");
+        }
+
         Reversals[order.Id] = true;
         return Task.FromResult($"trr_test_{order.Id:N}");
     }
@@ -120,6 +136,14 @@ public sealed class FakeCheckoutSessions : ICheckoutSessions
 
     public Task<string?> PaymentIntentOfSessionAsync(string sessionId, CancellationToken cancellationToken) =>
         Task.FromResult<string?>(PaymentIntentOf(sessionId));
+
+    // Athlos' own refunds of the payment's orders, then the dashboard's.
+    public Task<List<Guid?>> RefundsOfPaymentAsync(string paymentIntentId, CancellationToken cancellationToken)
+    {
+        var session = Sessions.FirstOrDefault(s => PaymentIntentOf(s.Key) == paymentIntentId);
+        var own = session.Value?.Orders.Where(o => Refunds.ContainsKey(o.Id)).Select(o => (Guid?)o.Id) ?? [];
+        return Task.FromResult(own.Concat(DashboardRefunds.GetValueOrDefault(paymentIntentId) ?? []).ToList());
+    }
 
     // Transfers to this coach work again (the restricted account was fixed).
     public void ResumeTransfersTo(Guid tenantId) => _failingTransfers.TryRemove(tenantId, out _);

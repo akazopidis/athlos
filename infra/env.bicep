@@ -489,13 +489,14 @@ module workbook 'modules/workbook.bicep' = {
   }
 }
 
-// The gateway 5xx alert (design §6): prod only, once ALERT_EMAIL names a recipient.
+// The gateway 5xx and dead-letter alerts (design §6): prod only, once ALERT_EMAIL names a recipient.
 module alerts 'modules/alerts.bicep' = if (deployApps && environmentName == 'prod' && !empty(alertEmail)) {
   name: 'alerts'
   dependsOn: [gateway]
   params: {
     environmentName: environmentName
     gatewayAppId: resourceId('Microsoft.App/containerApps', 'ca-athlos-gateway-${environmentName}')
+    serviceBusId: serviceBus.outputs.id
     email: alertEmail
   }
 }

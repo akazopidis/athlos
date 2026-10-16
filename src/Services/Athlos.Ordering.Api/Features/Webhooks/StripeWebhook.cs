@@ -26,8 +26,12 @@ namespace Athlos.Ordering.Api.Features.Webhooks;
 //
 // Refunds and disputes. A full refund made at Stripe (charge.refunded) or a lost dispute
 // (charge.dispute.closed) refunds every order of that payment, through OrderRefunds: the coach's
-// transfer is reversed and enrollment removes the access. Partial refunds are Athlos' own per-order
-// refunds, already recorded, or a manual one at Stripe, which is logged for a person to settle.
+// transfer is reversed and enrollment removes the access. A partial refund refunds the orders its
+// refunds name (athlos_order_id): Athlos' own, or one made in the dashboard with that metadata; one
+// without it is logged for a person to settle. A refund for a payment whose orders are still Pending
+// (its checkout event failed and Stripe is retrying it) answers 500, so Stripe sends it again after the
+// payment is recorded; otherwise the late payment event would hand out access and the coach's share
+// for money already returned.
 //
 // The event id is recorded last, so a retried event returns at once. Every step is idempotent (per
 // order at Stripe, conditional updates here), so an event that fails halfway is completed by Stripe's
@@ -86,11 +90,11 @@ public static partial class StripeWebhook
         {
             Session session => await HandleSessionAsync(stripeEvent.Type, session, checkout, scopes, configuration, logger, cancellationToken),
             Charge { Refunded: true, PaymentIntentId: { } refundedPayment } =>
-                await OrderRefunds.RefundPaymentAsync(refundedPayment, checkout, scopes, cancellationToken),
+                await OrderRefunds.RefundPaymentAsync(refundedPayment, checkout, scopes, logger, cancellationToken),
             Charge { AmountRefunded: > 0, PaymentIntentId: { } partlyRefunded } when stripeEvent.Type == "charge.refunded" =>
-                LogPartialRefund(logger, partlyRefunded),
+                await OrderRefunds.RefundTaggedOrdersAsync(partlyRefunded, checkout, scopes, logger, cancellationToken),
             Dispute { Status: "lost", PaymentIntentId: { } disputedPayment } when stripeEvent.Type == "charge.dispute.closed" =>
-                await OrderRefunds.RefundPaymentAsync(disputedPayment, checkout, scopes, cancellationToken),
+                await OrderRefunds.RefundPaymentAsync(disputedPayment, checkout, scopes, logger, cancellationToken),
             // Other events are acknowledged and ignored.
             _ => true,
         };
@@ -191,17 +195,8 @@ public static partial class StripeWebhook
         return true;
     }
 
-    private static bool LogPartialRefund(ILogger logger, string paymentIntentId)
-    {
-        LogPartialRefundAtStripe(logger, paymentIntentId);
-        return true;
-    }
-
     [LoggerMessage(Level = LogLevel.Error, Message = "Transfer of order {OrderId} (tenant {TenantId}) to the coach failed: {StripeCode}; queued for a retry")]
     private static partial void LogTransferFailed(ILogger logger, Guid orderId, Guid tenantId, string? stripeCode);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Payment {PaymentIntentId} was partly refunded; Athlos' own refunds are recorded per order, a manual one needs settling by hand")]
-    private static partial void LogPartialRefundAtStripe(ILogger logger, string paymentIntentId);
 
     // The order, read inside the tenant the metadata names: another tenant's order is not there. Also
     // whether the customer already has a paid order for the same program (with the same coach).

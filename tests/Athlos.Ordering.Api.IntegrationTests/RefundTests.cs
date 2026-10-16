@@ -115,6 +115,102 @@ public sealed class RefundTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal((OrderStatus.Paid, OrderStatus.Refunded), (stillPaid, (await MyOrders(customer)).Single().Status));
     }
 
+    // The payment's own event failed (a cold start, say) and Stripe is retrying it when a refund made in
+    // the dashboard arrives: the refund waits, so the late payment event cannot hand out access and the
+    // coach's share for money already returned.
+    [Fact]
+    public async Task A_refund_at_Stripe_that_arrives_before_the_payment_waits_for_it()
+    {
+        var coach = NewCoach();
+        var customer = Guid.CreateVersion7();
+        var checkout = await _api.Checkout(customer, _api.Sellers.Sell(coach.TenantId, coach.Slug).ProgramId);
+        var refundEvent = StripeEvents.ChargeRefunded($"evt_{Guid.NewGuid():N}", FakeCheckoutSessions.PaymentIntentOf(checkout.SessionId), amount: 4900, amountRefunded: 4900);
+
+        var early = await _api.SendWebhook(refundEvent);
+        var pendingMeanwhile = (await MyOrders(customer)).Single().Status;
+        await _api.Pay(checkout);
+        var retried = await _api.SendWebhook(refundEvent);
+
+        Assert.Equal((HttpStatusCode.InternalServerError, OrderStatus.Pending), (early.StatusCode, pendingMeanwhile));
+        Assert.Equal(HttpStatusCode.OK, retried.StatusCode);
+        Assert.Equal(OrderStatus.Refunded, (await MyOrders(customer)).Single().Status);
+        Assert.True(_api.CheckoutSessions.Reversals.ContainsKey(_api.OrdersOf(checkout).Single().Id));
+    }
+
+    // The coach's share is taken back first: if Stripe refuses, the customer is not refunded either, and
+    // the coach can try again.
+    [Fact]
+    public async Task A_coach_refund_changes_nothing_when_Stripe_cannot_take_the_share_back()
+    {
+        var coach = NewCoach();
+        var customer = Guid.CreateVersion7();
+        var orderId = await _api.Buy(customer, coach);
+        _api.CheckoutSessions.FailReversalsFrom(coach.TenantId);
+
+        var response = await Refund(coach, orderId, TenantRole.Owner);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.False(_api.CheckoutSessions.Refunds.ContainsKey(orderId));
+        Assert.Equal(OrderStatus.Paid, (await MyOrders(customer)).Single().Status);
+    }
+
+    // Money already returned at Stripe: the access goes even if the share cannot be taken back.
+    [Fact]
+    public async Task A_refund_at_Stripe_completes_when_the_share_cannot_be_taken_back()
+    {
+        var coach = NewCoach();
+        var customer = Guid.CreateVersion7();
+        var checkout = await _api.Checkout(customer, _api.Sellers.Sell(coach.TenantId, coach.Slug).ProgramId);
+        await _api.Pay(checkout);
+        _api.CheckoutSessions.FailReversalsFrom(coach.TenantId);
+
+        var webhook = await _api.SendWebhook(StripeEvents.ChargeRefunded(
+            $"evt_{Guid.NewGuid():N}", FakeCheckoutSessions.PaymentIntentOf(checkout.SessionId), amount: 4900, amountRefunded: 4900));
+
+        Assert.Equal(HttpStatusCode.OK, webhook.StatusCode);
+        Assert.Equal(OrderStatus.Refunded, (await MyOrders(customer)).Single().Status);
+    }
+
+    // A partial refund in the dashboard refunds the one program its metadata names; an unnamed one is
+    // left for a person to settle.
+    [Fact]
+    public async Task A_dashboard_refund_naming_an_order_refunds_only_that_program()
+    {
+        var (anna, ben) = (NewCoach(), NewCoach());
+        var customer = Guid.CreateVersion7();
+        var checkout = await _api.Checkout(customer, [_api.Sellers.Sell(anna.TenantId, anna.Slug).ProgramId, _api.Sellers.Sell(ben.TenantId, ben.Slug).ProgramId]);
+        await _api.Pay(checkout);
+        var paymentIntent = FakeCheckoutSessions.PaymentIntentOf(checkout.SessionId);
+        var annas = _api.OrdersOf(checkout).Single(o => o.TenantId == anna.TenantId).Id;
+        _api.CheckoutSessions.RefundInDashboard(paymentIntent, orderId: null);
+        _api.CheckoutSessions.RefundInDashboard(paymentIntent, annas);
+
+        var webhook = await _api.SendWebhook(StripeEvents.ChargeRefunded($"evt_{Guid.NewGuid():N}", paymentIntent, amount: 9800, amountRefunded: 5900));
+
+        Assert.Equal(HttpStatusCode.OK, webhook.StatusCode);
+        var statuses = (await MyOrders(customer)).ToDictionary(o => o.Id, o => o.Status);
+        Assert.Equal(OrderStatus.Refunded, statuses[annas]);
+        Assert.Equal(OrderStatus.Paid, Assert.Single(statuses, s => s.Key != annas).Value);
+    }
+
+    // A customer who deleted their account has no address left: the refund email is not queued.
+    [Fact]
+    public async Task No_refund_email_is_queued_for_a_customer_who_deleted_their_account()
+    {
+        var coach = NewCoach();
+        var customer = Guid.CreateVersion7();
+        var orderId = await _api.Buy(customer, coach);
+        Assert.Equal(HttpStatusCode.NoContent, (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/customers/{customer}"))).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await Refund(coach, orderId, TenantRole.Owner)).StatusCode);
+
+        var outbox = await _api.Outbox();
+        Assert.Contains(outbox, m => m.Queue == OrderRefunded.Queue && m.Message.Payload.Contains(orderId.ToString(), StringComparison.Ordinal));
+        Assert.DoesNotContain(outbox, m => m.Queue == EmailNotification.Queue
+            && JsonSerializer.Deserialize<EmailNotification>(m.Message.Payload, Json)!.Template == EmailTemplates.RefundConfirmation
+            && m.Message.Payload.Contains(coach.Slug, StringComparison.Ordinal));
+    }
+
     // A failed transfer waits in payout_retries; a later pass pays the coach once their account works.
     [Fact]
     public async Task A_failed_payout_is_retried_until_the_coach_is_paid()

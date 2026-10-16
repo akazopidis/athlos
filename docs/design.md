@@ -2,7 +2,7 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v15.2, built; v1.5.1 in production (2026-10-16)
+**Status:** v15.2, built; v1.6.0 in production (2026-10-17)
 
 **Changes in v15.2 (v1.6.0):** coaches are emailed when a sale is refunded at Stripe or by a lost dispute, and when a customer opens a dispute (`charge.dispute.created`, §2.2, §5.3); coaches can set a public contact email, shown on their storefront and next to each order in the customer's "Orders" (§8).
 

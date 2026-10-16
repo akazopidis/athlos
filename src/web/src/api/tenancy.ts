@@ -290,6 +290,7 @@ export interface components {
         Branding: {
             logoUrl?: null | string;
             primaryColor?: null | string;
+            contactEmail?: null | string;
         };
         CreateTenantRequest: {
             slug: string;
@@ -412,6 +413,7 @@ export interface components {
             /** Format: uri */
             logoUrl: null | string;
             primaryColor: null | string;
+            contactEmail?: null | string;
         };
         UpsertMyProfileResponse: {
             email: string;

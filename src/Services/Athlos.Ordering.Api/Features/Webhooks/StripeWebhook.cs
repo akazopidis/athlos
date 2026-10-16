@@ -24,7 +24,8 @@ namespace Athlos.Ordering.Api.Features.Webhooks;
 //    coach's "you made a sale" email to the outbox.
 // A program the customer already owns (two pages paid) is refunded instead.
 //
-// Refunds and disputes. A full refund made at Stripe (charge.refunded) or a lost dispute
+// Refunds and disputes. A dispute opened (charge.dispute.created) emails the coaches of the payment;
+// nothing else changes until it closes. A full refund made at Stripe (charge.refunded) or a lost dispute
 // (charge.dispute.closed) refunds every order of that payment, through OrderRefunds: the coach's
 // transfer is reversed and enrollment removes the access. A partial refund refunds the orders its
 // refunds name (athlos_order_id): Athlos' own, or one made in the dashboard with that metadata; one
@@ -90,11 +91,13 @@ public static partial class StripeWebhook
         {
             Session session => await HandleSessionAsync(stripeEvent.Type, session, checkout, scopes, configuration, logger, cancellationToken),
             Charge { Refunded: true, PaymentIntentId: { } refundedPayment } =>
-                await OrderRefunds.RefundPaymentAsync(refundedPayment, checkout, scopes, logger, cancellationToken),
+                await OrderRefunds.RefundPaymentAsync(refundedPayment, OrderRefunds.Cause.AtStripe, checkout, scopes, configuration, logger, cancellationToken),
             Charge { AmountRefunded: > 0, PaymentIntentId: { } partlyRefunded } when stripeEvent.Type == "charge.refunded" =>
-                await OrderRefunds.RefundTaggedOrdersAsync(partlyRefunded, checkout, scopes, logger, cancellationToken),
+                await OrderRefunds.RefundTaggedOrdersAsync(partlyRefunded, checkout, scopes, configuration, logger, cancellationToken),
+            Dispute { PaymentIntentId: { } openedOn } when stripeEvent.Type == "charge.dispute.created" =>
+                await OrderRefunds.NotifyDisputeAsync(openedOn, checkout, scopes, configuration, cancellationToken),
             Dispute { Status: "lost", PaymentIntentId: { } disputedPayment } when stripeEvent.Type == "charge.dispute.closed" =>
-                await OrderRefunds.RefundPaymentAsync(disputedPayment, checkout, scopes, logger, cancellationToken),
+                await OrderRefunds.RefundPaymentAsync(disputedPayment, OrderRefunds.Cause.LostDispute, checkout, scopes, configuration, logger, cancellationToken),
             // Other events are acknowledged and ignored.
             _ => true,
         };

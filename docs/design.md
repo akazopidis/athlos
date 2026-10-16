@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v15.1, built; v1.5.1 in production (2026-10-16)
+**Status:** v15.2, built; v1.5.1 in production (2026-10-16)
+
+**Changes in v15.2 (v1.6.0):** coaches are emailed when a sale is refunded at Stripe or by a lost dispute, and when a customer opens a dispute (`charge.dispute.created`, §2.2, §5.3); coaches can set a public contact email, shown on their storefront and next to each order in the customer's "Orders" (§8).
 
 **Changes in v15.1 (v1.5.1):** refund edge cases (§2.2): a refund at Stripe that arrives before the payment's own event waits for it; a coach's refund takes the coach's share back first; refunds and reversals are found again at Stripe by their order, so a retry after 24 hours does not refund twice; a dashboard refund naming an order refunds that program; no refund email to a deleted account. Prod alerts on dead-lettered messages (§5.3, §6).
 
@@ -144,6 +146,8 @@ The trade-off: the platform is the merchant of record, so refunds and disputes a
   2. inside the order's tenant, in one transaction: `Paid → Refunded` (once), `OrderRefunded` and the customer's refund email to the outbox (no email to a customer who deleted their account).
 
   enrollment-api receives `OrderRefunded` on its own `order-refunded` queue and removes the access that order gave, inside the order's tenant (its progress cascades). Every step is idempotent per order, at Stripe too: before refunding or reversing, the existing refund (by its `athlos_order_id` metadata) or reversal is looked up, because Stripe's idempotency keys last only 24 hours.
+- *Telling the coach.* A refund the coach did not make (at Stripe, or a lost dispute) emails the workspace's owners (`sale-refunded`, with the reason) in the same transaction. A dispute opened (`charge.dispute.created`) emails them too (`sale-disputed`): nothing else changes until it closes, the customer keeps the program, and a lost dispute then refunds as above. The coach's own refund in the studio sends them nothing.
+- *Customers reaching the coach.* Refunds are the coach's to give, so a coach can set a public contact email in the studio settings (`branding.contactEmail`, never the owners' sign-in addresses); the storefront and each order in "Orders" link to it.
 - *Events out of order.* If the payment's own event failed (a cold start, say) and Stripe is still retrying it, a refund or lost dispute for that payment can arrive first. Its orders are still `Pending`, so the webhook answers `500` and Stripe sends the refund again later, after the payment is recorded. Otherwise the late payment event would hand out access and the coach's share for money already returned.
 - *Orders paid before the cart* (destination charges) are refunded in the Stripe dashboard, which reverses their transfer and updates Athlos through `charge.refunded`.
 - *Coach payouts that fail.* A transfer refused after payment (for example, a restricted Connect account) no longer only logs. The order is Paid, because the customer paid, and the share goes to `payout_retries`:
@@ -157,7 +161,7 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 
 | Service | Table | Key columns |
 |---|---|---|
-| tenancy | `tenants` | `slug` (unique), `display_name`, `status` (Active, Suspended, Deleted), `plan` (Free, Pro), `branding` (jsonb: logo URL, colors), `stripe_account_id`, `stripe_onboarding_complete` |
+| tenancy | `tenants` | `slug` (unique), `display_name`, `status` (Active, Suspended, Deleted), `plan` (Free, Pro), `branding` (jsonb: logo URL, colors, public contact email), `stripe_account_id`, `stripe_onboarding_complete` |
 | tenancy | `memberships` **T** | `user_id` (Entra object id), `role` (Owner, Staff) |
 | tenancy | `user_profiles` | `user_id` (unique), `email`, `display_name` |
 | tenancy | `staff_invites` **T** | `email`, `token_hash`, `expires_at`, `accepted_at` |
@@ -435,7 +439,7 @@ Emails Athlos itself sends, all through the `notifications` queue:
 - **Privacy:** email addresses are passed in the message only; they are not logged, and the `to` field is redacted in traces.
 
 Built in phase 5:
-- **Contract** (`Athlos.Messaging.Contracts.EmailNotification`): `{ template, to, toOwnersOfTenant, locale, data }`. Services write it to their outbox in the same transaction as the change it announces: ordering-api with the order turning `Paid` (sale email) and with a refund (refund email to the customer), enrollment-api with the enrollment (purchase email, so it is sent once access exists, and only once per order).
+- **Contract** (`Athlos.Messaging.Contracts.EmailNotification`): `{ template, to, toOwnersOfTenant, locale, data }`. Services write it to their outbox in the same transaction as the change it announces: ordering-api with the order turning `Paid` (sale email), with a refund (refund email to the customer, and to the coach when they did not make it) and with a dispute opened (dispute email to the coach), enrollment-api with the enrollment (purchase email, so it is sent once access exists, and only once per order).
 - **Coach recipients** (this was not decided before phase 5): the sale email names the tenant (`toOwnersOfTenant`), not addresses. The worker asks tenancy-api `GET /internal/tenants/{id}/owner-emails` (signed) when it sends, so ordering never handles coaches' addresses and the email reaches whoever owns the workspace at that moment. Tenancy enters that tenant to answer; a SELECT-only policy `tenant_members_read` on `user_profiles` lets a tenant session read the profiles of that tenant's members (writes still need `own_profile`). The customer's address is not in the sale email.
 - **Worker**: renders `Templates/{name}.txt` (first line `Subject: ...`) and `{name}.html` with `{{key}}` placeholders (HTML-encoded in the HTML part; a missing key fails the message, which retries and dead-letters), and sends one email per recipient so owners never see each other's addresses. `Email:Mode` is `Acs` in Azure and `Sink` locally (files in `src/AppHost/.emails`).
 - **Azure**: `acs-athlos-{env}` and `ecs-athlos-{env}` (Communication Services and Email Communication Services) are global resources with data in Europe; the region policy exempts `global` (§10). The worker's container app has no ingress and scales from zero on the `notifications` queue (KEDA `azure-servicebus`, its own identity).

@@ -30,8 +30,10 @@ EVENTS = [
     "checkout.session.async_payment_succeeded",
     "checkout.session.async_payment_failed",
     "checkout.session.expired",
-    # Refunds made at Stripe and lost disputes refund the orders in Athlos (design §2.2).
+    # Refunds made at Stripe and lost disputes refund the orders in Athlos; an opened dispute emails
+    # the coaches (design §2.2).
     "charge.refunded",
+    "charge.dispute.created",
     "charge.dispute.closed",
 ]
 SECRETS_OFFICER_ROLE = "Key Vault Secrets Officer"

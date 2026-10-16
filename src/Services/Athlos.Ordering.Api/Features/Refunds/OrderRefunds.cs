@@ -21,7 +21,8 @@ namespace Athlos.Ordering.Api.Features.Refunds;
 //    - A share still waiting in PayoutRetries was never sent; the retry is dropped.
 // 2. Inside the order's tenant, in one transaction: Paid -> Refunded (only once), OrderRefunded to the
 //    outbox, so enrollment-api removes the access, and the customer's refund email (design §5.3), unless
-//    they deleted their account.
+//    they deleted their account. A refund the coach did not make (at Stripe, or a lost dispute) also
+//    emails the coach's owners, saying why.
 // Every step is idempotent per order, at Stripe too (an existing refund or reversal is found by its
 // order, not by a 24-hour idempotency key), so a retry completes a refund that stopped halfway.
 public static partial class OrderRefunds
@@ -31,6 +32,17 @@ public static partial class OrderRefunds
     // the money has already gone back, and Athlos follows.
     public static TimeSpan RefundWindow(IConfiguration configuration) =>
         TimeSpan.FromDays(configuration.GetValue("Payments:RefundWindowDays", 14));
+
+    // Who or what refunded the order.
+    public enum Cause
+    {
+        // The owner, in the studio: Athlos refunds at Stripe.
+        Coach,
+        // The platform, in the Stripe dashboard: the money has gone back already.
+        AtStripe,
+        // The customer's bank decided a dispute against the platform: the money has gone back already.
+        LostDispute,
+    }
 
     public enum Outcome
     {
@@ -46,8 +58,8 @@ public static partial class OrderRefunds
     }
 
     public static async Task<Outcome> RefundAsync(
-        Guid tenantId, Guid orderId, bool refundAtStripe, ICheckoutSessions stripe, IServiceScopeFactory scopes, ILogger logger,
-        CancellationToken cancellationToken)
+        Guid tenantId, Guid orderId, Cause cause, ICheckoutSessions stripe, IServiceScopeFactory scopes, IConfiguration configuration,
+        ILogger logger, CancellationToken cancellationToken)
     {
         Order? order = null;
         await scopes.InTenantAsync<OrderingDbContext>(tenantId, async db => order = await db.Orders.AsNoTracking()
@@ -64,7 +76,7 @@ public static partial class OrderRefunds
 
         var beforeTheCart = order.CheckoutId is null;
         var transferred = !beforeTheCart && order.StripeTransferId is not null;
-        if (refundAtStripe)
+        if (cause == Cause.Coach)
         {
             if (beforeTheCart)
             {
@@ -125,6 +137,12 @@ public static partial class OrderRefunds
                 db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, RefundEmail(order)));
             }
 
+            if (cause != Cause.Coach)
+            {
+                db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, CoachEmail(EmailTemplates.SaleRefunded, order, configuration,
+                    cause == Cause.LostDispute ? "the customer's bank decided a payment dispute in their favour" : "the platform refunded it in Stripe")));
+            }
+
             await db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
 
@@ -140,17 +158,38 @@ public static partial class OrderRefunds
                 ["price"] = MoneyText.Format(order.Amount, order.Currency),
             });
 
+    // To the workspace's owners (the worker looks up their addresses, design §5.3): a refund or dispute
+    // of one of their sales, with what happens to their share.
+    public static EmailNotification CoachEmail(string template, Order order, IConfiguration configuration, string? reason = null)
+    {
+        var publicUrl = new Uri(configuration["App:PublicUrl"] ?? throw new InvalidOperationException("App:PublicUrl is not configured."));
+        var data = new Dictionary<string, string>
+        {
+            ["programTitle"] = order.ProgramTitle,
+            ["price"] = MoneyText.Format(order.Amount, order.Currency),
+            ["earnings"] = MoneyText.Format(order.Amount - order.PlatformFee, order.Currency),
+            ["salesUrl"] = new Uri(publicUrl, $"/studio/{order.CoachSlug}/sales").ToString(),
+        };
+        if (reason is not null)
+        {
+            data["reason"] = reason;
+        }
+
+        return new EmailNotification(template, To: [], ToOwnersOfTenant: order.TenantId, Locale: "en", data);
+    }
+
     // A full refund or a lost dispute at Stripe: every order the payment paid for. The orders come from
     // the payment's metadata, each looked up inside the tenant named next to it. False while an order is
     // still Pending, so the webhook answers 500 and Stripe sends the event again later.
     public static async Task<bool> RefundPaymentAsync(
-        string paymentIntentId, ICheckoutSessions stripe, IServiceScopeFactory scopes, ILogger logger, CancellationToken cancellationToken)
+        string paymentIntentId, Cause cause, ICheckoutSessions stripe, IServiceScopeFactory scopes, IConfiguration configuration, ILogger logger,
+        CancellationToken cancellationToken)
     {
         var (orders, _) = await stripe.OrdersOfPaymentAsync(paymentIntentId, cancellationToken);
         var done = true;
         foreach (var (tenantId, orderId) in orders)
         {
-            done &= await RefundAsync(tenantId, orderId, refundAtStripe: false, stripe, scopes, logger, cancellationToken) != Outcome.NotPaidYet;
+            done &= await RefundAsync(tenantId, orderId, cause, stripe, scopes, configuration, logger, cancellationToken) != Outcome.NotPaidYet;
         }
 
         return done;
@@ -161,7 +200,8 @@ public static partial class OrderRefunds
     // when it is given that metadata too; without it, Athlos cannot tell which program it was for, and it
     // is logged for a person to settle.
     public static async Task<bool> RefundTaggedOrdersAsync(
-        string paymentIntentId, ICheckoutSessions stripe, IServiceScopeFactory scopes, ILogger logger, CancellationToken cancellationToken)
+        string paymentIntentId, ICheckoutSessions stripe, IServiceScopeFactory scopes, IConfiguration configuration, ILogger logger,
+        CancellationToken cancellationToken)
     {
         var (orders, _) = await stripe.OrdersOfPaymentAsync(paymentIntentId, cancellationToken);
         var refunds = await stripe.RefundsOfPaymentAsync(paymentIntentId, cancellationToken);
@@ -173,7 +213,36 @@ public static partial class OrderRefunds
         var done = true;
         foreach (var (tenantId, orderId) in orders.Where(o => refunds.Contains(o.OrderId)))
         {
-            done &= await RefundAsync(tenantId, orderId, refundAtStripe: false, stripe, scopes, logger, cancellationToken) != Outcome.NotPaidYet;
+            done &= await RefundAsync(tenantId, orderId, Cause.AtStripe, stripe, scopes, configuration, logger, cancellationToken) != Outcome.NotPaidYet;
+        }
+
+        return done;
+    }
+
+    // A customer disputed a payment (charge.dispute.created): every coach the payment paid is told, once
+    // per dispute (the webhook records the event id). Nothing else changes until the dispute closes: a lost
+    // one refunds the orders (RefundPaymentAsync), a won one changes nothing. An order still Pending waits,
+    // like a refund.
+    public static async Task<bool> NotifyDisputeAsync(
+        string paymentIntentId, ICheckoutSessions stripe, IServiceScopeFactory scopes, IConfiguration configuration, CancellationToken cancellationToken)
+    {
+        var (orders, _) = await stripe.OrdersOfPaymentAsync(paymentIntentId, cancellationToken);
+        var done = true;
+        foreach (var (tenantId, orderId) in orders)
+        {
+            await scopes.InTenantAsync<OrderingDbContext>(tenantId, async db =>
+            {
+                var order = await db.Orders.AsNoTracking().SingleOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+                if (order?.Status == OrderStatus.Pending)
+                {
+                    done = false;
+                }
+                else if (order?.Status == OrderStatus.Paid)
+                {
+                    db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, CoachEmail(EmailTemplates.SaleDisputed, order, configuration)));
+                    await db.SaveChangesAsync(cancellationToken);
+                }
+            }, cancellationToken);
         }
 
         return done;

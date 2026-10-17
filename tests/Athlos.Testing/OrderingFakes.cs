@@ -205,6 +205,20 @@ public static class StripeEvents
             },
         });
 
+    // A Connect account changed (Connect endpoint: the event names the connected account).
+    public static string AccountUpdated(string eventId, string accountId) =>
+        JsonSerializer.Serialize(new
+        {
+            id = eventId,
+            @object = "event",
+            api_version = "2025-01-01",
+            created = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            livemode = false,
+            type = "account.updated",
+            account = accountId,
+            data = new { @object = new { id = accountId, @object = "account" } },
+        });
+
     // A dispute the platform lost (or won).
     public static string DisputeClosed(string eventId, string paymentIntentId, string status = "lost") =>
         Dispute(eventId, "charge.dispute.closed", paymentIntentId, status);

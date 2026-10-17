@@ -20,7 +20,7 @@ namespace Athlos.Ordering.Api.Features.Webhooks;
 // order) pair per program, possibly of several coaches. For each order, inside its own tenant, so RLS
 // applies:
 // 1. send the coach's share as a Stripe Transfer (cart sessions); a failed transfer is queued for
-//    PayoutRetries and does not hold up the order;
+//    PayoutRetries and does not hold up the order, and the coach is emailed to fix their account;
 // 2. in one transaction, mark the order Paid only if it is still Pending, and write OrderPaid and the
 //    coach's "you made a sale" email to the outbox.
 // A program the customer already owns (two pages paid) is refunded instead, and so is an order of a
@@ -121,6 +121,20 @@ public static partial class StripeWebhook
         }
 
         return TypedResults.Ok();
+    }
+
+    // To the workspace owners: their share waits until their Stripe account can receive it. The studio's
+    // overview reads the account's status from Stripe and offers to continue the setup.
+    public static EmailNotification PayoutFailedEmail(Order order, IConfiguration configuration)
+    {
+        var publicUrl = new Uri(configuration["App:PublicUrl"] ?? throw new InvalidOperationException("App:PublicUrl is not configured."));
+        return new EmailNotification(EmailTemplates.PayoutFailed, To: [], ToOwnersOfTenant: order.TenantId, Locale: "en", new Dictionary<string, string>
+        {
+            ["programTitle"] = order.ProgramTitle,
+            ["price"] = MoneyText.Format(order.Amount, order.Currency),
+            ["earnings"] = MoneyText.Format(order.Amount - order.PlatformFee, order.Currency),
+            ["studioUrl"] = new Uri(publicUrl, $"/studio/{order.CoachSlug}").ToString(),
+        });
     }
 
     private static async Task<bool> HandleSessionAsync(
@@ -257,6 +271,7 @@ public static partial class StripeWebhook
             db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, SaleEmail(order, configuration)));
             if (completion.TransferError is { } error)
             {
+                db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, PayoutFailedEmail(order, configuration)));
                 db.PayoutRetries.Add(new PayoutRetry
                 {
                     OrderId = order.Id,

@@ -15,6 +15,9 @@ namespace Athlos.Gateway;
 //   cannot pile up.
 // - Traffic that belongs to no coach (the cross-coach marketplace search, unknown addresses) is
 //   limited per client IP instead.
+// - Starting a checkout opens a Stripe payment page and writes pending orders, so it is limited per
+//   signed-in customer (per client IP without a sign-in, which checkout then refuses anyway):
+//   CheckoutsPerMinute, 10 by default. Other signed-in customer routes stay unlimited.
 // - Over the limit: 429 with Retry-After, and athlos.ratelimit.rejected counts it per coach.
 //
 // The buckets live in this replica's memory: with N gateway replicas a coach effectively gets N
@@ -29,6 +32,8 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
         public int PerClientRequestsPerSecond { get; set; } = 20;
 
         public int ConcurrentHeavyRequests { get; set; } = 4;
+
+        public int CheckoutsPerMinute { get; set; } = 10;
     }
 
     private sealed record Partition(string Key, int RequestsPerSecond, string Scope, string? Tenant, string? Plan, string? Slug = null);
@@ -36,6 +41,7 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
     private static readonly PathString StudioPrefix = "/api/v1/studio";
     private static readonly PathString CoachesPrefix = "/api/v1/marketplace/coaches";
     private static readonly PathString ProgramsPrefix = "/api/v1/marketplace/programs";
+    private static readonly PathString CheckoutPath = "/api/v1/orders/checkout";
 
     private static readonly Meter Meter = new("Athlos.Gateway");
     private static readonly Counter<long> Rejected = Meter.CreateCounter<long>(
@@ -53,6 +59,17 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
             AutoReplenishment = true,
         }));
 
+    // Per customer, a minute's worth of checkouts at once, refilled over the minute.
+    private readonly PartitionedRateLimiter<Partition> _checkouts = PartitionedRateLimiter.Create<Partition, string>(p =>
+        RateLimitPartition.GetTokenBucketLimiter(p.Key, _ => new TokenBucketRateLimiterOptions
+        {
+            TokenLimit = p.RequestsPerSecond,
+            TokensPerPeriod = p.RequestsPerSecond,
+            ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
     private readonly PartitionedRateLimiter<Partition> _heavy = PartitionedRateLimiter.Create<Partition, string>(p =>
         RateLimitPartition.GetConcurrencyLimiter(p.Key, _ => new ConcurrencyLimiterOptions
         {
@@ -64,6 +81,22 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
     public static async Task Apply(HttpContext context, Func<Task> next)
     {
         var options = context.RequestServices.GetRequiredService<IOptionsMonitor<Options>>().CurrentValue;
+        if (options.Enabled && HttpMethods.IsPost(context.Request.Method) && context.Request.Path.Equals(CheckoutPath, StringComparison.OrdinalIgnoreCase))
+        {
+            var customer = Athlos.Tenancy.TenantContextMiddleware.UserIdOf(context.User)?.ToString()
+                ?? $"client:{context.Connection.RemoteIpAddress}";
+            var checkout = new Partition($"checkout:{customer}:{options.CheckoutsPerMinute}", options.CheckoutsPerMinute, "checkout", Tenant: null, Plan: null);
+            using var allowed = context.RequestServices.GetRequiredService<RateLimits>()._checkouts.AttemptAcquire(checkout);
+            if (!allowed.IsAcquired)
+            {
+                await Reject(context, checkout, allowed, reason: "checkout");
+                return;
+            }
+
+            await next();
+            return;
+        }
+
         var partition = options.Enabled ? await AttributeAsync(context, options) : null;
         if (partition is null)
         {

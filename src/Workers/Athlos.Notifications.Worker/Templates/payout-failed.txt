@@ -1,0 +1,7 @@
+Subject: Action needed: your payout for {{programTitle}} is waiting
+You sold {{programTitle}} for {{price}}, but your share of {{earnings}} could not be sent to your Stripe account. Stripe needs something from you first, for example missing details or a restricted account.
+
+Open your studio and continue the payout setup: {{studioUrl}}
+Athlos retries the payout automatically and sends it as soon as your account can receive it.
+
+Athlos

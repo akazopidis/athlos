@@ -89,6 +89,55 @@ public sealed class PayoutTests : IAsyncLifetime
         Assert.Equal($"acct_test_{workspace.TenantId:N}", forOrdering.StripeAccountId);
     }
 
+    // Stripe's account.updated (Connect endpoint) keeps "ready to sell" in step without the coach visiting
+    // the studio: a restricted account stops selling, a fixed one sells again.
+    [Fact]
+    public async Task Stripe_account_updates_change_whether_the_workspace_can_sell()
+    {
+        var workspace = await _api.CreateWorkspace();
+        await AsOwner(workspace, HttpMethod.Post, "/payouts/onboarding");
+        var account = FakeStripeConnect.AccountOf(workspace.TenantId);
+
+        _stripe.CompleteOnboarding(workspace.TenantId);
+        var ready = await AccountUpdated(account);
+        var readyAfterwards = (await PayoutAccountOf(workspace)).OnboardingComplete;
+        _stripe.Restrict(workspace.TenantId);
+        await AccountUpdated(account);
+        var restricted = (await PayoutAccountOf(workspace)).OnboardingComplete;
+
+        Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
+        Assert.Equal((true, false), (readyAfterwards, restricted));
+    }
+
+    // Every stage shares one Stripe test account: an account no workspace here holds is ignored.
+    [Fact]
+    public async Task Connect_webhooks_ignore_unknown_accounts_and_refuse_bad_signatures()
+    {
+        var unknown = await AccountUpdated("acct_of_another_stage");
+        var payload = StripeEvents.AccountUpdated($"evt_{Guid.NewGuid():N}", "acct_x");
+        var forged = await ConnectWebhook(payload, StripeEvents.Signature(payload, secret: "whsec_not_the_secret"));
+        var unsigned = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, "/webhooks/stripe-connect") { Content = new StringContent(payload) });
+
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.BadRequest, HttpStatusCode.BadRequest), (unknown.StatusCode, forged.StatusCode, unsigned.StatusCode));
+    }
+
+    private Task<HttpResponseMessage> AccountUpdated(string accountId)
+    {
+        var payload = StripeEvents.AccountUpdated($"evt_{Guid.NewGuid():N}", accountId);
+        return ConnectWebhook(payload, StripeEvents.Signature(payload));
+    }
+
+    private Task<HttpResponseMessage> ConnectWebhook(string payload, string signature)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/webhooks/stripe-connect") { Content = new StringContent(payload) };
+        request.Headers.Add("Stripe-Signature", signature);
+        return _api.SendAsGateway(request);
+    }
+
+    private async Task<PayoutAccount> PayoutAccountOf(TenancyArrange.Workspace workspace) =>
+        (await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{workspace.TenantId}/payout-account")))
+            .Content.ReadFromJsonAsync<PayoutAccount>(Cancel))!;
+
     [Fact]
     public async Task Staff_can_see_payouts_but_not_set_them_up()
     {

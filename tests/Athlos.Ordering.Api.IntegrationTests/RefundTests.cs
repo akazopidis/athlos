@@ -254,6 +254,9 @@ public sealed class RefundTests(AthlosDatabases databases) : IAsyncLifetime
         var orderId = await _api.Buy(Guid.CreateVersion7(), coach);
         var waiting = await AdminPayouts();
         Assert.Contains(waiting, p => p.GetProperty("orderId").GetGuid() == orderId);
+        Assert.Contains(await _api.Outbox(), m => m.Queue == EmailNotification.Queue
+            && JsonSerializer.Deserialize<EmailNotification>(m.Message.Payload, Json)!.Template == EmailTemplates.PayoutFailed
+            && m.Message.Payload.Contains(coach.TenantId.ToString(), StringComparison.Ordinal));
 
         var stillFailing = await RetryNow(orderId);
         _api.CheckoutSessions.ResumeTransfersTo(coach.TenantId);

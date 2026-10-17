@@ -75,6 +75,7 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
     {
         base.ConfigureWebHost(builder);
         builder.UseSetting("App:PublicUrl", PublicUrl);
+        builder.UseSetting("Stripe:ConnectWebhookSecret", StripeEvents.SigningSecret);
         // The client is never used: tests replace the sender. Aspire only needs a well-formed value.
         builder.UseSetting("ConnectionStrings:messaging", "Endpoint=sb://localhost;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
         builder.ConfigureTestServices(services =>

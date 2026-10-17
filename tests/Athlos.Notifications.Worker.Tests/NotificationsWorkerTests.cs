@@ -101,6 +101,22 @@ public sealed class NotificationsWorkerTests
         Assert.Contains("49.00 EUR", email.Html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Ordering_s_payout_failed_email_renders()
+    {
+        var order = new Order
+        {
+            TenantId = Tenant, CustomerId = Guid.CreateVersion7(), CustomerEmail = "buyer@test.local", ProgramId = Guid.CreateVersion7(),
+            ProgramTitle = "Strong start", CoachSlug = "anna", Amount = 4900, Currency = "EUR", PlatformFee = 490,
+        };
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["App:PublicUrl"] = "https://athlos.test" }).Build();
+
+        var email = new EmailRenderer().Render(EmailTemplates.PayoutFailed, StripeWebhook.PayoutFailedEmail(order, configuration).Data);
+
+        Assert.Contains("44.10 EUR", email.PlainText, StringComparison.Ordinal);
+        Assert.Contains("https://athlos.test/studio/anna", email.Html, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(EmailTemplates.SaleRefunded, "the platform refunded it in Stripe")]
     [InlineData(EmailTemplates.SaleDisputed, null)]

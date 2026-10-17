@@ -30,6 +30,7 @@ public sealed class RateLimitTests : IAsyncLifetime
         });
         _backend.MapGet("/api/v1/marketplace/coaches/{slug}", () => Results.Ok());
         _backend.MapGet("/api/v1/marketplace/programs", () => Results.Ok());
+        _backend.MapPost("/api/v1/orders/checkout", () => Results.Ok());
         await _backend.StartAsync(TestContext.Current.CancellationToken);
     }
 
@@ -39,6 +40,8 @@ public sealed class RateLimitTests : IAsyncLifetime
         _gateway ??= new GatewayFactory().WithWebHostBuilder(web =>
             web.UseSetting("ReverseProxy:Clusters:tenancy:Destinations:tenancy-api:Address", backend)
                .UseSetting("ReverseProxy:Clusters:catalog:Destinations:catalog-api:Address", backend)
+               .UseSetting("ReverseProxy:Clusters:ordering:Destinations:ordering-api:Address", backend)
+               .UseSetting("RateLimits:CheckoutsPerMinute", "2")
                .UseSetting("services:tenancy-api:http:0", backend)
                .UseSetting("RateLimits:PerClientRequestsPerSecond", "2")
                .UseSetting("RateLimits:Enabled", _limitsOff ? "false" : "true"));
@@ -98,6 +101,33 @@ public sealed class RateLimitTests : IAsyncLifetime
         var responses = await Send(Gateway(), "/api/v1/marketplace/programs", times: 6);
 
         Assert.Contains(responses, r => r.StatusCode == HttpStatusCode.TooManyRequests);
+    }
+
+    // Each checkout opens a Stripe payment page: limited per customer, so one account cannot flood it,
+    // and another customer is not affected.
+    [Fact]
+    public async Task Checkouts_are_limited_per_customer()
+    {
+        var client = Gateway();
+        var (anna, ben) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+
+        var annas = new List<HttpStatusCode>();
+        for (var i = 0; i < 3; i++)
+        {
+            annas.Add(await Checkout(client, anna));
+        }
+
+        var bens = await Checkout(client, ben);
+
+        Assert.Equal([HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests], annas);
+        Assert.Equal(HttpStatusCode.OK, bens);
+    }
+
+    private static async Task<HttpStatusCode> Checkout(HttpClient client, Guid customer)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Athlos.Testing.TestTokens.For(customer));
+        return (await client.SendAsync(request, TestContext.Current.CancellationToken)).StatusCode;
     }
 
     [Fact]

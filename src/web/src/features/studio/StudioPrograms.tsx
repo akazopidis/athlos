@@ -136,8 +136,8 @@ export function StudioPrograms({ slug, plan }: { slug: string; plan?: string }) 
               <Field id="new-weeks" label="Weeks">
                 <Input id="new-weeks" name="durationWeeks" type="number" min={1} max={52} defaultValue={4} required />
               </Field>
-              <Field id="new-price" label="Price (EUR)">
-                <Input id="new-price" name="price" type="number" min={0.5} step={0.01} defaultValue={19} required />
+              <Field id="new-price" label="Price (EUR)" hint="At least €10.">
+                <Input id="new-price" name="price" type="number" min={10} step={0.01} defaultValue={19} required />
               </Field>
             </div>
             <div className="flex items-center gap-4 sm:col-span-2">

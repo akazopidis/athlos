@@ -84,6 +84,50 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal(program.Slug, Assert.Single(page.Items).Slug);
     }
 
+    // Programs cost at least €10 (design §2.3): checked on create and edit, and on publishing a program
+    // priced before the minimum existed.
+    [Fact]
+    public async Task Programs_cost_at_least_ten_euros()
+    {
+        var coach = NewCoach();
+        var tooCheap = await _api.AsCoach(coach, HttpMethod.Post, "/programs", new
+        {
+            slug = TenancyArrange.NewSlug("program"), title = "Cheap", category = "Running", durationWeeks = 4, priceAmount = 999, currency = "EUR",
+        });
+        var program = await _api.CreateProgram(coach);
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/workouts", new { week = 1, day = 1, title = "Day one" });
+        await using (var connection = new Npgsql.NpgsqlConnection(databases.OwnerConnectionString("catalog")))
+        {
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await using var command = new Npgsql.NpgsqlCommand("UPDATE programs SET price_amount = 500 WHERE id = @id", connection);
+            command.Parameters.AddWithValue("id", program.Id);
+            await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        var published = await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/publish");
+
+        Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.Conflict), (tooCheap.StatusCode, published.StatusCode));
+    }
+
+    // Customers' progress names a sold program's workouts: they can be edited, not deleted. A draft's can.
+    [Fact]
+    public async Task Workouts_of_a_program_that_has_been_on_sale_cannot_be_deleted()
+    {
+        var coach = NewCoach();
+        var draft = await _api.CreateProgram(coach);
+        var draftWorkout = await (await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{draft.Id}/workouts", new { week = 1, day = 1, title = "Day one" }))
+            .Content.ReadFromJsonAsync<WorkoutRow>(Json, TestContext.Current.CancellationToken);
+        var sold = await _api.CreateProgram(coach, publish: true);
+        var soldWorkout = (await (await _api.AsCoach(coach, HttpMethod.Get, $"/programs/{sold.Id}/workouts"))
+            .Content.ReadFromJsonAsync<List<WorkoutRow>>(Json, TestContext.Current.CancellationToken))!.Single();
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{sold.Id}/unpublish");
+
+        var draftDeleted = await _api.AsCoach(coach, HttpMethod.Delete, $"/programs/{draft.Id}/workouts/{draftWorkout!.Id}");
+        var soldDeleted = await _api.AsCoach(coach, HttpMethod.Delete, $"/programs/{sold.Id}/workouts/{soldWorkout.Id}");
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.Conflict), (draftDeleted.StatusCode, soldDeleted.StatusCode));
+    }
+
     [Fact]
     public async Task A_workspace_without_finished_payouts_cannot_publish()
     {

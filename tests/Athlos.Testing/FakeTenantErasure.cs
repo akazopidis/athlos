@@ -8,10 +8,17 @@ namespace Athlos.Testing;
 public sealed class FakeTenantErasure : ITenantErasure
 {
     private readonly ConcurrentDictionary<Guid, bool> _failing = new();
+    private readonly ConcurrentDictionary<Guid, string> _refusals = new();
 
     public ConcurrentBag<Guid> Erased { get; } = [];
 
     public void FailFor(Guid tenantId) => _failing[tenantId] = true;
+
+    // ordering-api refuses, as when sales can still be refunded.
+    public void RefuseFor(Guid tenantId, string reason) => _refusals[tenantId] = reason;
+
+    public Task<string?> PrepareAsync(Guid tenantId, CancellationToken cancellationToken) =>
+        Task.FromResult(_refusals.GetValueOrDefault(tenantId));
 
     public Task EraseAsync(Guid tenantId, CancellationToken cancellationToken)
     {

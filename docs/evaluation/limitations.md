@@ -57,12 +57,11 @@ The limitations fall into three kinds:
 - **Solution:** `GET /api/v1/me/export` on tenancy-api, fanning out to each service's internal route for the user's own rows (the same cross-tenant slices account deletion already uses), assembled into one JSON file. Without an async job, the export is bounded by the slowest service.
 
 ### 4. Customers lose bought programs when a coach deletes their workspace
-- **Missing:** a way for customers to keep paid content after the coach erases their workspace (§3.4), and an automatic refund for purchases still inside the refund window.
+- **Missing:** a way for customers to keep paid content after the coach erases their workspace (§3.4). Since v1.7.0 a workspace cannot be deleted while any sale can still be refunded, and its open payment pages are closed first, so the loss only reaches purchases older than the refund window.
 - **Why:** a trade-off between two rights. The coach's right to erasure removes their content, the bought programs included. Keeping copies would mean keeping the coach's data after they asked for it to be erased.
-- **Impact:** a customer who paid a week earlier loses access with no refund, unless the coach refunds before deleting.
+- **Impact:** a customer who bought more than 14 days earlier loses access to what they paid for, with no refund. A coach who wants their data erased must wait until the window of their last sale ends, or refund those sales.
 - **Solution, in order of effort:**
-  - block deletion while sales are still inside the refund window;
-  - refund those sales automatically as part of deletion;
+  - refund refundable sales automatically as part of deletion, instead of waiting;
   - give customers a notice period (for example 30 days) before the content goes.
 
 ## Payments

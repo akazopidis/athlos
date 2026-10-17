@@ -53,7 +53,7 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         var body = withBody
             ? path.Contains("workouts", StringComparison.Ordinal)
                 ? new { week = 1, day = 2, title = "Hijacked" }
-                : (object)new { title = "Hijacked", category = "CrossFit", durationWeeks = 1, priceAmount = 1, currency = "EUR" }
+                : (object)new { title = "Hijacked", category = "CrossFit", durationWeeks = 1, priceAmount = 1000, currency = "EUR" }
             : null;
 
         var response = await _api.AsCoach(_b, new HttpMethod(method), Resolve(path), body);
@@ -220,7 +220,7 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
     [Fact]
     public async Task As_program_is_unchanged_after_Bs_attempts()
     {
-        await _api.AsCoach(_b, HttpMethod.Put, $"/programs/{_aDraft.Id}", new { title = "Hijacked", category = "CrossFit", durationWeeks = 1, priceAmount = 1, currency = "EUR" });
+        await _api.AsCoach(_b, HttpMethod.Put, $"/programs/{_aDraft.Id}", new { title = "Hijacked", category = "CrossFit", durationWeeks = 1, priceAmount = 1000, currency = "EUR" });
         await _api.AsCoach(_b, HttpMethod.Delete, $"/programs/{_aDraft.Id}");
 
         var mine = await _api.AsCoach(_a, HttpMethod.Get, $"/programs/{_aDraft.Id}");

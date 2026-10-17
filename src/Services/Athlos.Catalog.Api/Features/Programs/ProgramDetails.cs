@@ -35,5 +35,9 @@ public static class ProgramRules
     // ISO 4217; Stripe needs a real currency, and prices are in its minor units.
     public const string CurrencyPattern = "^[A-Z]{3}$";
 
+    // Prices in minor units: at least €10 (no free programs; Stripe also refuses payments under €0.50),
+    // at most €10,000.
+    public const long MinPriceAmount = 1_000;
+
     public const long MaxPriceAmount = 1_000_000;
 }

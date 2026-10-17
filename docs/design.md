@@ -2,7 +2,7 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v15.4, built; v1.7.0 in production (2026-10-17)
+**Status:** v15.4, built; v1.8.0 in production (2026-10-17)
 
 **Changes in v15.4 (v1.8.0):** a Stripe Connect webhook (`account.updated`) on tenancy-api keeps each workspace's "ready to sell" in step with Stripe; coaches are emailed when a payout to them fails (`payout-failed`, §2.2); starting a checkout is limited per customer at the gateway (§4); a gateway test checks that every service endpoint is routed (§15.1).
 

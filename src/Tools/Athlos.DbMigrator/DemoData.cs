@@ -65,7 +65,7 @@ public static class DemoData
             ["Hips and spine", "Shoulders and upper back", "Full-body flow"],
             [
                 new("daily-mobility", "Daily Mobility", ProgramCategory.Mobility, 4, 1500, "Fifteen minutes a day to move and feel better."),
-                new("desk-reset", "Desk Reset", ProgramCategory.Mobility, 3, 900, "Undo long days at a desk: neck, hips and back."),
+                new("desk-reset", "Desk Reset", ProgramCategory.Mobility, 3, 1000, "Undo long days at a desk: neck, hips and back."),
                 new("splits-progression", "Splits Progression", ProgramCategory.Mobility, 8, 2400, "Front and middle splits, step by step."),
                 new("handstand-path", "Handstand Path", ProgramCategory.Calisthenics, 10, 3400, "Wrist prep, wall drills and your first freestanding hold."),
                 new("yoga-for-lifters", "Yoga for Lifters", ProgramCategory.Mobility, 6, 1900, "Mobility that carries over to the squat and the overhead press."),
@@ -144,8 +144,10 @@ public static class DemoData
                 var programId = ProgramId(coach, program);
                 if (existing.TryGetValue(programId, out var seeded))
                 {
-                    // Programs seeded before categories replaced levels get theirs (design §8).
+                    // Programs seeded before categories replaced levels get theirs (design §8), and
+                    // before the €10 minimum price their price.
                     seeded.Category = program.Category;
+                    seeded.PriceAmount = program.Price;
                     continue;
                 }
 

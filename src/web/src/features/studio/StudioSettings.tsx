@@ -120,7 +120,7 @@ export function StudioSettings() {
           </Card>
         </div>
       </Section>
-      {isOwner && <StudioTeam slug={slug} />}
+      <StudioTeam slug={slug} isOwner={isOwner} />
       {isOwner && <DeleteWorkspace slug={slug} />}
     </div>
   )

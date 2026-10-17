@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v15.2, built; v1.5.1 in production (2026-10-16)
+**Status:** v15.3, built; v1.6.0 in production (2026-10-17)
+
+**Changes in v15.3 (v1.7.0):** the team (members listed, staff removed or leaving, ownership handed over, §5.3); a workspace is deleted only when no sale can still be refunded, and its open payment pages are closed first (§3.4); a deleted account's open payment pages are closed, and a payment that still arrives is refunded (§5.2); programs cost at least €10 (§2.3); workouts of a program that has been on sale cannot be deleted; a clear error when Stripe cannot open a payment page.
 
 **Changes in v15.2 (v1.6.0):** coaches are emailed when a sale is refunded at Stripe or by a lost dispute, and when a customer opens a dispute (`charge.dispute.created`, §2.2, §5.3); coaches can set a public contact email, shown on their storefront and next to each order in the customer's "Orders" (§8).
 
@@ -165,7 +167,7 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 | tenancy | `memberships` **T** | `user_id` (Entra object id), `role` (Owner, Staff) |
 | tenancy | `user_profiles` | `user_id` (unique), `email`, `display_name` |
 | tenancy | `staff_invites` **T** | `email`, `token_hash`, `expires_at`, `accepted_at` |
-| catalog | `programs` **T** | `title`, `slug`, `description`, `category`, `duration_weeks`, `price_amount` (integer cents), `currency`, `is_published`, `cover_image_path` |
+| catalog | `programs` **T** | `title`, `slug`, `description`, `category`, `duration_weeks`, `price_amount` (integer cents, at least 1,000: €10), `currency`, `is_published`, `cover_image_path` |
 | catalog | `workouts` **T** | `program_id`, `week`, `day`, `title`, `content` (Markdown), `video_url` |
 | ordering | `orders` **T** | `customer_id`, `customer_email`, `program_id`, `program_title` (copy at purchase time), `amount`, `currency`, `platform_fee`, `status` (Pending, Paid, Failed, Refunded), `stripe_checkout_session_id` (shared by a cart's orders), `checkout_id`, `seller_account_id` (the coach's Connect account at checkout), `stripe_transfer_id`, `stripe_payment_intent_id`, `refunded_at` |
 | ordering | `payout_retries` | `order_id` (primary key), `tenant_id`, `coach_slug`, `amount`, `currency`, `attempts`, `next_attempt_at`, `last_error`. A work queue of the service (allow-all policy, like the outbox) |
@@ -298,6 +300,7 @@ Pool is what a marketplace with many small coaches would use in practice, and it
 **Deletion as built:**
 - *Who and how.* The owner deletes the workspace in the studio with `DELETE /api/v1/studio/{slug}/workspace`, typing the address to confirm. An admin deletion route is future work; the platform admin suspends instead (below).
 - *Order of steps.*
+  0. tenancy-api asks ordering-api's `POST /internal/tenants/{id}/prepare-deletion`. Sales still inside the refund window refuse the deletion (`409`, with the date the last one runs out): their customers could still ask for their money back, and only the coach can give it, so the coach refunds them or waits. Open Stripe payment pages for the workspace's programs are closed (expired), so nobody pays for a program about to be erased; a cart's page holds other coaches' programs too, and that customer starts the checkout again. A page already paid, whose event has not arrived, also refuses (`409`, try again in a few minutes).
   1. tenancy-api calls catalog-api's `DELETE /internal/tenants/{id}` (programs, workouts, then every blob under `tenants/{id}/`).
   2. It calls enrollment-api's (enrollments and progress).
   3. In one transaction it removes the memberships and invites, and marks the tenant `Deleted`, with its name, branding and Stripe link cleared.
@@ -401,9 +404,9 @@ Entra External ID does the account work, so Athlos never stores or handles passw
 
 **Account deletion as built:**
 - *Route.* `DELETE /api/v1/me` on tenancy-api, through the gateway. The SPA's account settings page (`/me/account`) asks the user to type "delete my account", then signs them out.
-- *Owners first.* Someone who owns a workspace gets `409` naming it: they delete it first (§3.4), so nothing coaches' customers paid for disappears as a side effect.
+- *Owners first.* Someone who owns a workspace gets `409` naming it: they hand ownership to a staff member or delete the workspace first (§3.4, §5.3), so nothing coaches' customers paid for disappears as a side effect.
 - *Order of steps.*
-  1. ordering-api's `DELETE /internal/customers/{id}` anonymizes the customer's orders. They stay for the coaches' accounting, with the email replaced by `erased@deleted.invalid`; the customer id that stays is the object id of an Entra user that no longer exists.
+  1. ordering-api's `DELETE /internal/customers/{id}` closes the customer's open Stripe payment pages and anonymizes their orders. The orders stay for the coaches' accounting, with the email replaced by `erased@deleted.invalid`; the customer id that stays is the object id of an Entra user that no longer exists. A page paid in the moment before it closed is refunded by the webhook, without access or a payout, because its order has no address left.
   2. enrollment-api's `DELETE /internal/customers/{id}` erases enrollments and progress.
   3. tenancy removes the user's staff memberships and the invites sent to them, then their profile.
   4. Last, Microsoft Graph deletes the Entra user.
@@ -447,6 +450,7 @@ Built in phase 5:
   - **The link is `/invites/{slug}#{token}`** (this was not decided before): the token is in the URL fragment, which browsers never send to a server, so it stays out of gateway and proxy logs. The SPA posts it in a request body.
   - **Accepting** (`POST /api/v1/invites/{slug}/accept`): the invitee is not a member, so the gateway resolves no tenant; the slice enters the workspace named by the slug, like `CreateTenant`, and looks the invite up there by the token's hash under RLS. The token decides, not the slug: another workspace's slug finds nothing. Only the signed-in user whose verified email equals the invited address can accept (a forwarded link is useless to anyone else), once; anything else is `404`. The user becomes `Staff`.
   - `staff_invites` has the standard tenant isolation policy (no widened reads).
+- **The team** (v1.7.0): `GET /api/v1/studio/{slug}/members` lists the members to every member, with addresses for the owner only (profiles are readable inside the tenant, `tenant_members_read`). `DELETE .../members/{userId}` removes a staff member (owner) or leaves (staff, naming themselves). The owner cannot leave (`409`): `POST .../members/{userId}/ownership` hands ownership to a staff member, swapping the two roles in one transaction, so a workspace always has exactly one owner. The same transaction disconnects the workspace's Stripe account (`stripe_account_id`, onboarding flag): it belongs to the person who set it up and pays out to their bank, so the new owner's sales must not reach it. Sales pause (checkout finds no payout account) until the new owner sets up payouts with their own account. Earlier orders name the account they pay (`seller_account_id`), so their pending payouts and refunds stay with the previous owner. Everything runs inside the tenant, so another tenant's member is `404` (isolation suite). The gateway caches memberships for up to 60 seconds, so a removed member or a former owner keeps their old access for at most a minute.
 
 ---
 
@@ -761,7 +765,7 @@ Tools to install: .NET 10 SDK, Node 22 LTS, Docker Desktop (or Podman), Azure CL
 
 ## 14. What is deliberately left out
 
-To keep it modern without bloat, these are named in the thesis as options, not built:
+To keep it modern without bloat, these are named in the thesis as options, not built. Every known limitation of what *is* built, with its impact and how it would be solved, is listed in [`evaluation/limitations.md`](evaluation/limitations.md).
 
 | Left out | Why |
 |---|---|

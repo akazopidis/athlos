@@ -2,6 +2,7 @@ using Athlos.Messaging;
 using Athlos.Messaging.Contracts;
 using Athlos.Ordering.Api.Data;
 using Athlos.Ordering.Api.Features.Checkout;
+using Athlos.Ordering.Api.Features.Customers;
 using Athlos.Ordering.Api.Features.Refunds;
 using Athlos.Tenancy.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -22,7 +23,8 @@ namespace Athlos.Ordering.Api.Features.Webhooks;
 //    PayoutRetries and does not hold up the order;
 // 2. in one transaction, mark the order Paid only if it is still Pending, and write OrderPaid and the
 //    coach's "you made a sale" email to the outbox.
-// A program the customer already owns (two pages paid) is refunded instead.
+// A program the customer already owns (two pages paid) is refunded instead, and so is an order of a
+// customer who deleted their account before the payment arrived.
 //
 // Refunds and disputes. A dispute opened (charge.dispute.created) emails the coaches of the payment;
 // nothing else changes until it closes. A full refund made at Stripe (charge.refunded) or a lost dispute
@@ -156,10 +158,12 @@ public static partial class StripeWebhook
             }
 
             // The customer already owns this program (two checkout pages paid before either webhook
-            // arrived): the amount goes back and the coach gets nothing for this order.
-            if (outcome == OrderStatus.Paid && alreadyOwned && !legacy)
+            // arrived), or deleted their account meanwhile: the amount goes back and the coach gets
+            // nothing for this order.
+            var erased = order.CustomerEmail == EraseCustomer.ErasedEmail;
+            if (outcome == OrderStatus.Paid && (alreadyOwned || erased) && !legacy)
             {
-                await checkout.RefundAsync(order, paymentIntentId!, "duplicate", cancellationToken);
+                await checkout.RefundAsync(order, paymentIntentId!, alreadyOwned ? "duplicate" : "requested_by_customer", cancellationToken);
                 await CompleteAsync(scopes, tenantId, orderId, session.Id, new Completion(OrderStatus.Refunded, paymentIntentId), configuration, cancellationToken);
                 continue;
             }

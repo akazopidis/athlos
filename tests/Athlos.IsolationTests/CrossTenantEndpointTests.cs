@@ -52,6 +52,30 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    // The team (design §5.2): B's owner cannot see A's team, remove A's owner or take A over.
+    [Theory]
+    [InlineData("GET", "/members")]
+    [InlineData("DELETE", "/members/{owner}")]
+    [InlineData("POST", "/members/{owner}/ownership")]
+    public async Task B_cannot_reach_As_team(string method, string path)
+    {
+        var response = await AsOwnerOfB(new HttpMethod(method), $"/api/v1/studio/{_a.Slug}{path.Replace("{owner}", _a.OwnerId.ToString(), StringComparison.Ordinal)}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var members = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{_a.Slug}/members/{_a.OwnerId}"));
+        Assert.Equal(HttpStatusCode.OK, members.StatusCode);
+    }
+
+    // B's own owner, naming A's owner in B's workspace: A's owner is not a member there.
+    [Fact]
+    public async Task B_cannot_remove_or_promote_As_owner_through_Bs_workspace()
+    {
+        var removed = await AsOwnerOfB(HttpMethod.Delete, $"/api/v1/studio/{_b.Slug}/members/{_a.OwnerId}");
+        var promoted = await AsOwnerOfB(HttpMethod.Post, $"/api/v1/studio/{_b.Slug}/members/{_a.OwnerId}/ownership");
+
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound), (removed.StatusCode, promoted.StatusCode));
+    }
+
     [Fact]
     public async Task A_studio_request_without_a_resolved_tenant_is_not_found()
     {

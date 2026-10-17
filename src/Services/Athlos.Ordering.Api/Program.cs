@@ -6,6 +6,7 @@ using Athlos.Ordering.Api.Features.Customers;
 using Athlos.Ordering.Api.Features.Orders;
 using Athlos.Ordering.Api.Features.Payouts;
 using Athlos.Ordering.Api.Features.Refunds;
+using Athlos.Ordering.Api.Features.Tenants;
 using Athlos.Ordering.Api.Features.Webhooks;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Data;
@@ -91,5 +92,7 @@ app.MapStripeWebhook();
 
 // Tenancy-api only (signed): anonymize a deleted account's orders (design §5.2)
 app.MapEraseCustomer();
+// Tenancy-api only (signed): before a workspace is erased, no refundable sales or open checkouts (design §3.4)
+app.MapPrepareTenantDeletion();
 
 app.Run();

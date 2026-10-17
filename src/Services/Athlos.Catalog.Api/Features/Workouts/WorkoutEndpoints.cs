@@ -75,12 +75,20 @@ public static class WorkoutEndpoints
         return TypedResults.Ok(WorkoutDetails.From(workout));
     }
 
-    private static async Task<Results<NoContent, NotFound>> Delete(Guid programId, Guid workoutId, CatalogDbContext db, CancellationToken cancellationToken)
+    // A program that has been on sale may have customers, whose progress names its workouts: those
+    // workouts can be edited but not deleted (design §3.4, like the program itself).
+    private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> Delete(Guid programId, Guid workoutId, CatalogDbContext db, CancellationToken cancellationToken)
     {
         var workout = await db.Workouts.SingleOrDefaultAsync(w => w.Id == workoutId && w.ProgramId == programId, cancellationToken);
         if (workout is null)
         {
             return TypedResults.NotFound();
+        }
+
+        if (await db.Programs.AnyAsync(p => p.Id == programId && p.FirstPublishedAt != null, cancellationToken))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "This program has been on sale, so customers may be following it: edit the workout instead of deleting it.");
         }
 
         db.Workouts.Remove(workout);

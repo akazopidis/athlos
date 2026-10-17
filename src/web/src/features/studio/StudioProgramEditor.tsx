@@ -153,8 +153,8 @@ export function StudioProgramEditor() {
                 <Field id="weeks" label="Weeks">
                   <Input id="weeks" name="durationWeeks" type="number" min={1} max={52} required defaultValue={Number(p.durationWeeks)} />
                 </Field>
-                <Field id="price" label="Price (EUR)">
-                  <Input id="price" name="price" type="number" min={0.5} step={0.01} required defaultValue={Number(p.priceAmount) / 100} />
+                <Field id="price" label="Price (EUR)" hint="At least €10.">
+                  <Input id="price" name="price" type="number" min={10} step={0.01} required defaultValue={Number(p.priceAmount) / 100} />
                 </Field>
               </div>
               <div className="flex items-center gap-4 sm:col-span-2">
@@ -323,10 +323,10 @@ function WorkoutRow({ slug, programId, workout }: { slug: string; programId: str
 
   const remove = useMutation({
     mutationFn: async () => {
-      const { response } = await api.DELETE('/api/v1/studio/{tenantSlug}/programs/{programId}/workouts/{workoutId}', {
+      const { error, response } = await api.DELETE('/api/v1/studio/{tenantSlug}/programs/{programId}/workouts/{workoutId}', {
         params: { path: { tenantSlug: slug, programId, workoutId: workout.id } },
       })
-      if (!response.ok) throw new Error('Could not delete the workout.')
+      if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not delete the workout.')
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['studio-workouts', slug, programId] }),
   })

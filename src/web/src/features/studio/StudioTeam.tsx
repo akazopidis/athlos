@@ -25,7 +25,11 @@ export function StudioTeam({ slug, isOwner }: { slug: string; isOwner: boolean }
 
   const members = useQuery({
     queryKey: ['members', slug],
-    queryFn: async () => (await api.GET('/api/v1/studio/{tenantSlug}/members', { params: { path } })).data ?? [],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/v1/studio/{tenantSlug}/members', { params: { path } })
+      if (!data) throw new Error(problemTitle(error) ?? 'Could not load the team.')
+      return data
+    },
   })
 
   const invites = useQuery({
@@ -131,6 +135,11 @@ export function StudioTeam({ slug, isOwner }: { slug: string; isOwner: boolean }
                 )
               })}
             </ul>
+          )}
+          {members.error && (
+            <Alert variant="destructive">
+              <AlertDescription>{members.error.message}</AlertDescription>
+            </Alert>
           )}
           {change.error && (
             <Alert variant="destructive">

@@ -761,7 +761,7 @@ Tools to install: .NET 10 SDK, Node 22 LTS, Docker Desktop (or Podman), Azure CL
 
 ## 14. What is deliberately left out
 
-To keep it modern without bloat, these are named in the thesis as options, not built:
+To keep it modern without bloat, these are named in the thesis as options, not built. Every known limitation of what *is* built, with its impact and how it would be solved, is listed in [`evaluation/limitations.md`](evaluation/limitations.md).
 
 | Left out | Why |
 |---|---|

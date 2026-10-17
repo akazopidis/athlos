@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v15.3, built; v1.7.0 in production (2026-10-17)
+**Status:** v15.4, built; v1.7.0 in production (2026-10-17)
+
+**Changes in v15.4 (v1.8.0):** a Stripe Connect webhook (`account.updated`) on tenancy-api keeps each workspace's "ready to sell" in step with Stripe; coaches are emailed when a payout to them fails (`payout-failed`, §2.2); starting a checkout is limited per customer at the gateway (§4); a gateway test checks that every service endpoint is routed (§15.1).
 
 **Changes in v15.3 (v1.7.0):** the team (members listed, staff removed or leaving, ownership handed over, §5.3); a workspace is deleted only when no sale can still be refunded, and its open payment pages are closed first (§3.4); a deleted account's open payment pages are closed, and a payment that still arrives is refunded (§5.2); programs cost at least €10 (§2.3); workouts of a program that has been on sale cannot be deleted; a clear error when Stripe cannot open a payment page.
 
@@ -154,6 +156,8 @@ The trade-off: the platform is the merchant of record, so refunds and disputes a
 - *Orders paid before the cart* (destination charges) are refunded in the Stripe dashboard, which reverses their transfer and updates Athlos through `charge.refunded`.
 - *Coach payouts that fail.* A transfer refused after payment (for example, a restricted Connect account) no longer only logs. The order is Paid, because the customer paid, and the share goes to `payout_retries`:
   - *Retries.* A work queue of the service, like the outbox, retried with backoff (5 minutes, doubling to 6 hours). Each retry enters the order's tenant to read it.
+  - *The coach is told.* The first failure emails the workspace's owners (`payout-failed`) with a link to the studio, whose overview reads the account's status from Stripe and offers to continue the setup.
+- *Coach accounts that change.* A second Stripe endpoint, a Connect endpoint with its own secret (`stripe-connect-webhook-secret`), sends `account.updated` to tenancy-api's `POST /webhooks/stripe-connect`. It reads the account's status from Stripe again (so events out of order cannot set an old state) and stores it on the workspace holding the account: a restricted account stops selling at once (checkout finds no payout account), a fixed one sells again without the coach visiting the studio. All stages share one Stripe test account, so each stage also receives the others' account events and ignores accounts it does not hold.
   - *Admin.* The platform admin's page lists what waits (`GET /api/v1/admin/payouts`, ordering-api) and can retry one at once (`POST /api/v1/admin/payouts/{orderId}/retry`).
   - *No cross-tenant read.* The row carries what the list needs, so the admin never reads tenants' orders across tenants.
 
@@ -347,7 +351,7 @@ Goal: one tenant's spike must not degrade others. Layered, cheapest first:
 | 7 | Database protection | all | Indexes leading with `tenant_id`, `statement_timeout` of 5 s per service (in the connection string, `Options=-c statement_timeout=5000`: roles created through Entra cannot be altered by the migrator), a small connection pool per service (B1ms allows about 50 connections in total), hard page-size caps (max 50) |
 
 **As built (phase 7):**
-- *Whose budget a request spends.* A coach's studio routes count once the caller is confirmed a member; their storefront (`/api/v1/marketplace/coaches/{slug}/...`, and the program list with `?coach={slug}`) counts for everyone. Both share one token bucket per coach, sized by the plan's requests per second. The cross-coach marketplace search and unknown addresses are limited per client IP instead (`RateLimits:PerClientRequestsPerSecond`, 20). Signed-in customer routes (`/me`, orders) are not rate limited.
+- *Whose budget a request spends.* A coach's studio routes count once the caller is confirmed a member; their storefront (`/api/v1/marketplace/coaches/{slug}/...`, and the program list with `?coach={slug}`) counts for everyone. Both share one token bucket per coach, sized by the plan's requests per second. The cross-coach marketplace search and unknown addresses are limited per client IP instead (`RateLimits:PerClientRequestsPerSecond`, 20). Signed-in customer routes (`/me`, orders) are not rate limited, except starting a checkout, which opens a Stripe payment page and writes pending orders: `RateLimits:CheckoutsPerMinute` (10) per signed-in customer, per client IP without a sign-in.
 - *How the gateway knows the plan.* `GET /internal/tenants/{slug}/plan` on tenancy-api (signed, like the membership lookup), cached for 60 s, so plan limits live only in tenancy's `Plans`.
 - *Concurrency.* Cover uploads and text searches also take one of `RateLimits:ConcurrentHeavyRequests` (4) slots per coach or client.
 - *Rejections.* 429 with `Retry-After` and a ProblemDetails body, counted by `athlos.ratelimit.rejected` (tags: `scope`, `tenant`, `plan`, `reason`). `RateLimits:Enabled=false` turns the limits off for the experiment's "limits off" run.
@@ -809,7 +813,7 @@ Build a deployable "walking skeleton" first, so IaC and CI/CD grow with the code
 | Unit | xUnit v3 | Domain rules, rate-limit partitioning, price and fee calculation | every PR |
 | Integration | xUnit v3 + Testcontainers (PostgreSQL 17) + `WebApplicationFactory` | Each endpoint against a real database, including migrations and RLS | every PR |
 | Isolation | same | The cross-tenant suite from §3.3; **a failing isolation test blocks the merge** | every PR |
-| Contract | OpenAPI documents checked into the repo | CI fails if an endpoint's OpenAPI changes without the file being updated, and if the SPA's generated client differs from the documents, so the client never drifts | every PR |
+| Contract | OpenAPI documents checked into the repo | CI fails if an endpoint's OpenAPI changes without the file being updated, and if the SPA's generated client differs from the documents, so the client never drifts. `RouteCoverageTests` checks that every endpoint in the documents has a gateway route to its service (services answer only gateway-signed requests, so an unrouted endpoint is unreachable in Azure while its own tests pass) | every PR |
 | Frontend | Vitest + Testing Library | Components with API calls mocked | every PR |
 | End-to-end | Playwright (`tests/e2e`) | At phone, tablet and desktop sizes: the catalog and its filters, header search, the cart, a storefront, and no sideways scrolling on any main page (with a full-page screenshot of each in the report). Signed in (test customer in GitHub secrets): sign in through Entra, check out a cart, arrive on Stripe with the right total, without paying, so it can run on every deploy | after every staging deploy (`deploy-staging.yml`); type-checked on every PR |
 | Load | k6 | Noisy-neighbor experiment (§4) | on demand against staging |

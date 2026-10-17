@@ -2,11 +2,13 @@
 webhook signing secret, one pair per environment, in that environment's Key Vault). Safe to re-run.
 
 For each stage (dev, staging, prod) this:
-  1. creates the Stripe webhook endpoint https://<stage gateway>/webhooks/stripe for the checkout
-     events ordering-api handles (an existing one is replaced: Stripe shows a signing secret only
-     when an endpoint is created);
+  1. creates the Stripe webhook endpoint https://<stage gateway>/webhooks/stripe for the checkout,
+     refund and dispute events ordering-api handles, and the Connect endpoint
+     https://<stage gateway>/webhooks/stripe-connect for tenancy-api's account.updated (an existing
+     one is replaced: Stripe shows a signing secret only when an endpoint is created);
   2. grants you "Key Vault Secrets Officer" on kv-athlos-<stage>, so you can write the secrets;
-  3. stores stripe-secret-key and stripe-webhook-secret in kv-athlos-<stage>;
+  3. stores stripe-secret-key, stripe-webhook-secret and stripe-connect-webhook-secret in
+     kv-athlos-<stage>;
   4. sets STRIPE_CONFIGURED=true on the GitHub environment, so the next deploy wires them in.
 
 Run it yourself, signed in with az (Azure for Students) and gh:
@@ -36,6 +38,8 @@ EVENTS = [
     "charge.dispute.created",
     "charge.dispute.closed",
 ]
+# tenancy-api's Connect endpoint: changes to the coaches' accounts (design §2.2).
+CONNECT_EVENTS = ["account.updated"]
 SECRETS_OFFICER_ROLE = "Key Vault Secrets Officer"
 
 
@@ -71,6 +75,20 @@ def webhook_secret(key, stage, url):
     return created["secret"]
 
 
+def connect_webhook_secret(key, stage, url):
+    endpoints = stripe(key, "GET", "/webhook_endpoints?limit=100")["data"]
+    for endpoint in endpoints:
+        if endpoint["url"] == url:
+            stripe(key, "DELETE", f"/webhook_endpoints/{endpoint['id']}")
+    created = stripe(key, "POST", "/webhook_endpoints", {
+        "url": url,
+        "connect": "true",
+        "enabled_events[]": CONNECT_EVENTS,
+        "description": f"Athlos {stage}: tenancy-api Connect account events",
+    })
+    return created["secret"]
+
+
 def store(stage, name, value):
     vault = f"kv-athlos-{stage}"
     me = run("az", "ad", "signed-in-user", "show", "--query", "id", "-o", "tsv")
@@ -93,8 +111,10 @@ def main():
         url = f"{gateway_url(stage)}/webhooks/stripe"
         print(f"== {stage}: {url}")
         secret = webhook_secret(key, stage, url)
+        connect_secret = connect_webhook_secret(key, stage, f"{gateway_url(stage)}/webhooks/stripe-connect")
         store(stage, "stripe-secret-key", key)
         store(stage, "stripe-webhook-secret", secret)
+        store(stage, "stripe-connect-webhook-secret", connect_secret)
         run("gh", "variable", "set", "STRIPE_CONFIGURED", "-R", GITHUB_REPO, "--env", stage, "--body", "true", capture=False)
         print("   webhook endpoint created, secrets stored, STRIPE_CONFIGURED=true")
 

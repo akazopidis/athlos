@@ -116,4 +116,7 @@ app.MapGetPayoutAccount();
 // The notifications-worker (signed): where a workspace's sale email goes
 app.MapGetOwnerEmails();
 
+// Stripe, through the gateway (no user; the Stripe-Signature is the authentication): Connect account changes
+app.MapStripeConnectWebhook();
+
 app.Run();

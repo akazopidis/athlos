@@ -206,6 +206,8 @@ var signingKeySecret = [{ name: 'gateway-signing-key', keyVaultUrl: keyVault.out
 // Stripe secrets are written into Key Vault by infra/stripe_setup.py, not by Bicep (no secret in the repo or pipeline).
 var stripeSecretKey = [{ name: 'stripe-secret-key', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/stripe-secret-key' }]
 var stripeWebhookSecret = [{ name: 'stripe-webhook-secret', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/stripe-webhook-secret' }]
+// tenancy-api's Connect endpoint (account.updated), a second Stripe webhook endpoint with its own secret.
+var stripeConnectWebhookSecret = [{ name: 'stripe-connect-webhook-secret', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/stripe-connect-webhook-secret' }]
 var accountDeletionConfigured = !empty(accountDeletionClientId)
 var entraDeletionSecret = [{ name: 'entra-deletion-client-secret', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/entra-deletion-client-secret' }]
 
@@ -266,7 +268,7 @@ module tenancyApi 'modules/container-app.bicep' = if (deployApps) {
     registryServer: registryServer
     image: '${registryServer}/athlos/tenancy-api:${imageTag}'
     maxReplicas: 3
-    keyVaultSecrets: concat(signingKeySecret, stripeConfigured ? stripeSecretKey : [], accountDeletionConfigured ? entraDeletionSecret : [])
+    keyVaultSecrets: concat(signingKeySecret, stripeConfigured ? concat(stripeSecretKey, stripeConnectWebhookSecret) : [], accountDeletionConfigured ? entraDeletionSecret : [])
     env: concat(commonEnv, authEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'tenancy-api' }
       { name: 'App__PublicUrl', value: publicUrl }
@@ -286,7 +288,10 @@ module tenancyApi 'modules/container-app.bicep' = if (deployApps) {
       { name: 'EntraAccountDeletion__TenantId', value: split(authAuthority, '/')[3] }
       { name: 'EntraAccountDeletion__ClientId', value: accountDeletionClientId }
       { name: 'EntraAccountDeletion__ClientSecret', secretRef: 'entra-deletion-client-secret' }
-    ] : [], stripeConfigured ? [{ name: 'Stripe__SecretKey', secretRef: 'stripe-secret-key' }] : [])
+    ] : [], stripeConfigured ? [
+      { name: 'Stripe__SecretKey', secretRef: 'stripe-secret-key' }
+      { name: 'Stripe__ConnectWebhookSecret', secretRef: 'stripe-connect-webhook-secret' }
+    ] : [])
   }
 }
 

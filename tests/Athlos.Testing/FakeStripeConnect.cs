@@ -35,4 +35,9 @@ public sealed class FakeStripeConnect : IStripeConnect
 
     // What Stripe reports once the coach has finished onboarding.
     public void CompleteOnboarding(Guid tenantId) => _accounts[$"acct_test_{tenantId:N}"] = new PayoutAccountStatus(true, true, true);
+
+    // Stripe restricted the account (for example, missing verification): it can no longer take charges.
+    public void Restrict(Guid tenantId) => _accounts[$"acct_test_{tenantId:N}"] = new PayoutAccountStatus(true, false, false);
+
+    public static string AccountOf(Guid tenantId) => $"acct_test_{tenantId:N}";
 }

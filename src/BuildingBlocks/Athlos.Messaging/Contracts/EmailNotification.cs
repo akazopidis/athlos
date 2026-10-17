@@ -36,6 +36,10 @@ public static class EmailTemplates
     // To the coach's owners, queued by ordering-api when a customer disputes a payment (design §2.2).
     public const string SaleDisputed = "sale-disputed";
 
+    // To the coach's owners, queued by ordering-api when their share of a sale could not be
+    // transferred and waits in payout_retries (design §2.2): their Stripe account needs attention.
+    public const string PayoutFailed = "payout-failed";
+
     // To the invitee, queued by tenancy-api with the invite (design §5.2).
     public const string StaffInvite = "staff-invite";
 }

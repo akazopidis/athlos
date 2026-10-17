@@ -46,10 +46,11 @@ public sealed class TeamTests(AthlosDatabases database) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Handing_ownership_over_swaps_the_two_roles()
+    public async Task Handing_ownership_over_swaps_the_two_roles_and_disconnects_payouts()
     {
         var workspace = await _api.CreateWorkspace();
         var staff = await database.AddMember(workspace.TenantId, TenantRole.Staff);
+        await ConnectStripe(workspace);
 
         var byStaff = await Send(workspace, staff, TenantRole.Staff, HttpMethod.Post, $"/members/{workspace.OwnerId}/ownership");
         var toNobody = await Send(workspace, workspace.OwnerId, TenantRole.Owner, HttpMethod.Post, $"/members/{Guid.CreateVersion7()}/ownership");
@@ -59,6 +60,21 @@ public sealed class TeamTests(AthlosDatabases database) : IAsyncLifetime
         var team = await Team(workspace, staff, TenantRole.Owner);
         Assert.Equal(TenantRole.Owner, team.Single(m => m.UserId == staff).Role);
         Assert.Equal(TenantRole.Staff, team.Single(m => m.UserId == workspace.OwnerId).Role);
+        // The previous owner's Stripe account no longer receives this workspace's sales.
+        var payouts = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{workspace.TenantId}/payout-account"));
+        var account = await payouts.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(Json, Cancel);
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, account.GetProperty("stripeAccountId").ValueKind);
+        Assert.False(account.GetProperty("onboardingComplete").GetBoolean());
+    }
+
+    private async Task ConnectStripe(TenancyArrange.Workspace workspace)
+    {
+        await using var connection = new Npgsql.NpgsqlConnection(database.OwnerConnectionString("tenancy"));
+        await connection.OpenAsync(Cancel);
+        await using var command = new Npgsql.NpgsqlCommand(
+            "UPDATE tenants SET stripe_account_id = 'acct_previous_owner', stripe_onboarding_complete = true WHERE id = @id", connection);
+        command.Parameters.AddWithValue("id", workspace.TenantId);
+        await command.ExecuteNonQueryAsync(Cancel);
     }
 
     [Fact]

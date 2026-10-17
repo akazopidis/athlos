@@ -15,7 +15,8 @@ type Action = { userId: string; kind: 'remove' | 'leave' | 'owner' }
 
 // The team (design §5.2). Everyone sees the members; the owner also invites staff, removes them and can
 // hand ownership to one (becoming staff), and a staff member can leave. A workspace always has exactly
-// one owner, so the owner cannot leave. Role changes reach the gateway within a minute.
+// one owner, so the owner cannot leave. Handing over disconnects the owner's Stripe account (sales
+// pause until the new owner sets up payouts). Role changes reach the gateway within a minute.
 export function StudioTeam({ slug, isOwner }: { slug: string; isOwner: boolean }) {
   const { api } = useApp()
   const queryClient = useQueryClient()
@@ -139,6 +140,14 @@ export function StudioTeam({ slug, isOwner }: { slug: string; isOwner: boolean }
           {members.error && (
             <Alert variant="destructive">
               <AlertDescription>{members.error.message}</AlertDescription>
+            </Alert>
+          )}
+          {confirming?.kind === 'owner' && (
+            <Alert>
+              <AlertDescription>
+                The new owner runs the workspace and you become staff. Your Stripe account is disconnected from it: sales pause until the new
+                owner sets up payouts with their own account. Payouts for earlier sales still go to you.
+              </AlertDescription>
             </Alert>
           )}
           {change.error && (

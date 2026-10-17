@@ -9,6 +9,11 @@ namespace Athlos.Tenancy.Api.Features.Team;
 // - The owner removes staff; a staff member removes themselves (leaves). The owner cannot leave: they
 //   hand ownership to a staff member first, or delete the workspace.
 // - Handing over swaps the two roles in one transaction, so a workspace always has exactly one owner.
+//   It also disconnects the workspace's Stripe account: that account belongs to the person who set it
+//   up and pays out to their bank, so it must not keep receiving the new owner's sales. Sales pause
+//   (checkout finds no payout account) until the new owner sets up payouts with their own account.
+//   Earlier sales are unaffected: each order names the account it pays (SellerAccountId), so their
+//   pending payouts and refunds still go to, and come from, the previous owner's account.
 // All of it runs inside the tenant (membership RLS), so another tenant's member is simply not found.
 // The gateway caches memberships for up to 60 seconds, so a change reaches it within a minute.
 public static class TeamMembers
@@ -99,6 +104,9 @@ public static class TeamMembers
 
         next.Role = TenantRole.Owner;
         current.Role = TenantRole.Staff;
+        var workspace = await db.Tenants.SingleAsync(t => t.Id == tenant.TenantId, cancellationToken);
+        workspace.StripeAccountId = null;
+        workspace.StripeOnboardingComplete = false;
         await db.SaveChangesAsync(cancellationToken);
         return TypedResults.NoContent();
     }

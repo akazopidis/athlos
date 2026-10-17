@@ -169,9 +169,19 @@ public static class StartCheckout
         }).ToList();
 
         var publicUrl = new Uri(configuration["App:PublicUrl"] ?? throw new InvalidOperationException("App:PublicUrl is not configured."));
-        var session = await checkout.CreateAsync(new CheckoutRequest(checkoutId, email, offers[0].Currency, newOrders,
-            SuccessUrl: new Uri(publicUrl, $"/me?checkout=success&id={checkoutId}"),
-            CancelUrl: new Uri(publicUrl, "/cart?checkout=cancelled")), cancellationToken);
+        CheckoutSession session;
+        try
+        {
+            session = await checkout.CreateAsync(new CheckoutRequest(checkoutId, email, offers[0].Currency, newOrders,
+                SuccessUrl: new Uri(publicUrl, $"/me?checkout=success&id={checkoutId}"),
+                CancelUrl: new Uri(publicUrl, "/cart?checkout=cancelled")), cancellationToken);
+        }
+        catch (Stripe.StripeException)
+        {
+            // Nothing was saved yet, so trying again starts cleanly.
+            return TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway,
+                title: "The payment page could not be opened. You have not been charged; try again in a moment.");
+        }
 
         await using (var transaction = await db.Database.BeginTransactionAsync(cancellationToken))
         {

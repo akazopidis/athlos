@@ -11,9 +11,12 @@ namespace Athlos.Tenancy.Api.Features.Workspace;
 // workspace marked Deleted here.
 //
 // 1. Only the owner, who confirms by typing the workspace address.
-// 2. catalog-api and enrollment-api erase their rows (and catalog the media) first. If one fails,
+// 2. ordering-api checks that nothing is still owed or being paid: sales still inside the refund
+//    window refuse the deletion (409, with the date), and open Stripe payment pages for the
+//    workspace's programs are closed, so no customer pays for a program about to be erased.
+// 3. catalog-api and enrollment-api erase their rows (and catalog the media) first. If one fails,
 //    the workspace is still Active and the owner can try again: every step is idempotent.
-// 3. Then, in one transaction, tenancy removes the team and invites and marks the tenant Deleted,
+// 4. Then, in one transaction, tenancy removes the team and invites and marks the tenant Deleted,
 //    with its name, branding and Stripe link cleared. The slug stays taken, so no new workspace
 //    inherits the old links. The coach's Stripe account is theirs and stays at Stripe.
 //
@@ -52,6 +55,11 @@ public static class DeleteWorkspace
 
         try
         {
+            if (await erasure.PrepareAsync(workspace.Id, cancellationToken) is { } refusal)
+            {
+                return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: refusal);
+            }
+
             await erasure.EraseAsync(workspace.Id, cancellationToken);
         }
         catch (HttpRequestException)
@@ -80,6 +88,9 @@ public static class DeleteWorkspace
 // The other services' part of a workspace deletion, through their signed internal endpoints.
 public interface ITenantErasure
 {
+    // ordering-api's check before anything is erased: null if the workspace may go, or why not.
+    Task<string?> PrepareAsync(Guid tenantId, CancellationToken cancellationToken);
+
     Task EraseAsync(Guid tenantId, CancellationToken cancellationToken);
 }
 
@@ -87,6 +98,20 @@ public sealed class ServiceTenantErasure(IHttpClientFactory clients) : ITenantEr
 {
     public const string Catalog = "erase-catalog";
     public const string Enrollment = "erase-enrollment";
+    public const string Ordering = "prepare-erase-ordering";
+
+    public async Task<string?> PrepareAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        using var response = await clients.CreateClient(Ordering).PostAsync($"/internal/tenants/{tenantId}/prepare-deletion", null, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken);
+            return problem?.Title ?? "The workspace cannot be deleted yet.";
+        }
+
+        response.EnsureSuccessStatusCode();
+        return null;
+    }
 
     public async Task EraseAsync(Guid tenantId, CancellationToken cancellationToken)
     {

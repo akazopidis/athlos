@@ -18,7 +18,7 @@ public static class CreateProgram
         [property: StringLength(4000)] string? Description,
         ProgramCategory Category,
         [property: Range(1, 52)] int DurationWeeks,
-        [property: Range(0, ProgramRules.MaxPriceAmount)] long PriceAmount,
+        [property: Range(ProgramRules.MinPriceAmount, ProgramRules.MaxPriceAmount)] long PriceAmount,
         [property: Required, RegularExpression(ProgramRules.CurrencyPattern)] string Currency);
 
     public static void MapCreateProgram(this IEndpointRouteBuilder app) =>

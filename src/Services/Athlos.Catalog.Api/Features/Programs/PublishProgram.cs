@@ -50,6 +50,13 @@ public static class PublishProgram
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Add at least one workout before publishing.");
         }
 
+        // A program priced before the minimum existed is raised first (it stays on sale meanwhile).
+        if (publish && program.PriceAmount < ProgramRules.MinPriceAmount)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
+                title: $"Programs cost at least {ProgramRules.MinPriceAmount / 100} {program.Currency}; raise the price before publishing.");
+        }
+
         if (program.IsPublished != publish)
         {
             program.IsPublished = publish;

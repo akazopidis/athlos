@@ -805,7 +805,7 @@
           },
           "priceAmount": {
             "maximum": 1000000,
-            "minimum": 0,
+            "minimum": 1000,
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -1145,7 +1145,7 @@
           },
           "priceAmount": {
             "maximum": 1000000,
-            "minimum": 0,
+            "minimum": 1000,
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",

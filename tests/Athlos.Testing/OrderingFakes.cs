@@ -82,8 +82,16 @@ public sealed class FakeCheckoutSessions : ICheckoutSessions
     public void RefundInDashboard(string paymentIntentId, Guid? orderId) =>
         DashboardRefunds.GetOrAdd(paymentIntentId, _ => new ConcurrentQueue<Guid?>()).Enqueue(orderId);
 
+    // Stripe refuses new checkout sessions, as in an outage.
+    public bool FailCheckouts { get; set; }
+
     public Task<CheckoutSession> CreateAsync(CheckoutRequest request, CancellationToken cancellationToken)
     {
+        if (FailCheckouts)
+        {
+            throw new Stripe.StripeException("Stripe is unavailable.");
+        }
+
         var id = SessionIdOf(request.CheckoutId);
         Sessions[id] = request;
         return Task.FromResult(new CheckoutSession(id, $"https://checkout.stripe.test/{id}"));

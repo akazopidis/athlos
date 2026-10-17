@@ -116,8 +116,9 @@ public sealed class PayoutTests : IAsyncLifetime
         var unknown = await AccountUpdated("acct_of_another_stage");
         var payload = StripeEvents.AccountUpdated($"evt_{Guid.NewGuid():N}", "acct_x");
         var forged = await ConnectWebhook(payload, StripeEvents.Signature(payload, secret: "whsec_not_the_secret"));
+        var unsigned = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, "/webhooks/stripe-connect") { Content = new StringContent(payload) });
 
-        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.BadRequest), (unknown.StatusCode, forged.StatusCode));
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.BadRequest, HttpStatusCode.BadRequest), (unknown.StatusCode, forged.StatusCode, unsigned.StatusCode));
     }
 
     private Task<HttpResponseMessage> AccountUpdated(string accountId)

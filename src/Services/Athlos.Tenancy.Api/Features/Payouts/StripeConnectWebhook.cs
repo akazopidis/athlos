@@ -33,7 +33,9 @@ public static partial class StripeConnectWebhook
             return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Stripe Connect webhooks are not configured.");
         }
 
-        if (request.ContentLength > MaxPayloadBytes)
+        // Stripe.net throws a NullReferenceException, not a StripeException, for a missing header.
+        string? signature = request.Headers["Stripe-Signature"];
+        if (request.ContentLength > MaxPayloadBytes || string.IsNullOrEmpty(signature))
         {
             return TypedResults.BadRequest();
         }
@@ -43,7 +45,7 @@ public static partial class StripeConnectWebhook
         Event stripeEvent;
         try
         {
-            stripeEvent = EventUtility.ConstructEvent(payload, request.Headers["Stripe-Signature"], secret, tolerance: 300, throwOnApiVersionMismatch: false);
+            stripeEvent = EventUtility.ConstructEvent(payload, signature, secret, tolerance: 300, throwOnApiVersionMismatch: false);
         }
         catch (StripeException)
         {

@@ -2,7 +2,7 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v15.3, built; v1.6.0 in production (2026-10-17)
+**Status:** v15.3, built; v1.7.0 in production (2026-10-17)
 
 **Changes in v15.3 (v1.7.0):** the team (members listed, staff removed or leaving, ownership handed over, §5.3); a workspace is deleted only when no sale can still be refunded, and its open payment pages are closed first (§3.4); a deleted account's open payment pages are closed, and a payment that still arrives is refunded (§5.2); programs cost at least €10 (§2.3); workouts of a program that has been on sale cannot be deleted; a clear error when Stripe cannot open a payment page.
 

@@ -24,7 +24,7 @@ export function Coaches() {
           title="No coaches yet"
           action={
             <Button asChild>
-              <Link to="/studio/new">Be the first coach</Link>
+              <Link to="/sell">Be the first coach</Link>
             </Button>
           }
         >

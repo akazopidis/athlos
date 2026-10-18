@@ -32,7 +32,7 @@ public sealed class GatewayTests(GatewayFactory factory) : IClassFixture<Gateway
         Assert.True(response.Headers.CacheControl?.NoStore);
         // The refund window shown to customers defaults to ordering-api's 14 days.
         var config = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(TestContext.Current.CancellationToken);
-        Assert.Equal(14, config.GetProperty("refundWindowDays").GetInt32());
+        Assert.Equal((14, 10), (config.GetProperty("refundWindowDays").GetInt32(), config.GetProperty("platformFeePercent").GetInt32()));
     }
 
     [Fact]

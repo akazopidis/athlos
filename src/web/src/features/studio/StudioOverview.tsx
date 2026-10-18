@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Circle, CircleCheck, Wallet } from 'lucide-react'
+import type { components } from '@/api/ordering'
 import { CopyLink } from '@/components/copy-link'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -7,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Section } from '@/components/page'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApp } from '@/lib/AppContext'
+import { formatMoney } from '@/lib/money'
 import { problemTitle } from '@/lib/problem'
 import { StudioPrograms } from './StudioPrograms.tsx'
 import { useStudio } from './useStudio.ts'
@@ -43,6 +45,13 @@ export function StudioOverview() {
     onSuccess: ({ url }) => window.location.assign(url),
   })
 
+  // The numbers (ordering-api): paid sales and earnings after the fee.
+  const summary = useQuery({
+    queryKey: ['sales-summary', slug],
+    queryFn: async () => (await api.GET('/api/v1/studio/{tenantSlug}/sales/summary', params)).data ?? null,
+    enabled: Boolean(workspace.data),
+  })
+
   const steps = [
     { label: 'Set up payouts with Stripe', done: Boolean(payouts.data?.onboardingComplete) },
     { label: 'Create a program and add its workouts', done: Boolean(programs.data?.length) },
@@ -67,6 +76,7 @@ export function StudioOverview() {
           </ol>
         </Section>
       )}
+      {summary.data && Number(summary.data.sales) > 0 && <Numbers summary={summary.data} />}
       <Section title="Your storefront">
         <p className="text-sm text-muted-foreground">Share this link on your website and social media: customers see your published programs in your colors.</p>
         <CopyLink path={`/c/${slug}`} />
@@ -104,5 +114,35 @@ export function StudioOverview() {
       </Section>
       <StudioPrograms slug={slug} plan={workspace.data?.plan} />
     </div>
+  )
+}
+
+type Summary = components['schemas']['SalesSummaryResponse']
+
+// This month's sales and earnings, the total, customers and the best seller, once there are sales.
+function Numbers({ summary }: { summary: Summary }) {
+  const tiles = [
+    { label: 'Sales this month', value: String(Number(summary.salesThisMonth)) },
+    { label: 'Earned this month', value: formatMoney(summary.earningsThisMonth, summary.currency) },
+    { label: 'Earned in total', value: formatMoney(summary.earnings, summary.currency) },
+    { label: 'Customers', value: String(Number(summary.customers)) },
+  ]
+  return (
+    <Section title="Your numbers">
+      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {tiles.map((t) => (
+          <div key={t.label} className="rounded-2xl border bg-card p-4">
+            <dt className="text-sm text-muted-foreground">{t.label}</dt>
+            <dd className="mt-1 font-heading text-2xl font-black tabular-nums">{t.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {summary.bestSeller && (
+        <p className="text-sm text-muted-foreground">
+          Best seller: <span className="font-medium text-foreground">{summary.bestSeller}</span> ({Number(summary.bestSellerSales)}{' '}
+          {Number(summary.bestSellerSales) === 1 ? 'sale' : 'sales'}). Earnings are after the platform fee.
+        </p>
+      )}
+    </Section>
   )
 }

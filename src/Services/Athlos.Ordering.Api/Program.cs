@@ -77,6 +77,11 @@ app.MapGroup("/api/v1/studio/{tenantSlug}")
     .RequireTenant()
     .WithTenantTransaction<OrderingDbContext>()
     .MapListSales();
+app.MapGroup("/api/v1/studio/{tenantSlug}")
+    .RequireAuthorization()
+    .RequireTenant()
+    .WithTenantTransaction<OrderingDbContext>()
+    .MapSalesSummary();
 
 // The coach refunds a sale: Stripe calls first, then short transactions inside the tenant (OrderRefunds)
 app.MapGroup("/api/v1/studio/{tenantSlug}")

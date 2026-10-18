@@ -11,6 +11,10 @@ builder.Services.AddAthlosAuthentication(builder.Configuration);
 builder.Services.AddHybridCache();
 builder.Services.AddHttpClient<MembershipLookup>(http => http.BaseAddress = new Uri("https+http://tenancy-api"));
 builder.Services.AddHttpClient<TenantPlans>(http => http.BaseAddress = new Uri("https+http://tenancy-api"));
+// Link previews for storefronts and program pages (design §8.1): the services' public marketplace reads.
+builder.Services.AddHttpClient(LinkPreviews.Tenancy, http => http.BaseAddress = new Uri("https+http://tenancy-api"));
+builder.Services.AddHttpClient(LinkPreviews.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api"));
+builder.Services.AddSingleton<LinkPreviews>();
 builder.Services.Configure<RateLimits.Options>(builder.Configuration.GetSection("RateLimits"));
 builder.Services.AddSingleton<RateLimits>();
 
@@ -64,6 +68,7 @@ app.MapReverseProxy(proxy =>
     proxy.Use(StudioAccess.ResolveMembership);
     proxy.Use(RateLimits.Apply);
 });
+app.MapLinkPreviews();
 app.MapSpa();
 
 app.Run();

@@ -35,7 +35,7 @@ export function SiteHeader() {
           <Link to="/coaches" className="hidden px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:block">
             Coaches
           </Link>
-          <Link to="/studio/new" className="hidden px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:block">
+          <Link to="/sell" className="hidden px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:block">
             Sell on Athlos
           </Link>
           <CartLink />
@@ -72,7 +72,7 @@ export function SiteHeader() {
             ...categories.map((c) => ({ to: categoryLink(c.category), label: c.label })),
             { to: '/coaches', label: 'Coaches' },
             { to: '/cart', label: 'Cart' },
-            { to: '/studio/new', label: 'Sell on Athlos' },
+            { to: '/sell', label: 'Sell on Athlos' },
           ].map((l) => (
             <NavLink
               key={l.to}

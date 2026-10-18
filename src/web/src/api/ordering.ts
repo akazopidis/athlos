@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/studio/{tenantSlug}/sales/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSalesSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/studio/{tenantSlug}/sales/{orderId}/refund": {
         parameters: {
             query?: never;
@@ -180,6 +196,22 @@ export interface components {
         };
         /** @enum {unknown} */
         OrderStatus: "Pending" | "Paid" | "Failed" | "Refunded";
+        SalesSummaryResponse: {
+            currency: string;
+            /** Format: int32 */
+            salesThisMonth: number | string;
+            /** Format: int64 */
+            earningsThisMonth: number | string;
+            /** Format: int32 */
+            sales: number | string;
+            /** Format: int64 */
+            earnings: number | string;
+            /** Format: int32 */
+            customers: number | string;
+            bestSeller: null | string;
+            /** Format: int32 */
+            bestSellerSales: number | string;
+        };
         StartCheckoutRequest: {
             programIds: string[];
         };
@@ -267,6 +299,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderListsSalesPage"];
+                };
+            };
+        };
+    };
+    GetSalesSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalesSummaryResponse"];
                 };
             };
         };

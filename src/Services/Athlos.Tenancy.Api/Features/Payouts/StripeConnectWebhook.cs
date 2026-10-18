@@ -1,4 +1,6 @@
 using Athlos.Tenancy.Api.Data;
+using Athlos.Messaging.Contracts;
+using Athlos.Tenancy.Api.Features.Tenants;
 using Athlos.Tenancy.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -73,6 +75,11 @@ public static partial class StripeConnectWebhook
         var workspace = await db.Tenants.SingleAsync(t => t.Id == tenantId && t.StripeAccountId == accountId, cancellationToken);
         if (workspace.StripeOnboardingComplete != status.OnboardingComplete)
         {
+            if (status.OnboardingComplete)
+            {
+                WorkspaceEmails.ToOwners(db, EmailTemplates.PayoutsReady, workspace, configuration);
+            }
+
             workspace.StripeOnboardingComplete = status.OnboardingComplete;
             await db.SaveChangesAsync(cancellationToken);
             LogStatusChanged(logger, tenantId.Value, status.OnboardingComplete);

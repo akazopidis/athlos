@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { CircleCheck, Wallet } from 'lucide-react'
+import { Circle, CircleCheck, Wallet } from 'lucide-react'
+import { CopyLink } from '@/components/copy-link'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -10,7 +11,8 @@ import { problemTitle } from '@/lib/problem'
 import { StudioPrograms } from './StudioPrograms.tsx'
 import { useStudio } from './useStudio.ts'
 
-// The studio's first tab: payout setup (needed before publishing, design §3.4) and the programs.
+// The studio's first tab: a setup checklist until the first program is on sale, the storefront's link
+// to share, payout setup (needed before publishing, design §3.4) and the programs.
 export function StudioOverview() {
   const { slug, workspace } = useStudio()
   const { api } = useApp()
@@ -20,6 +22,13 @@ export function StudioOverview() {
   const payouts = useQuery({
     queryKey: ['payouts', slug],
     queryFn: async () => (await api.GET('/api/v1/studio/{tenantSlug}/payouts', params)).data ?? null,
+    enabled: Boolean(workspace.data),
+  })
+
+  // The same query as the program list below (shared cache).
+  const programs = useQuery({
+    queryKey: ['studio-programs', slug],
+    queryFn: async () => (await api.GET('/api/v1/studio/{tenantSlug}/programs', params)).data ?? [],
     enabled: Boolean(workspace.data),
   })
 
@@ -34,8 +43,34 @@ export function StudioOverview() {
     onSuccess: ({ url }) => window.location.assign(url),
   })
 
+  const steps = [
+    { label: 'Set up payouts with Stripe', done: Boolean(payouts.data?.onboardingComplete) },
+    { label: 'Create a program and add its workouts', done: Boolean(programs.data?.length) },
+    { label: 'Publish it', done: Boolean(programs.data?.some((p) => p.isPublished)) },
+  ]
+  const known = payouts.isSuccess && programs.isSuccess
+
   return (
     <div className="space-y-12">
+      {known && steps.some((s) => !s.done) && (
+        <Section title="Get started">
+          <ol className="grid gap-3 sm:grid-cols-3">
+            {steps.map((s, i) => (
+              <li key={s.label} className="flex items-center gap-3 rounded-2xl border bg-card p-4">
+                {s.done ? <CircleCheck className="size-5 shrink-0 text-primary" aria-hidden /> : <Circle className="size-5 shrink-0 text-muted-foreground" aria-hidden />}
+                <span className={s.done ? 'text-muted-foreground line-through' : 'font-medium'}>
+                  {i + 1}. {s.label}
+                </span>
+                <span className="sr-only">{s.done ? '(done)' : '(to do)'}</span>
+              </li>
+            ))}
+          </ol>
+        </Section>
+      )}
+      <Section title="Your storefront">
+        <p className="text-sm text-muted-foreground">Share this link on your website and social media: customers see your published programs in your colors.</p>
+        <CopyLink path={`/c/${slug}`} />
+      </Section>
       <Section title="Payouts">
         {/* Nothing until the status is known: a call to action that then disappears would mislead. */}
         {payouts.isPending ? (

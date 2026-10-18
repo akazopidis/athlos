@@ -5,6 +5,8 @@ export interface AppConfig {
   entraAuthority: string | null
   apiScope: string | null
   version: string
+  // How long a coach can refund a purchase (ordering-api's Payments:RefundWindowDays); older gateways omit it.
+  refundWindowDays?: number
 }
 
 export async function loadConfig(): Promise<AppConfig> {

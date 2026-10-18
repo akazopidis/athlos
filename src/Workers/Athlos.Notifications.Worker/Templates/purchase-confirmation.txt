@@ -1,7 +1,10 @@
-Subject: You now have access to {{programTitle}}
-Thank you for your purchase!
+Subject: Your Athlos order: {{summary}}
+You bought:
 
-You bought {{programTitle}} by {{coachSlug}} for {{price}}.
-Your workouts are ready: {{programUrl}}
+{{items}}
+
+Total: {{total}}. Your programs are ready in your account; each coach can refund a purchase within {{refundDays}} days.
+
+Start training: {{programsUrl}}
 
 Athlos

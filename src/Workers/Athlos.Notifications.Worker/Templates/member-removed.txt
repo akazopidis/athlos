@@ -1,0 +1,4 @@
+Subject: You no longer have access to {{workspaceName}}
+The owner of {{workspaceName}} removed you from its team. You no longer have access to its studio. Programs you bought on Athlos are not affected.
+
+Athlos

@@ -23,6 +23,9 @@ namespace Athlos.Ordering.Api.Features.Webhooks;
 //    PayoutRetries and does not hold up the order, and the coach is emailed to fix their account;
 // 2. in one transaction, mark the order Paid only if it is still Pending, and write OrderPaid and the
 //    coach's "you made a sale" email to the outbox.
+// 3. once the orders are Paid, one purchase confirmation to the customer, listing every program the
+//    checkout paid for (one email for a cart, not one per program). It is written after the orders'
+//    transactions: a crash in between loses this email, never an order or its access.
 // A program the customer already owns (two pages paid) is refunded instead, and so is an order of a
 // customer who deleted their account before the payment arrived.
 //
@@ -97,7 +100,9 @@ public static partial class StripeWebhook
             Charge { AmountRefunded: > 0, PaymentIntentId: { } partlyRefunded } when stripeEvent.Type == "charge.refunded" =>
                 await OrderRefunds.RefundTaggedOrdersAsync(partlyRefunded, checkout, scopes, configuration, logger, cancellationToken),
             Dispute { PaymentIntentId: { } openedOn } when stripeEvent.Type == "charge.dispute.created" =>
-                await OrderRefunds.NotifyDisputeAsync(openedOn, checkout, scopes, configuration, cancellationToken),
+                await OrderRefunds.NotifyDisputeAsync(openedOn, EmailTemplates.SaleDisputed, checkout, scopes, configuration, cancellationToken),
+            Dispute { Status: "won", PaymentIntentId: { } wonOn } when stripeEvent.Type == "charge.dispute.closed" =>
+                await OrderRefunds.NotifyDisputeAsync(wonOn, EmailTemplates.DisputeWon, checkout, scopes, configuration, cancellationToken),
             Dispute { Status: "lost", PaymentIntentId: { } disputedPayment } when stripeEvent.Type == "charge.dispute.closed" =>
                 await OrderRefunds.RefundPaymentAsync(disputedPayment, OrderRefunds.Cause.LostDispute, checkout, scopes, configuration, logger, cancellationToken),
             // Other events are acknowledged and ignored.
@@ -135,6 +140,23 @@ public static partial class StripeWebhook
             ["earnings"] = MoneyText.Format(order.Amount - order.PlatformFee, order.Currency),
             ["studioUrl"] = new Uri(publicUrl, $"/studio/{order.CoachSlug}").ToString(),
         });
+    }
+
+    // To the customer, once per checkout: the programs it paid for, the total and the refund promise.
+    public static EmailNotification PurchaseEmail(IReadOnlyList<Order> orders, IConfiguration configuration)
+    {
+        var publicUrl = new Uri(configuration["App:PublicUrl"] ?? throw new InvalidOperationException("App:PublicUrl is not configured."));
+        var first = orders[0];
+        var summary = orders.Count == 1 ? first.ProgramTitle : $"{first.ProgramTitle} and {orders.Count - 1} more";
+        return new EmailNotification(EmailTemplates.PurchaseConfirmation, To: [first.CustomerEmail], ToOwnersOfTenant: null, Locale: "en",
+            new Dictionary<string, string>
+            {
+                ["summary"] = summary,
+                ["items"] = string.Join('\n', orders.Select(o => $"• {o.ProgramTitle} by {o.CoachSlug}, {MoneyText.Format(o.Amount, o.Currency)}")),
+                ["total"] = MoneyText.Format(orders.Sum(o => o.Amount), first.Currency),
+                ["refundDays"] = OrderRefunds.RefundWindow(configuration).TotalDays.ToString("0", System.Globalization.CultureInfo.InvariantCulture),
+                ["programsUrl"] = new Uri(publicUrl, "/me").ToString(),
+            });
     }
 
     private static async Task<bool> HandleSessionAsync(
@@ -211,6 +233,15 @@ public static partial class StripeWebhook
         foreach (var order in paid)
         {
             OrderMetrics.OrderPaid(order.TenantId, order.CoachSlug, order.Currency);
+        }
+
+        if (paid.Count > 0)
+        {
+            await scopes.InTenantAsync<OrderingDbContext>(paid[0].TenantId, async db =>
+            {
+                db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, PurchaseEmail(paid, configuration)));
+                await db.SaveChangesAsync(cancellationToken);
+            }, cancellationToken);
         }
 
         return true;

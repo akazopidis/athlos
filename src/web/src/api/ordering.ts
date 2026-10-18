@@ -155,7 +155,7 @@ export interface components {
             /** Format: uuid */
             programId: string;
             programTitle: string;
-            customerEmail: string;
+            customerEmail: null | string;
             /** Format: int64 */
             amount: number | string;
             /** Format: int64 */

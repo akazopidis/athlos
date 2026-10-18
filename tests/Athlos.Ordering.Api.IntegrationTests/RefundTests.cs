@@ -202,6 +202,8 @@ public sealed class RefundTests(AthlosDatabases databases) : IAsyncLifetime
         var orderId = await _api.Buy(customer, coach);
         Assert.Equal(HttpStatusCode.NoContent, (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/customers/{customer}"))).StatusCode);
 
+        // The coach's sales list shows no address for them (the studio says "Deleted account").
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, Assert.Single(await Sales(coach)).GetProperty("customerEmail").ValueKind);
         Assert.Equal(HttpStatusCode.NoContent, (await Refund(coach, orderId, TenantRole.Owner)).StatusCode);
 
         var outbox = await _api.Outbox();
@@ -232,17 +234,21 @@ public sealed class RefundTests(AthlosDatabases databases) : IAsyncLifetime
         await Refund(cleo, cleosSale, TenantRole.Owner);
 
         Assert.Equal((HttpStatusCode.OK, OrderStatus.Paid), (opened.StatusCode, stillPaid));
+        var won = await _api.Checkout(Guid.CreateVersion7(), _api.Sellers.Sell(cleo.TenantId, cleo.Slug).ProgramId);
+        await _api.Pay(won);
+        await _api.SendWebhook(StripeEvents.DisputeClosed($"evt_{Guid.NewGuid():N}", FakeCheckoutSessions.PaymentIntentOf(won.SessionId), status: "won"));
         var coachEmails = (await _api.Outbox())
             .Where(m => m.Queue == EmailNotification.Queue)
             .Select(m => JsonSerializer.Deserialize<EmailNotification>(m.Message.Payload, Json)!)
             .Where(e => e.ToOwnersOfTenant is { } t && (t == anna.TenantId || t == ben.TenantId || t == cleo.TenantId) && e.Template != EmailTemplates.SaleMade)
             .Select(e => (e.ToOwnersOfTenant, e.Template, Reason: e.Data.GetValueOrDefault("reason")))
             .ToList();
-        Assert.Equal(3, coachEmails.Count);
+        Assert.Equal(4, coachEmails.Count);
+        Assert.Contains(coachEmails, e => e.ToOwnersOfTenant == cleo.TenantId && e.Template == EmailTemplates.DisputeWon);
         Assert.Contains((anna.TenantId, EmailTemplates.SaleDisputed, (string?)null), coachEmails.Select(e => (e.ToOwnersOfTenant!.Value, e.Template, e.Reason)));
         Assert.Contains(coachEmails, e => e.ToOwnersOfTenant == anna.TenantId && e.Template == EmailTemplates.SaleRefunded && e.Reason!.Contains("dispute", StringComparison.Ordinal));
         Assert.Contains(coachEmails, e => e.ToOwnersOfTenant == ben.TenantId && e.Template == EmailTemplates.SaleRefunded && e.Reason!.Contains("Stripe", StringComparison.Ordinal));
-        Assert.DoesNotContain(coachEmails, e => e.ToOwnersOfTenant == cleo.TenantId);
+        Assert.DoesNotContain(coachEmails, e => e.ToOwnersOfTenant == cleo.TenantId && e.Template == EmailTemplates.SaleRefunded);
     }
 
     // A failed transfer waits in payout_retries; a later pass pays the coach once their account works.

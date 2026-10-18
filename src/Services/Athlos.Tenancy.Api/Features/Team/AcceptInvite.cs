@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Tenancy.Api.Data;
+using Athlos.Messaging.Contracts;
+using Athlos.Tenancy.Api.Features.Tenants;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +26,7 @@ public static class AcceptInvite
 
     private static async Task<Results<Ok<Response>, NotFound, ProblemHttpResult>> Handle(
         string tenantSlug, Request request, HttpContext http, TenantContext tenant, TenancyDbContext db, TimeProvider time,
-        CancellationToken cancellationToken)
+        IConfiguration configuration, CancellationToken cancellationToken)
     {
         var email = http.User.FindFirst("email")?.Value?.Trim().ToLowerInvariant();
         if (tenant.UserId is not { } userId || string.IsNullOrEmpty(email))
@@ -60,6 +62,9 @@ public static class AcceptInvite
             }
 
             db.Memberships.Add(new Membership { UserId = userId, Role = TenantRole.Staff });
+            var name = await db.UserProfiles.Where(p => p.UserId == userId).Select(p => p.DisplayName).SingleOrDefaultAsync(cancellationToken);
+            WorkspaceEmails.ToOwners(db, EmailTemplates.InviteAccepted, workspace, configuration,
+                new() { ["memberName"] = string.IsNullOrWhiteSpace(name) ? "Your new team member" : name });
         }
 
         invite.AcceptedAt = now;

@@ -26,6 +26,12 @@ export function Footer() {
           <Link to="/" className="text-muted-foreground hover:text-foreground">
             Programs
           </Link>
+          <Link to="/sell" className="text-muted-foreground hover:text-foreground">
+            Sell on Athlos
+          </Link>
+          <Link to="/coaches" className="text-muted-foreground hover:text-foreground">
+            Coaches
+          </Link>
           <Link to="/studio/new" className="text-muted-foreground hover:text-foreground">
             Open your studio
           </Link>

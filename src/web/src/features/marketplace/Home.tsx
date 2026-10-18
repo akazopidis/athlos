@@ -128,8 +128,8 @@ function CoachInvite() {
         </div>
         <div className="lg:justify-self-end">
           <Button asChild size="lg" className="bg-ink text-ink-foreground hover:bg-ink/85">
-            <Link to="/studio/new">
-              Open your studio <ArrowRight aria-hidden />
+            <Link to="/sell">
+              Start selling <ArrowRight aria-hidden />
             </Link>
           </Button>
         </div>

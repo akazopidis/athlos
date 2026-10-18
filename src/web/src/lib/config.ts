@@ -7,6 +7,8 @@ export interface AppConfig {
   version: string
   // How long a coach can refund a purchase (ordering-api's Payments:RefundWindowDays); older gateways omit it.
   refundWindowDays?: number
+  // The platform's share of each sale, in percent (ordering-api's Payments:PlatformFeePercent).
+  platformFeePercent?: number
 }
 
 export async function loadConfig(): Promise<AppConfig> {

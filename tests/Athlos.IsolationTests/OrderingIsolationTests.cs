@@ -66,6 +66,7 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         { "POST", "/api/v1/orders/checkout" },
         { "GET", "/api/v1/me/orders" },
         { "GET", "/api/v1/studio/some-coach/sales" },
+        { "GET", "/api/v1/studio/some-coach/sales/summary" },
         { "POST", $"/api/v1/studio/some-coach/sales/{Guid.Empty}/refund" },
         { "POST", "/webhooks/stripe" },
         { "GET", "/api/v1/admin/payouts" },
@@ -104,6 +105,21 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         Assert.Contains(_aliceBuysFromB.ToString(), bs, StringComparison.Ordinal);
         Assert.DoesNotContain(_aliceBuysFromA.ToString(), bs, StringComparison.Ordinal);
         Assert.DoesNotContain(_bobBuysFromA.ToString(), bs, StringComparison.Ordinal);
+    }
+
+    // The studio's numbers (design §8): B asking for A's by A's address gets zeros, not A's totals.
+    [Fact]
+    public async Task B_asking_for_As_sales_summary_gets_zeros()
+    {
+        var response = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Get, $"/api/v1/studio/{_a.Slug}/sales/summary"), _b.OwnerId, _b.TenantId, TenantRole.Owner);
+        var mine = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Get, $"/api/v1/studio/{_a.Slug}/sales/summary"), _a.OwnerId, _a.TenantId, TenantRole.Owner);
+
+        var theirs = System.Text.Json.JsonDocument.Parse(await Body(response)).RootElement;
+        var own = System.Text.Json.JsonDocument.Parse(await Body(mine)).RootElement;
+        Assert.Equal((0, 0L), (theirs.GetProperty("sales").GetInt32(), theirs.GetProperty("earnings").GetInt64()));
+        Assert.True(own.GetProperty("sales").GetInt32() > 0);
     }
 
     [Fact]

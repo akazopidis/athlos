@@ -164,7 +164,7 @@ function SaleRow({
         <span className="block truncate">{s.programTitle}</span>
         {refunded && <Badge variant="secondary">Refunded</Badge>}
       </TableCell>
-      <TableCell className="hidden text-muted-foreground md:table-cell">{s.customerEmail}</TableCell>
+      <TableCell className="hidden text-muted-foreground md:table-cell">{s.customerEmail ?? <span className="italic">Deleted account</span>}</TableCell>
       <TableCell className="hidden text-right tabular-nums sm:table-cell">{formatMoney(s.amount, s.currency)}</TableCell>
       <TableCell className={refunded ? 'text-right tabular-nums line-through' : 'text-right font-medium tabular-nums'}>
         {formatMoney(Number(s.amount) - Number(s.platformFee), s.currency)}

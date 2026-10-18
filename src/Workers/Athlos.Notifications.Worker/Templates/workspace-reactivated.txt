@@ -1,0 +1,6 @@
+Subject: {{workspaceName}} is active again
+Athlos reactivated {{workspaceName}}. Its storefront, programs and studio are back.
+
+Open your studio: {{studioUrl}}
+
+Athlos

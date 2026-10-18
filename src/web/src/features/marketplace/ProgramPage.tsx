@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Check, ChevronRight, Lock, ShoppingBag } from 'lucide-react'
+import { Check, ChevronRight, Lock, RotateCcw, ShoppingBag } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { BrandScope } from '@/components/brand'
@@ -221,9 +221,14 @@ export function ProgramPage() {
                 <AlertDescription>{buy.error.message}</AlertDescription>
               </Alert>
             )}
-            <p className="mt-4 hidden items-center justify-center gap-1.5 text-xs text-muted-foreground lg:flex">
-              <Lock className="size-3.5" aria-hidden /> Secure checkout with Stripe
-            </p>
+            <ul className="mt-4 space-y-1.5 text-xs text-muted-foreground">
+              <li className="flex items-center justify-center gap-1.5">
+                <RotateCcw className="size-3.5" aria-hidden /> Refundable by the coach within {config.refundWindowDays ?? 14} days
+              </li>
+              <li className="hidden items-center justify-center gap-1.5 lg:flex">
+                <Lock className="size-3.5" aria-hidden /> Secure checkout with Stripe
+              </li>
+            </ul>
           </aside>
         </div>
         <MoreFromCoach coachSlug={p.coachSlug} coachName={coachName} exclude={p.id} />

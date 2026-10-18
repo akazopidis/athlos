@@ -52,7 +52,7 @@ export function ProductCard({ program: p, coach, owned, mine = false }: { progra
         <div className="mt-auto flex items-center justify-between gap-3">
           <span className="font-heading text-xl font-black tabular-nums">{formatMoney(p.priceAmount, p.currency)}</span>
           {/* Above the card's stretched link, so it gets its own clicks. */}
-          <div className="relative z-10">{mine ? <StudioLink slug={p.coachSlug} /> : owned ? <OwnedLink /> : <AddToCart program={p} />}</div>
+          <div className="relative z-10">{mine ? <StudioLink slug={p.coachSlug} /> : owned ? <OwnedLink programId={p.id} /> : <AddToCart program={p} />}</div>
         </div>
       </div>
     </article>
@@ -67,10 +67,11 @@ function StudioLink({ slug }: { slug: string }) {
   )
 }
 
-function OwnedLink() {
+// The customer's own copy of the program, with their progress.
+function OwnedLink({ programId }: { programId: string }) {
   return (
     <Button asChild size="sm" variant="outline">
-      <Link to="/me">Open</Link>
+      <Link to={`/me/programs/${programId}`}>Open</Link>
     </Button>
   )
 }

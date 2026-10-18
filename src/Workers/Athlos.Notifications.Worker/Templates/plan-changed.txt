@@ -1,0 +1,6 @@
+Subject: {{workspaceName}} is now on the {{plan}} plan
+{{workspaceName}} is now on the {{plan}} plan: up to {{maxPrograms}} programs and {{maxStaff}} staff. Programs and staff above a lower limit stay; only new ones are stopped.
+
+Open your studio: {{studioUrl}}
+
+Athlos

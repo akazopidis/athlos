@@ -449,7 +449,10 @@
             "type": "string"
           },
           "customerEmail": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "amount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",

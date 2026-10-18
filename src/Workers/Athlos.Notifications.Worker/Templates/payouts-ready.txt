@@ -1,0 +1,6 @@
+Subject: You can sell on Athlos now
+Stripe has confirmed the payout account of {{workspaceName}}. You can publish programs, and your share of every sale goes to your account.
+
+Publish a program: {{studioUrl}}
+
+Athlos

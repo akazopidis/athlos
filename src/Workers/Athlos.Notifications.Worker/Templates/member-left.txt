@@ -1,0 +1,6 @@
+Subject: {{memberName}} left {{workspaceName}}
+{{memberName}} left {{workspaceName}} and no longer has access to its studio.
+
+See your team: {{teamUrl}}
+
+Athlos

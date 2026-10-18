@@ -20,8 +20,27 @@ public sealed record EmailNotification(
 // Template names (src/Workers/Athlos.Notifications.Worker/Templates/{name}.html and .txt).
 public static class EmailTemplates
 {
-    // To the customer, queued by enrollment-api after it created the enrollment.
+    // To the customer, queued by ordering-api once per checkout, listing every program it paid for.
     public const string PurchaseConfirmation = "purchase-confirmation";
+
+    // To the account's address, queued by tenancy-api when the account is deleted (design §5.2).
+    public const string AccountDeleted = "account-deleted";
+
+    // To the coach's owners, queued by tenancy-api (design §5.3): the workspace's life and its team.
+    public const string WorkspaceWelcome = "workspace-welcome";
+    public const string PayoutsReady = "payouts-ready";
+    public const string InviteAccepted = "invite-accepted";
+    public const string MemberLeft = "member-left";
+    public const string OwnershipReceived = "ownership-received";
+    public const string WorkspaceSuspended = "workspace-suspended";
+    public const string WorkspaceReactivated = "workspace-reactivated";
+    public const string PlanChanged = "plan-changed";
+
+    // To a staff member the owner removed, queued by tenancy-api.
+    public const string MemberRemoved = "member-removed";
+
+    // To the coach's owners, queued by ordering-api when a dispute is decided in the platform's favour.
+    public const string DisputeWon = "dispute-won";
 
     // To the coach's owners, queued by ordering-api when the order is paid.
     public const string SaleMade = "sale-made";

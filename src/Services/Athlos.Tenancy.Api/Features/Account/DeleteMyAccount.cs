@@ -1,3 +1,5 @@
+using Athlos.Messaging.Contracts;
+using Athlos.Messaging;
 using System.Net;
 using System.Net.Http.Headers;
 using Athlos.Tenancy.Api.Data;
@@ -98,7 +100,15 @@ public static class DeleteMyAccount
         await using (var transaction = await db.Database.BeginTransactionAsync(cancellationToken))
         {
             // RLS own_profile: a session reaches only the profile of app.user_id.
-            await db.UserProfiles.Where(p => p.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+            var deleted = await db.UserProfiles.Where(p => p.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+            // Once, with the profile: a retry finds no profile and sends nothing again.
+            if (deleted > 0 && email is not null)
+            {
+                db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue,
+                    new EmailNotification(EmailTemplates.AccountDeleted, To: [email], ToOwnersOfTenant: null, Locale: "en", new Dictionary<string, string>())));
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
             await transaction.CommitAsync(cancellationToken);
         }
 

@@ -1,0 +1,8 @@
+Subject: You now own {{workspaceName}}
+Ownership of {{workspaceName}} was handed to you. You can now change its settings, team and payouts.
+
+Sales are paused until you set up payouts with your own Stripe account: the previous owner's account was disconnected.
+
+Set up payouts: {{studioUrl}}
+
+Athlos

@@ -1,0 +1,10 @@
+Subject: Welcome to Athlos, {{workspaceName}}
+{{workspaceName}} is ready. Three steps to your first sale:
+
+1. Set up payouts with Stripe, so you can be paid.
+2. Create a program and add its workouts.
+3. Publish it, and share your storefront: {{storefrontUrl}}
+
+Open your studio: {{studioUrl}}
+
+Athlos

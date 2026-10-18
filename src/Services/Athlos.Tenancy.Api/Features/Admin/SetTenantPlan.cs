@@ -1,4 +1,6 @@
 using Athlos.Tenancy.Api.Data;
+using Athlos.Messaging.Contracts;
+using Athlos.Tenancy.Api.Features.Tenants;
 using Athlos.Tenancy.Api.Features.Plans;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +21,7 @@ public static class SetTenantPlan
             .WithName("AdminSetTenantPlan");
 
     private static async Task<Results<Ok<ListTenants.Item>, NotFound>> Handle(
-        Guid tenantId, Request request, TenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
+        Guid tenantId, Request request, TenantContext tenant, TenancyDbContext db, IConfiguration configuration, CancellationToken cancellationToken)
     {
         tenant.EnterTenant(tenantId, role: null);
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -27,6 +29,17 @@ public static class SetTenantPlan
         if (workspace is null)
         {
             return TypedResults.NotFound();
+        }
+
+        if (workspace.Plan != request.Plan)
+        {
+            var plan = Plans.Plans.For(request.Plan);
+            WorkspaceEmails.ToOwners(db, EmailTemplates.PlanChanged, workspace, configuration, new()
+            {
+                ["plan"] = request.Plan.ToString(),
+                ["maxPrograms"] = plan.MaxPrograms.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["maxStaff"] = plan.MaxStaff.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            });
         }
 
         workspace.Plan = request.Plan;

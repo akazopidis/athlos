@@ -1,4 +1,6 @@
 using Athlos.Tenancy.Api.Data;
+using Athlos.Messaging.Contracts;
+using Athlos.Tenancy.Api.Features.Tenants;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Stripe;
@@ -85,7 +87,7 @@ public static partial class PayoutEndpoints
     }
 
     private static async Task<Results<Ok<PayoutStatus>, NotFound, ProblemHttpResult>> GetStatus(
-        string tenantSlug, ITenantContext tenant, TenancyDbContext db, IStripeConnect stripe, CancellationToken cancellationToken)
+        string tenantSlug, ITenantContext tenant, TenancyDbContext db, IStripeConnect stripe, IConfiguration configuration, CancellationToken cancellationToken)
     {
         var workspace = await db.Tenants.SingleOrDefaultAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug && t.Status != TenantStatus.Deleted, cancellationToken);
         if (workspace is null)
@@ -106,6 +108,11 @@ public static partial class PayoutEndpoints
         var status = await stripe.GetStatusAsync(workspace.StripeAccountId, cancellationToken);
         if (workspace.StripeOnboardingComplete != status.OnboardingComplete)
         {
+            if (status.OnboardingComplete)
+            {
+                WorkspaceEmails.ToOwners(db, EmailTemplates.PayoutsReady, workspace, configuration);
+            }
+
             workspace.StripeOnboardingComplete = status.OnboardingComplete;
             await db.SaveChangesAsync(cancellationToken);
         }

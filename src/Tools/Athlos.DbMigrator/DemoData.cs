@@ -148,6 +148,18 @@ public static class DemoData
                     // before the €10 minimum price their price.
                     seeded.Category = program.Category;
                     seeded.PriceAmount = program.Price;
+                    // Programs seeded before free previews get their first session as the preview.
+                    if (seeded.Sample is null)
+                    {
+                        var sessions = await db.Workouts.Where(w => w.ProgramId == programId).OrderBy(w => w.Week).ThenBy(w => w.Day).ToListAsync(cancellationToken);
+                        if (sessions.Count > 0)
+                        {
+                            sessions[0].IsSample = true;
+                            seeded.Outline = [.. sessions.Select(w => new OutlineEntry { Week = w.Week, Day = w.Day, Title = w.Title, Sample = w.IsSample })];
+                            seeded.Sample = new SampleWorkout { Week = sessions[0].Week, Day = sessions[0].Day, Title = sessions[0].Title, Content = sessions[0].Content };
+                        }
+                    }
+
                     continue;
                 }
 

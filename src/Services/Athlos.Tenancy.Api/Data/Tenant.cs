@@ -35,14 +35,44 @@ public enum TenantStatus
     Deleted,
 }
 
-// Storefront look and public contact (design §8). Stored as jsonb.
+// Storefront look, public contact and the coach's profile (design §8). Stored as jsonb.
 public sealed class Branding
 {
+    // A logo linked from elsewhere; an uploaded one (LogoPath) is shown instead when there is one.
     public string? LogoUrl { get; set; }
+
+    // The uploaded logo or photo: a blob path under tenants/{id}/workspace/ (WorkspaceLogo). Never sent
+    // to clients; they get a short-lived read link.
+    public string? LogoPath { get; set; }
 
     public string? PrimaryColor { get; set; }
 
     // The address customers may write to (storefront, "My orders"). Public by the coach's choice; it is
     // not the owners' sign-in addresses, which never leave tenancy-api. Never logged.
     public string? ContactEmail { get; set; }
+
+    // The storefront's "About" (plain text) and links to the coach elsewhere.
+    public string? Bio { get; set; }
+
+    public string? InstagramUrl { get; set; }
+
+    public string? YouTubeUrl { get; set; }
+
+    public string? WebsiteUrl { get; set; }
+
+    public Branding With(string? logoPath) => new()
+    {
+        LogoUrl = LogoUrl, LogoPath = logoPath, PrimaryColor = PrimaryColor, ContactEmail = ContactEmail,
+        Bio = Bio, InstagramUrl = InstagramUrl, YouTubeUrl = YouTubeUrl, WebsiteUrl = WebsiteUrl,
+    };
+}
+
+// The coach's public profile, as storefronts and the studio show it: the logo is the uploaded one's read
+// link (15 minutes) or the linked one.
+public sealed record CoachProfile(
+    string? LogoUrl, string? PrimaryColor, string? ContactEmail, string? Bio, string? InstagramUrl, string? YouTubeUrl, string? WebsiteUrl)
+{
+    public static async Task<CoachProfile> FromAsync(Branding branding, Athlos.Media.MediaStore media, CancellationToken cancellationToken) => new(
+        branding.LogoPath is { } path ? await media.ReadLinkAsync(path, cancellationToken) : branding.LogoUrl,
+        branding.PrimaryColor, branding.ContactEmail, branding.Bio, branding.InstagramUrl, branding.YouTubeUrl, branding.WebsiteUrl);
 }

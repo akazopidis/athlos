@@ -1,5 +1,5 @@
 using Athlos.Catalog.Api.Data;
-using Athlos.Catalog.Api.Media;
+using Athlos.Media;
 using Athlos.Tenancy;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -59,6 +59,11 @@ public static class PublishProgram
 
         if (program.IsPublished != publish)
         {
+            if (publish)
+            {
+                await Workouts.ProgramOutline.RefreshAsync(db, programId, cancellationToken);
+            }
+
             program.IsPublished = publish;
             program.PublishedAt = publish ? DateTimeOffset.UtcNow : null;
             program.FirstPublishedAt ??= program.PublishedAt;

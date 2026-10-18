@@ -14,6 +14,8 @@ const lazyPage = <K extends string>(load: () => Promise<Record<K, ComponentType>
   lazy(async () => ({ default: (await load())[name] }))
 const Admin = lazyPage(() => import('@/features/admin/Admin'), 'Admin')
 const Cart = lazyPage(() => import('@/features/cart/Cart'), 'Cart')
+const Coaches = lazyPage(() => import('@/features/marketplace/Coaches'), 'Coaches')
+const Sell = lazyPage(() => import('@/features/marketplace/Sell'), 'Sell')
 const AcceptInvite = lazyPage(() => import('@/features/studio/AcceptInvite'), 'AcceptInvite')
 const CreateWorkspace = lazyPage(() => import('@/features/studio/CreateWorkspace'), 'CreateWorkspace')
 const Me = lazyPage(() => import('@/features/account/Me'), 'Me')
@@ -46,6 +48,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/c/:slug" element={<Storefront />} />
+            <Route path="/sell" element={<Sell />} />
             <Route element={<Contained />}>
               <Route path="/c/:slug/programs/:programSlug" element={<ProgramPage />} />
               <Route path="/invites/:slug" element={<AcceptInvite />} />
@@ -57,6 +60,7 @@ export default function App() {
                 <Route path="settings" element={<StudioSettings />} />
               </Route>
               <Route path="/cart" element={<Cart />} />
+              <Route path="/coaches" element={<Coaches />} />
               <Route path="/me" element={<Me />}>
                 <Route index element={<MyPrograms />} />
                 <Route path="orders" element={<MyOrders />} />

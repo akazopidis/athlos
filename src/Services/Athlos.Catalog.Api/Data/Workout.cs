@@ -24,6 +24,9 @@ public sealed class Workout : ITenantOwned, IHasTimestamps
     // A link to an external host (unlisted YouTube, Vimeo); videos are not stored in Azure (design §2.3).
     public string? VideoUrl { get; set; }
 
+    // The program's free preview (design §8): at most one per program, shown on the public program page.
+    public bool IsSample { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

@@ -1,6 +1,7 @@
-import { Info, Mail } from 'lucide-react'
+import { Info } from 'lucide-react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { BrandScope, StorefrontBanner } from '@/components/brand'
+import { CoachLinks } from '@/components/coach-profile'
 import { Loading, Notice, Section } from '@/components/page'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -10,7 +11,7 @@ import { useProgramSearch } from './useProgramSearch.ts'
 import { useStorefront } from './useStorefront.ts'
 
 // The coach's public page, in their own colors (design §8): the visible "your own workspace" part
-// of the thesis. Logo and color come from the workspace settings (studio).
+// of the thesis. Logo, color, bio and links come from the workspace settings (studio).
 export function Storefront() {
   const { slug = '' } = useParams()
   const [params] = useSearchParams()
@@ -53,18 +54,18 @@ export function Storefront() {
             <AlertDescription>Checkout cancelled. You have not been charged.</AlertDescription>
           </Alert>
         )}
-        <Section
-          title={`Programs by ${displayName}`}
-          action={
-            branding.contactEmail && (
-              <Button asChild variant="outline" size="sm">
-                <a href={`mailto:${branding.contactEmail}`}>
-                  <Mail aria-hidden /> Contact {displayName}
-                </a>
-              </Button>
-            )
-          }
-        >
+        {(branding.bio || branding.instagramUrl || branding.youTubeUrl || branding.websiteUrl || branding.contactEmail) && (
+          <section aria-labelledby="about-heading" className="grid gap-4 rounded-3xl border bg-card p-6 sm:p-8 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] md:items-start">
+            <div className="space-y-3">
+              <h2 id="about-heading" className="text-xl font-bold tracking-tight">
+                About {displayName}
+              </h2>
+              {branding.bio && <p className="whitespace-pre-line text-muted-foreground">{branding.bio}</p>}
+            </div>
+            <CoachLinks name={displayName} profile={branding} className="md:justify-end" />
+          </section>
+        )}
+        <Section title={`Programs by ${displayName}`}>
           <Catalog search={search} update={update} clear={clear} fixedCoach={slug} />
         </Section>
       </div>

@@ -8,8 +8,9 @@ public static class Spa
 
     // Per-environment SPA settings, read at runtime so one image runs in every environment.
     // RefundWindowDays: shown to customers ("refundable within 14 days"); Payments:RefundWindowDays, the
-    // same setting ordering-api enforces (default 14), so set it on both apps when it changes.
-    public sealed record SpaConfig(string? EntraClientId, string? EntraAuthority, string? ApiScope, string Version, int RefundWindowDays);
+    // same setting ordering-api enforces (default 14), so set it on both apps when it changes. Likewise
+    // PlatformFeePercent (Payments:PlatformFeePercent, default 10), shown on the "Sell on Athlos" page.
+    public sealed record SpaConfig(string? EntraClientId, string? EntraAuthority, string? ApiScope, string Version, int RefundWindowDays, int PlatformFeePercent);
 
     public static IEndpointRouteBuilder MapSpaConfig(this WebApplication app)
     {
@@ -19,7 +20,8 @@ public static class Spa
             section["EntraAuthority"],
             section["ApiScope"],
             app.Configuration.GetAppVersion(),
-            app.Configuration.GetValue("Payments:RefundWindowDays", 14));
+            app.Configuration.GetValue("Payments:RefundWindowDays", 14),
+            app.Configuration.GetValue("Payments:PlatformFeePercent", 10));
 
         app.MapGet("/config.json", (HttpContext context) =>
             {

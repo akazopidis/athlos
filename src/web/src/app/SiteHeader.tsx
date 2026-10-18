@@ -32,7 +32,10 @@ export function SiteHeader() {
         </Link>
         <HeaderSearch key={`${pathname}?${params.get('q') ?? ''}`} className="hidden flex-1 md:block" />
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
-          <Link to="/studio/new" className="hidden px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:block">
+          <Link to="/coaches" className="hidden px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:block">
+            Coaches
+          </Link>
+          <Link to="/sell" className="hidden px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:block">
             Sell on Athlos
           </Link>
           <CartLink />
@@ -67,8 +70,9 @@ export function SiteHeader() {
         <nav id="mobile-menu" className="container-page flex flex-col border-t pt-2 pb-4 md:hidden" aria-label="Main">
           {[
             ...categories.map((c) => ({ to: categoryLink(c.category), label: c.label })),
+            { to: '/coaches', label: 'Coaches' },
             { to: '/cart', label: 'Cart' },
-            { to: '/studio/new', label: 'Sell on Athlos' },
+            { to: '/sell', label: 'Sell on Athlos' },
           ].map((l) => (
             <NavLink
               key={l.to}

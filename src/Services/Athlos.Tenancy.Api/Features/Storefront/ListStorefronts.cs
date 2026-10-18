@@ -1,3 +1,4 @@
+using Athlos.Media;
 using Athlos.Tenancy.Api.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +21,7 @@ public static class ListStorefronts
     }
 
     private static async Task<Results<Ok<List<GetStorefront.Response>>, ProblemHttpResult>> Handle(
-        string[]? slug, TenancyDbContext db, CancellationToken cancellationToken)
+        string[]? slug, TenancyDbContext db, MediaStore media, CancellationToken cancellationToken)
     {
         var slugs = (slug ?? []).Distinct().ToList();
         if (slugs.Count > MaxSlugs)
@@ -33,9 +34,15 @@ public static class ListStorefronts
             .AsNoTracking()
             .Where(t => slugs.Contains(t.Slug) && t.Status == TenantStatus.Active)
             .OrderBy(t => t.DisplayName)
-            .Select(t => new GetStorefront.Response(t.Slug, t.DisplayName, t.Branding))
+            .Select(t => new { t.Slug, t.DisplayName, t.Branding })
             .ToListAsync(cancellationToken);
 
-        return TypedResults.Ok(storefronts);
+        var responses = new List<GetStorefront.Response>(storefronts.Count);
+        foreach (var s in storefronts)
+        {
+            responses.Add(new GetStorefront.Response(s.Slug, s.DisplayName, await CoachProfile.FromAsync(s.Branding, media, cancellationToken)));
+        }
+
+        return TypedResults.Ok(responses);
     }
 }

@@ -171,7 +171,7 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 
 | Service | Table | Key columns |
 |---|---|---|
-| tenancy | `tenants` | `slug` (unique), `display_name`, `status` (Active, Suspended, Deleted), `plan` (Free, Pro), `branding` (jsonb: logo URL, colors, public contact email), `stripe_account_id`, `stripe_onboarding_complete` |
+| tenancy | `tenants` | `slug` (unique), `display_name`, `status` (Active, Suspended, Deleted), `plan` (Free, Pro), `branding` (jsonb: linked logo URL, uploaded logo path, colors, public contact email, bio, Instagram, YouTube and website links), `stripe_account_id`, `stripe_onboarding_complete` |
 | tenancy | `memberships` **T** | `user_id` (Entra object id), `role` (Owner, Staff) |
 | tenancy | `user_profiles` | `user_id` (unique), `email`, `display_name` |
 | tenancy | `staff_invites` **T** | `email`, `token_hash`, `expires_at`, `accepted_at` |
@@ -286,7 +286,7 @@ Pool is what a marketplace with many small coaches would use in practice, and it
    - **Two PostgreSQL pitfalls to handle and write about:** RLS does not apply to the table owner unless `FORCE ROW LEVEL SECURITY` is set, and it never applies to superusers or roles with `BYPASSRLS`. So the migrator role owns the tables, and each service connects as a separate, non-owner role with only `SELECT, INSERT, UPDATE, DELETE`.
 
 **Other isolation points**
-- **Blob storage:** paths are `tenants/{tenantId}/programs/{programId}/...`. The API issues short-lived, read-only user-delegation SAS URLs, and only for content the caller is enrolled in or owns.
+- **Blob storage:** paths are `tenants/{tenantId}/programs/{programId}/...` (catalog-api's covers) and `tenants/{tenantId}/workspace/...` (tenancy-api's coach logos, since v1.10.0), always built from the tenant in `ITenantContext`. Both services share one private container and the `Athlos.Media` building block. The APIs issue short-lived, read-only user-delegation SAS URLs, and only for content the caller is enrolled in or owns, or that is public (a cover, a logo). Deleting a workspace removes everything under its prefix.
 - **Caches:** every cache key is prefixed with the tenant id.
 - **Logs and traces:** `tenant.id` is on every span and log scope, so one tenant's activity can be isolated in queries (see §6).
 - **Stripe:** each coach is a separate Connect account. Money never co-mingles in a way the platform has to reconcile by hand.
@@ -600,8 +600,12 @@ athlos/
 
 One SPA with four areas, plus the platform admin's `/admin`, shown to users with the `Platform.Admin` role:
 - `/` marketplace: browse, filter and search all coaches' published programs; `/cart` the cart.
-- `/c/{slug}` coach storefront: the tenant's branded page (logo, colors from workspace settings). This is the visible "configure your dedicated workspace" part of the thesis.
-- `/studio/{slug}` coach dashboard: programs, sales, settings, Stripe onboarding.
+- `/c/{slug}` coach storefront: the tenant's branded page (logo or photo, uploaded or linked, colors, an "About" with the coach's bio, links to Instagram, YouTube and a website, and contact, all from workspace settings). This is the visible "configure your dedicated workspace" part of the thesis. Program pages show the same coach in a "Your coach" card.
+- Program pages show "What's inside" (every workout's week, day and title) and one workout the coach marks as the free preview, in full. The paid content stays in `workouts`, which has no public-read policy: catalog-api copies the outline and the preview onto the program row (`programs.outline`, `programs.sample`, jsonb), public with the program, whenever a workout changes or the program is published (`ProgramOutline`). The `ProgramOutline` migration backfilled the outline of existing programs, lifting FORCE ROW LEVEL SECURITY for that one transaction, as `FirstPublishedAt` did.
+- Programs without a cover get a generated one: a gradient from the title and the category's icon.
+- `/coaches` the coaches with programs on sale, most programs first (catalog's coach facet, profiles from tenancy-api); the home page features the top four.
+- `/studio/{slug}` coach dashboard: programs, sales, settings, Stripe onboarding. The overview shows a setup checklist until a program is on sale, the storefront's link to share, and "Your numbers" (ordering-api's `GET /api/v1/studio/{slug}/sales/summary`: paid sales and earnings after the fee, this month and in total, customers, best seller; another coach's address gives zeros).
+- `/sell` the page that wins coaches: how it works, what they get, pricing (the plans' real limits from `GET /api/v1/plans`, the fee and the refund window from `/config.json`) and an FAQ.
 - `/me` customer area, one page per subject: purchased programs and progress (`/me`, where Stripe returns the customer), `/me/orders`, `/me/workspaces` and `/me/account` (sign out, account deletion).
 
 The footer shows the running version (from the gateway's `/version` endpoint), which makes releases visible in demos.
@@ -610,7 +614,9 @@ The footer shows the running version (from the gateway's `/version` endpoint), w
 
 The Vite build is part of the gateway image. The gateway serves it with ASP.NET Core static files (`MapStaticAssets`, which adds compression and fingerprinted caching), falls back to `index.html` for client-side routes, and sends the security headers from §5.1. API routes (`/api/...`, `/webhooks/...`, `/health/...`, `/version`) are matched first, so the fallback never hides an API 404.
 
-**Build once, promote still holds.** Anything that differs per environment (Entra client id and authority, API scopes) is not baked into the bundle. The gateway serves it at `GET /config.json` from its own environment variables, and the SPA fetches it before rendering. The same image runs in dev, staging and prod.
+**Build once, promote still holds.** Anything that differs per environment (Entra client id and authority, API scopes) is not baked into the bundle. The gateway serves it at `GET /config.json` from its own environment variables, and the SPA fetches it before rendering. The same image runs in dev, staging and prod. `/config.json` also carries `refundWindowDays` and `platformFeePercent`, the same `Payments:*` settings ordering-api applies, for what the shop promises (set them on both apps if they change).
+
+**Link previews** (v1.10.0). Apps that show a link's title and image (WhatsApp, Instagram, search engines) read the HTML without running the SPA. For `/c/{slug}` and `/c/{slug}/programs/{programSlug}` the gateway serves the same `index.html` with that page's `<title>`, description and Open Graph and Twitter card tags (`LinkPreviews`), read from the services' public marketplace endpoints with a signed request and cached for 5 minutes. A lookup that fails or takes more than 4 seconds (a cold start) serves the plain shell, and the SPA renders the page either way.
 
 **Why not Static Web Apps:** it is offered only in a few regions (West US 2, Central US, East US 2, West Europe, East Asia), and the student subscription's policy allows none of them. Blob Storage static websites were the other option, but they cannot set response headers (no CSP) and answer client-side routes with a 404 status. Serving from the gateway costs nothing extra, removes CORS entirely, and is one less resource per environment. The trade-off: the SPA has no global CDN, and a gateway cold start also delays the first page load. Both are acceptable for the thesis and are named as future work (Front Door or a CDN in front of the gateway).
 

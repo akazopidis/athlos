@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button'
 import { categoryLabel } from '@/lib/categories'
 import { useTitle } from '@/lib/useTitle'
 import { Catalog } from './Catalog.tsx'
+import { CoachGrid } from './CoachGrid.tsx'
+import { useMarketplaceCoaches } from './useMarketplaceCoaches.ts'
 import { useProgramSearch } from './useProgramSearch.ts'
 
 // The marketplace (design §8, "/"), laid out as a shop: a short banner, the shop's promises, then the
@@ -53,6 +55,7 @@ export function Home() {
           </h2>
           <Catalog search={search} update={update} clear={clear} />
         </section>
+        <FeaturedCoaches />
         <CoachInvite />
       </div>
     </>
@@ -86,6 +89,25 @@ function Promises() {
   )
 }
 
+// The coaches with the most programs on sale; hidden until there are some.
+function FeaturedCoaches() {
+  const { coaches } = useMarketplaceCoaches(4)
+  if (coaches.length === 0) return null
+  return (
+    <section aria-labelledby="coaches-heading" className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h2 id="coaches-heading" className="text-2xl font-bold tracking-tight sm:text-3xl">
+          Featured coaches
+        </h2>
+        <Link to="/coaches" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground">
+          All coaches <ArrowRight className="size-4" aria-hidden />
+        </Link>
+      </div>
+      <CoachGrid coaches={coaches} />
+    </section>
+  )
+}
+
 function CoachInvite() {
   return (
     <section className="relative isolate overflow-hidden rounded-3xl bg-volt px-6 py-10 text-volt-foreground sm:px-12 sm:py-14">
@@ -106,8 +128,8 @@ function CoachInvite() {
         </div>
         <div className="lg:justify-self-end">
           <Button asChild size="lg" className="bg-ink text-ink-foreground hover:bg-ink/85">
-            <Link to="/studio/new">
-              Open your studio <ArrowRight aria-hidden />
+            <Link to="/sell">
+              Start selling <ArrowRight aria-hidden />
             </Link>
           </Button>
         </div>

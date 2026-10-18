@@ -11,6 +11,8 @@ const pages = [
   { name: 'storefront', path: '/c/demo-forge' },
   { name: 'program page', path: '/c/demo-forge/programs/strong-start' },
   { name: 'cart', path: '/cart' },
+  { name: 'sell page', path: '/sell' },
+  { name: 'coach directory', path: '/coaches' },
 ]
 
 for (const { name, path } of pages) {

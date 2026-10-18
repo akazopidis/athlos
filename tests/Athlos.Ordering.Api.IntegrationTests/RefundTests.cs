@@ -251,6 +251,26 @@ public sealed class RefundTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.DoesNotContain(coachEmails, e => e.ToOwnersOfTenant == cleo.TenantId && e.Template == EmailTemplates.SaleRefunded);
     }
 
+    // The studio's numbers (design §8): paid sales only, so a refunded one earns nothing.
+    [Fact]
+    public async Task The_sales_summary_counts_paid_sales_and_earnings_after_the_fee()
+    {
+        var coach = NewCoach();
+        var kept = await _api.Buy(Guid.CreateVersion7(), coach);
+        var refunded = await _api.Buy(Guid.CreateVersion7(), coach);
+        await Refund(coach, refunded, TenantRole.Owner);
+
+        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/studio/{coach.Slug}/sales/summary"),
+            coach.OwnerId, coach.TenantId, TenantRole.Staff);
+        var summary = await response.Content.ReadFromJsonAsync<JsonElement>(Cancel);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal((1, 4410L, 1, 4410L, 1, 1),
+            (summary.GetProperty("sales").GetInt32(), summary.GetProperty("earnings").GetInt64(), summary.GetProperty("salesThisMonth").GetInt32(),
+             summary.GetProperty("earningsThisMonth").GetInt64(), summary.GetProperty("customers").GetInt32(), summary.GetProperty("bestSellerSales").GetInt32()));
+        Assert.NotEqual(kept, refunded);
+    }
+
     // A failed transfer waits in payout_retries; a later pass pays the coach once their account works.
     [Fact]
     public async Task A_failed_payout_is_retried_until_the_coach_is_paid()

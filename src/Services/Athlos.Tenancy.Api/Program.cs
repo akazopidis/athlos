@@ -1,3 +1,4 @@
+using Athlos.Media;
 using System.Text.Json.Serialization;
 using Athlos.Messaging;
 using Athlos.Tenancy;
@@ -46,6 +47,12 @@ builder.Services.Configure<EntraAccountDeletionOptions>(builder.Configuration.Ge
 builder.Services.AddHttpClient<IEntraUsers, GraphEntraUsers>();
 // The staff invite email leaves through the outbox to the notifications queue (design §5.2, §5.3).
 builder.AddOutbox<TenancyDbContext>();
+
+// The coach's uploaded logo (design §8): ConnectionStrings:media is Azurite locally and the account's
+// blob endpoint in Azure (managed identity), the same container as catalog-api's program covers.
+// No health check: a logo is optional, so storage must not make tenancy-api unready.
+builder.AddAzureBlobServiceClient("media", settings => settings.DisableHealthChecks = true);
+builder.Services.AddSingleton<MediaStore>();
 builder.Services.AddValidation();
 builder.Services.AddOpenApi(options =>
     // Slices nest their Request/Response records; name schemas after the slice (CreateTenantRequest).
@@ -96,6 +103,7 @@ var studio = app.MapGroup("/api/v1/studio/{tenantSlug}")
     .WithTenantTransaction<TenancyDbContext>();
 studio.MapGetWorkspace();
 studio.MapUpdateWorkspace();
+studio.MapWorkspaceLogo();
 studio.MapPayouts();
 studio.MapStaffInvites();
 studio.MapTeamMembers();

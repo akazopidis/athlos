@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueries } from '@tanstack/react-query'
 import { Info, Lock, ShoppingBag, Trash2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
@@ -18,7 +18,8 @@ import { useTitle } from '@/lib/useTitle'
 
 // The cart (design §2.2, §8): programs from any coaches, paid in one Stripe checkout. ordering-api
 // checks every program again; what it refuses comes back as programIds, which this page removes
-// (gone, already owned) or marks (the coach cannot take payments now).
+// (gone, already owned) or marks (the coach cannot take payments now). Prices are read again when the
+// cart opens, so the total is what Stripe will charge, and a changed price is pointed out.
 export function Cart() {
   useTitle('Cart')
   const { api, msal, config } = useApp()
@@ -30,6 +31,24 @@ export function Cart() {
   const [blocked, setBlocked] = useState<string[]>([])
   const signedIn = Boolean(msal?.getActiveAccount())
 
+  // Each program's current price (its public page): the cart shows and totals what checkout will
+  // charge, and names any price that changed since it was added. A program no longer for sale keeps
+  // its stored price; checkout refuses it.
+  const current = useQueries({
+    queries: cart.items.map((i) => ({
+      queryKey: ['cart-price', i.coachSlug, i.slug],
+      queryFn: async () =>
+        (await api.GET('/api/v1/marketplace/coaches/{coachSlug}/programs/{programSlug}', { params: { path: { coachSlug: i.coachSlug, programSlug: i.slug } } }))
+          .data ?? null,
+      staleTime: 60_000,
+    })),
+  })
+  const priced = cart.items.map((item, n) => {
+    const price = current[n]?.data?.priceAmount
+    return typeof price === 'number' || typeof price === 'string' ? { ...item, priceAmount: Number(price) } : item
+  })
+  const changed = priced.filter((p, n) => Number(p.priceAmount) !== Number(cart.items[n]!.priceAmount))
+
   // One Idempotency-Key per cart content: a double click or a retry reuses the same checkout page,
   // a changed cart starts a new one (design §7.1).
   const attempt = useRef<{ ids: string; key: string } | null>(null)
@@ -39,8 +58,8 @@ export function Cart() {
     return attempt.current.key
   }
 
-  const ownedInCart = cart.items.filter((i) => owned.has(i.programId))
-  const toBuy = cart.items.filter((i) => !owned.has(i.programId))
+  const ownedInCart = priced.filter((i) => owned.has(i.programId))
+  const toBuy = priced.filter((i) => !owned.has(i.programId))
   const totals = cartTotals(toBuy)
 
   const checkout = useMutation({
@@ -92,7 +111,7 @@ export function Cart() {
   }
 
   const byCoach = new Map<string, CartItem[]>()
-  for (const item of cart.items) byCoach.set(item.coachSlug, [...(byCoach.get(item.coachSlug) ?? []), item])
+  for (const item of priced) byCoach.set(item.coachSlug, [...(byCoach.get(item.coachSlug) ?? []), item])
 
   return (
     <div className="space-y-8">
@@ -111,6 +130,15 @@ export function Cart() {
         <Alert role="status">
           <Info aria-hidden />
           <AlertDescription>{notice}</AlertDescription>
+        </Alert>
+      )}
+      {changed.length > 0 && (
+        <Alert role="status">
+          <Info aria-hidden />
+          <AlertDescription>
+            Prices changed since you added {changed.length === 1 ? 'this program' : 'these programs'}:{' '}
+            {changed.map((i) => `${i.title} is now ${formatMoney(i.priceAmount, i.currency)}`).join(', ')}.
+          </AlertDescription>
         </Alert>
       )}
 

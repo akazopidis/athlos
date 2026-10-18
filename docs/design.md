@@ -4,6 +4,8 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v15.4, built; v1.8.0 in production (2026-10-17)
 
+**Changes in v15.5 (v1.8.1):** programs are priced in euros only; a workout's week is inside the program's length, and a program cannot be shortened below its last workout; the cart shows and totals current prices and names any that changed (§2.2, §2.3).
+
 **Changes in v15.4 (v1.8.0):** a Stripe Connect webhook (`account.updated`) on tenancy-api keeps each workspace's "ready to sell" in step with Stripe; coaches are emailed when a payout to them fails (`payout-failed`, §2.2); starting a checkout is limited per customer at the gateway (§4); a gateway test checks that every service endpoint is routed (§15.1).
 
 **Changes in v15.3 (v1.7.0):** the team (members listed, staff removed or leaving, ownership handed over, §5.3); a workspace is deleted only when no sale can still be refunded, and its open payment pages are closed first (§3.4); a deleted account's open payment pages are closed, and a payment that still arrives is refunded (§5.2); programs cost at least €10 (§2.3); workouts of a program that has been on sale cannot be deleted; a clear error when Stripe cannot open a payment page.
@@ -171,7 +173,7 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 | tenancy | `memberships` **T** | `user_id` (Entra object id), `role` (Owner, Staff) |
 | tenancy | `user_profiles` | `user_id` (unique), `email`, `display_name` |
 | tenancy | `staff_invites` **T** | `email`, `token_hash`, `expires_at`, `accepted_at` |
-| catalog | `programs` **T** | `title`, `slug`, `description`, `category`, `duration_weeks`, `price_amount` (integer cents, at least 1,000: €10), `currency`, `is_published`, `cover_image_path` |
+| catalog | `programs` **T** | `title`, `slug`, `description`, `category`, `duration_weeks`, `price_amount` (integer cents, at least 1,000: €10), `currency` (`EUR` only: one currency per cart; the data model keeps a code for later), `is_published`, `cover_image_path` |
 | catalog | `workouts` **T** | `program_id`, `week`, `day`, `title`, `content` (Markdown), `video_url` |
 | ordering | `orders` **T** | `customer_id`, `customer_email`, `program_id`, `program_title` (copy at purchase time), `amount`, `currency`, `platform_fee`, `status` (Pending, Paid, Failed, Refunded), `stripe_checkout_session_id` (shared by a cart's orders), `checkout_id`, `seller_account_id` (the coach's Connect account at checkout), `stripe_transfer_id`, `stripe_payment_intent_id`, `refunded_at` |
 | ordering | `payout_retries` | `order_id` (primary key), `tenant_id`, `coach_slug`, `amount`, `currency`, `attempts`, `next_attempt_at`, `last_error`. A work queue of the service (allow-all policy, like the outbox) |

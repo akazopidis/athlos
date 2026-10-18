@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Tenancy.Api.Data;
+using Athlos.Messaging.Contracts;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -23,7 +24,7 @@ public static class CreateTenant
             .WithTags("Tenants");
 
     private static async Task<Results<Created<Response>, ProblemHttpResult>> Handle(
-        Request request, TenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
+        Request request, TenantContext tenant, TenancyDbContext db, IConfiguration configuration, CancellationToken cancellationToken)
     {
         if (tenant.UserId is not { } userId)
         {
@@ -41,6 +42,7 @@ public static class CreateTenant
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         db.Tenants.Add(created);
         db.Memberships.Add(new Membership { UserId = userId, Role = TenantRole.Owner });
+        WorkspaceEmails.ToOwners(db, EmailTemplates.WorkspaceWelcome, created, configuration);
 
         try
         {

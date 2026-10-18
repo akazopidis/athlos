@@ -70,10 +70,15 @@ public static class TenancyArrange
         return new Uri(invite.Data["acceptUrl"]).Fragment.TrimStart('#');
     }
 
-    // The newest invite email queued for the address. Read from the outbox table, where it is written
-    // with the invite: every tenancy test app shares that table and runs a background publisher, so
+    // The newest invite email queued for the address.
+    public static async Task<EmailNotification> InviteEmail(this TenancyApiFactory api, string email) =>
+        (await api.QueuedEmails()).FirstOrDefault(e => e.Template == EmailTemplates.StaffInvite && e.To.Contains(email))
+        ?? throw new InvalidOperationException($"No invite email was queued for {email}.");
+
+    // The emails tenancy queued, newest first. Read from the outbox table, where each is written with the
+    // change it announces: every tenancy test app shares that table and runs a background publisher, so
     // which app's sender ends up sending it is a race, but the row is always there.
-    public static async Task<EmailNotification> InviteEmail(this TenancyApiFactory api, string email)
+    public static async Task<List<EmailNotification>> QueuedEmails(this TenancyApiFactory api)
     {
         await using var scope = api.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
@@ -81,13 +86,9 @@ public static class TenancyArrange
             .Where(m => m.Queue == EmailNotification.Queue)
             .OrderByDescending(m => m.OccurredAt)
             .Select(m => m.Payload)
-            .Take(500)
+            .Take(1000)
             .ToListAsync(TestContext.Current.CancellationToken);
-
-        return queued
-            .Select(payload => JsonSerializer.Deserialize<EmailNotification>(payload, JsonSerializerOptions.Web)!)
-            .FirstOrDefault(e => e.Template == EmailTemplates.StaffInvite && e.To.Contains(email))
-            ?? throw new InvalidOperationException($"No invite email was queued for {email}.");
+        return [.. queued.Select(payload => JsonSerializer.Deserialize<EmailNotification>(payload, JsonSerializerOptions.Web)!)];
     }
 
     public static Task<HttpResponseMessage> Accept(this TenancyApiFactory api, string slug, string token, Guid userId) =>

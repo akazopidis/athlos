@@ -20,8 +20,9 @@ public static class OrderLists
 
     // Status: Paid or Refunded (a refunded sale stays in the list, marked, and earns nothing).
     // RefundableUntil: the end of the coach's refund window (Payments:RefundWindowDays after payment).
+    // CustomerEmail: null once the customer deleted their account (design §5.2).
     public sealed record Sale(
-        Guid Id, Guid ProgramId, string ProgramTitle, string CustomerEmail, long Amount, long PlatformFee, string Currency, DateTimeOffset PaidAt,
+        Guid Id, Guid ProgramId, string ProgramTitle, string? CustomerEmail, long Amount, long PlatformFee, string Currency, DateTimeOffset PaidAt,
         OrderStatus Status, DateTimeOffset? RefundedAt, DateTimeOffset RefundableUntil);
 
     public sealed record Paging([property: Range(1, 10_000)] int Page = 1, [property: Range(1, MaxPageSize)] int PageSize = 20);
@@ -65,7 +66,7 @@ public static class OrderLists
                 return TypedResults.Ok(new SalesPage(
                     await sales.OrderByDescending(o => o.PaidAt)
                         .Skip((paging.Page - 1) * paging.PageSize).Take(paging.PageSize)
-                        .Select(o => new Sale(o.Id, o.ProgramId, o.ProgramTitle, o.CustomerEmail, o.Amount, o.PlatformFee, o.Currency, o.PaidAt!.Value, o.Status, o.RefundedAt,
+                        .Select(o => new Sale(o.Id, o.ProgramId, o.ProgramTitle, o.CustomerEmail == Customers.EraseCustomer.ErasedEmail ? null : o.CustomerEmail, o.Amount, o.PlatformFee, o.Currency, o.PaidAt!.Value, o.Status, o.RefundedAt,
                             o.PaidAt!.Value + window))
                         .ToListAsync(cancellationToken),
                     paging.Page, paging.PageSize, await sales.CountAsync(cancellationToken)));

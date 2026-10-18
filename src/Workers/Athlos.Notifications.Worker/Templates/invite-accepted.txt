@@ -1,0 +1,6 @@
+Subject: {{memberName}} joined {{workspaceName}}
+{{memberName}} accepted your invite and is now staff in {{workspaceName}}. They can edit programs and see sales; only you can change settings, payouts and the team.
+
+See your team: {{teamUrl}}
+
+Athlos

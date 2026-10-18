@@ -260,6 +260,20 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal([(anna.Slug, 3), (ben.Slug, 1)], cheapestFirst.Coaches.Select(c => (c.CoachSlug, c.Count)));
     }
 
+    // Searching a coach's address finds their programs, with spaces for its dashes ("demo forge").
+    [Fact]
+    public async Task The_search_finds_a_coachs_programs_by_their_address()
+    {
+        var coach = NewCoach();
+        await _api.CreateProgram(coach, title: "Unrelated title", publish: true);
+
+        var bySlug = await Search($"?q={coach.Slug}");
+        var withSpaces = await Search($"?q={Uri.EscapeDataString(coach.Slug.Replace('-', ' '))}");
+
+        Assert.Equal([coach.Slug], bySlug.Items.Select(i => i.CoachSlug));
+        Assert.Equal([coach.Slug], withSpaces.Items.Select(i => i.CoachSlug));
+    }
+
     [Fact]
     public async Task Page_size_is_capped_at_50()
     {

@@ -7,7 +7,9 @@ public static class Spa
     private static readonly string[] ServerPrefixes = ["/api", "/webhooks", "/internal", "/health"];
 
     // Per-environment SPA settings, read at runtime so one image runs in every environment.
-    public sealed record SpaConfig(string? EntraClientId, string? EntraAuthority, string? ApiScope, string Version);
+    // RefundWindowDays: shown to customers ("refundable within 14 days"); Payments:RefundWindowDays, the
+    // same setting ordering-api enforces (default 14), so set it on both apps when it changes.
+    public sealed record SpaConfig(string? EntraClientId, string? EntraAuthority, string? ApiScope, string Version, int RefundWindowDays);
 
     public static IEndpointRouteBuilder MapSpaConfig(this WebApplication app)
     {
@@ -16,7 +18,8 @@ public static class Spa
             section["EntraClientId"],
             section["EntraAuthority"],
             section["ApiScope"],
-            app.Configuration.GetAppVersion());
+            app.Configuration.GetAppVersion(),
+            app.Configuration.GetValue("Payments:RefundWindowDays", 14));
 
         app.MapGet("/config.json", (HttpContext context) =>
             {

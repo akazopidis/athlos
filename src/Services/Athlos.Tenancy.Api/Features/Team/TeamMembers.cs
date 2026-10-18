@@ -1,4 +1,6 @@
 using Athlos.Tenancy.Api.Data;
+using Athlos.Messaging.Contracts;
+using Athlos.Tenancy.Api.Features.Tenants;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -51,7 +53,7 @@ public static class TeamMembers
     }
 
     private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> Remove(
-        string tenantSlug, Guid userId, ITenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
+        string tenantSlug, Guid userId, ITenantContext tenant, TenancyDbContext db, IConfiguration configuration, CancellationToken cancellationToken)
     {
         if (!await IsThisWorkspaceAsync(tenantSlug, tenant, db, cancellationToken))
         {
@@ -76,13 +78,27 @@ public static class TeamMembers
                 title: "The owner cannot leave the workspace. Hand ownership to a staff member first, or delete the workspace.");
         }
 
+        // The owners hear that someone left; someone removed hears it themselves (profiles are readable
+        // inside the tenant, tenant_members_read).
+        var workspace = await db.Tenants.SingleAsync(t => t.Id == tenant.TenantId, cancellationToken);
+        var profile = await db.UserProfiles.Where(p => p.UserId == userId).Select(p => new { p.DisplayName, p.Email }).SingleOrDefaultAsync(cancellationToken);
+        if (leaving)
+        {
+            WorkspaceEmails.ToOwners(db, EmailTemplates.MemberLeft, workspace, configuration,
+                new() { ["memberName"] = string.IsNullOrWhiteSpace(profile?.DisplayName) ? "A team member" : profile.DisplayName });
+        }
+        else if (profile is not null)
+        {
+            WorkspaceEmails.ToMember(db, EmailTemplates.MemberRemoved, profile.Email, workspace, configuration);
+        }
+
         db.Memberships.Remove(member);
         await db.SaveChangesAsync(cancellationToken);
         return TypedResults.NoContent();
     }
 
     private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> HandOver(
-        string tenantSlug, Guid userId, ITenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
+        string tenantSlug, Guid userId, ITenantContext tenant, TenancyDbContext db, IConfiguration configuration, CancellationToken cancellationToken)
     {
         if (!await IsThisWorkspaceAsync(tenantSlug, tenant, db, cancellationToken))
         {
@@ -107,6 +123,8 @@ public static class TeamMembers
         var workspace = await db.Tenants.SingleAsync(t => t.Id == tenant.TenantId, cancellationToken);
         workspace.StripeAccountId = null;
         workspace.StripeOnboardingComplete = false;
+        // Sent to the owners when the worker sends it: by then, the new owner.
+        WorkspaceEmails.ToOwners(db, EmailTemplates.OwnershipReceived, workspace, configuration);
         await db.SaveChangesAsync(cancellationToken);
         return TypedResults.NoContent();
     }

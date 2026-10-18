@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Field, selectClassName } from '@/components/field'
 import { Loading } from '@/components/page'
+import { CopyLink } from '@/components/copy-link'
 import { ProgramCover } from '@/components/program-cover'
 import { useApp } from '@/lib/AppContext'
 import { Categories, type Category } from '@/lib/categories'
@@ -114,6 +115,14 @@ export function StudioProgramEditor() {
           </Button>
         </div>
       </div>
+      {p.isPublished && (
+        <Alert>
+          <AlertDescription className="w-full space-y-2">
+            <p>This program is on sale. Share its link:</p>
+            <CopyLink path={`/c/${slug}/programs/${p.slug}`} label="Copy program link" />
+          </AlertDescription>
+        </Alert>
+      )}
       {publish.error && (
         <Alert variant="destructive">
           <AlertDescription>{publish.error.message}</AlertDescription>

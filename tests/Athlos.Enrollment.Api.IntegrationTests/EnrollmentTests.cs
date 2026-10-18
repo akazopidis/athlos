@@ -28,24 +28,17 @@ public sealed class EnrollmentTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal((program.ProgramId, program.Title, _coach.Slug, 0), (enrolled.ProgramId, enrolled.ProgramTitle, enrolled.CoachSlug, enrolled.CompletedWorkouts));
     }
 
-    // Design §5.3: the purchase confirmation is queued with the enrollment, once, to the buyer.
+    // Design §5.3: the purchase confirmation is ordering-api's, one per checkout; enrollment sends none.
     [Fact]
-    public async Task The_purchase_confirmation_is_queued_once_with_the_enrollment()
+    public async Task Enrolling_queues_no_email()
     {
         var program = _api.Programs.Add(_coach.TenantId, _coach.Slug);
-        var paid = Paid(_customer, _coach.TenantId, _coach.Slug, program);
-        await _api.Deliver(paid);
-        await _api.Deliver(paid);
+        await _api.Deliver(Paid(_customer, _coach.TenantId, _coach.Slug, program));
 
         await _api.PublishOutbox();
 
-        var (queue, message) = Assert.Single(_api.Messages.Sent, m => m.Message.Payload.Contains(program.ProgramId.ToString(), StringComparison.Ordinal));
-        var email = JsonSerializer.Deserialize<EmailNotification>(message.Payload, EnrollmentArrange.Json)!;
-        Assert.Equal((EmailNotification.Queue, EmailTemplates.PurchaseConfirmation), (queue, email.Template));
-        Assert.Equal([paid.CustomerEmail], email.To);
-        Assert.Equal($"{TenancyApiFactory.PublicUrl}/me/programs/{program.ProgramId}", email.Data["programUrl"]);
-        // The worker can render it: producer and template agree on the data.
-        Assert.Contains(program.Title, new EmailRenderer().Render(email.Template, email.Data).Subject, StringComparison.Ordinal);
+        Assert.DoesNotContain(_api.Messages.Sent, m => m.Queue == EmailNotification.Queue && m.Message.Payload.Contains(program.ProgramId.ToString(), StringComparison.Ordinal));
+        Assert.Single((await _api.MyPrograms(_customer)).Items, p => p.ProgramId == program.ProgramId);
     }
 
     // A refund (design §2.2) removes the access that order gave, with its progress; delivered again,

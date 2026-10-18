@@ -1,0 +1,6 @@
+Subject: {{workspaceName}} was suspended
+Athlos suspended {{workspaceName}}. Its storefront and programs are hidden and nothing can be bought, and its studio is closed. Customers keep the programs they bought.
+
+If you think this is a mistake, reply to the Athlos team.
+
+Athlos

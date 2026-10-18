@@ -63,7 +63,11 @@ public static class SearchPrograms
         {
             var pattern = $"%{EscapeLike(query.Q.Trim())}%";
             // The escape character must be explicit: without it Npgsql emits ESCAPE '' (no escaping).
-            programs = programs.Where(p => EF.Functions.ILike(p.Title, pattern, @"\") || EF.Functions.ILike(p.Description, pattern, @"\"));
+            // The coach's address too ("forge" finds demo-forge's programs; spaces stand for its dashes):
+            // catalog knows coaches only by slug (design §2.1).
+            var slugPattern = $"%{EscapeLike(query.Q.Trim().ToLowerInvariant().Replace(' ', '-'))}%";
+            programs = programs.Where(p => EF.Functions.ILike(p.Title, pattern, @"\") || EF.Functions.ILike(p.Description, pattern, @"\")
+                || EF.Functions.ILike(p.CoachSlug, slugPattern, @"\"));
         }
 
         if (query.Category is { } category)

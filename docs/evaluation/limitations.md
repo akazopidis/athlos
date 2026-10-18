@@ -187,7 +187,7 @@ The limitations fall into three kinds:
 Each of these is ordinary product work with no new multi-tenancy question:
 - **Reviews and ratings:** none.
 - **Search engine visibility:** the SPA has no per-page titles for crawlers, no social preview tags, no sitemap and no server-side rendering.
-- **Search quality:** search is a case-insensitive text match on title and description, with no full-text index, ranking or typo tolerance (§8). A PostgreSQL full-text or trigram index would be the next step.
+- **Search quality:** search is a case-insensitive text match on title, description and the coach's address (not the coach's display name, which catalog does not hold), with no full-text index, ranking or typo tolerance (§8). A PostgreSQL full-text or trigram index would be the next step.
 - **Languages and currencies:** English only, euros only. Money is already stored as minor units plus a currency code, so the data model is ready.
 - **Cart:** it lives in the browser, not in the account, so it does not follow the customer to another device and is shared by two accounts on one browser. (Since v1.8.1 it shows current prices and names any that changed.)
 - **Categories:** programs created before v1.5.0 became "General fitness" until their coaches pick a category.

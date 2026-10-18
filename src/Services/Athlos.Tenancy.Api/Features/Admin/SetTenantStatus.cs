@@ -1,4 +1,6 @@
 using Athlos.Tenancy.Api.Data;
+using Athlos.Messaging.Contracts;
+using Athlos.Tenancy.Api.Features.Tenants;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,7 +27,7 @@ public static class SetTenantStatus
 
     private static async Task<Results<Ok<ListTenants.Item>, NotFound, ProblemHttpResult>> Handle(
         Guid tenantId, Request request, TenantContext tenant, TenancyDbContext db, ITenantSuspension suspension,
-        CancellationToken cancellationToken)
+        IConfiguration configuration, CancellationToken cancellationToken)
     {
         if (request.Status is not (TenantStatus.Active or TenantStatus.Suspended))
         {
@@ -52,6 +54,12 @@ public static class SetTenantStatus
         tenant.EnterTenant(tenantId, role: null);
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var workspace = await db.Tenants.SingleAsync(t => t.Id == tenantId, cancellationToken);
+        if (workspace.Status != request.Status)
+        {
+            WorkspaceEmails.ToOwners(db, request.Status == TenantStatus.Suspended ? EmailTemplates.WorkspaceSuspended : EmailTemplates.WorkspaceReactivated,
+                workspace, configuration);
+        }
+
         workspace.Status = request.Status;
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

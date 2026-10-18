@@ -1,0 +1,6 @@
+Subject: A dispute about {{programTitle}} was decided in your favour
+The bank decided the dispute about {{programTitle}} ({{price}}) in your favour. The sale stands and your share of {{earnings}} stays with you.
+
+See your sales: {{salesUrl}}
+
+Athlos

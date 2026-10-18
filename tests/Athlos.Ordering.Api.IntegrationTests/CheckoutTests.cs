@@ -60,6 +60,16 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
             Assert.Single(await _api.Outbox(), m => m.Queue == OrderPaid.Queue && m.Message.Payload.Contains(order.Id.ToString(), StringComparison.Ordinal));
             Assert.Single(await _api.Outbox(), m => m.Queue == EmailNotification.Queue && m.Message.Payload.Contains(order.TenantId.ToString(), StringComparison.Ordinal));
         }
+
+        // One purchase email for the cart, listing both programs, which the worker can render.
+        var purchase = Assert.Single((await _api.Outbox())
+            .Where(m => m.Queue == EmailNotification.Queue)
+            .Select(m => JsonSerializer.Deserialize<EmailNotification>(m.Message.Payload, Json)!),
+            e => e.Template == EmailTemplates.PurchaseConfirmation && e.Data["items"].Contains(annaOffer.Title, StringComparison.Ordinal));
+        Assert.Contains(benOffer.Title, purchase.Data["items"], StringComparison.Ordinal);
+        Assert.Equal(("69.00 EUR", "14"), (purchase.Data["total"], purchase.Data["refundDays"]));
+        var rendered = new Athlos.Notifications.Worker.EmailRenderer().Render(purchase.Template, purchase.Data);
+        Assert.Equal($"Your Athlos order: {annaOffer.Title} and 1 more", rendered.Subject);
     }
 
     [Fact]

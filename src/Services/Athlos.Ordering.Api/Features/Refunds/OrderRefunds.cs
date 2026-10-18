@@ -219,12 +219,13 @@ public static partial class OrderRefunds
         return done;
     }
 
-    // A customer disputed a payment (charge.dispute.created): every coach the payment paid is told, once
-    // per dispute (the webhook records the event id). Nothing else changes until the dispute closes: a lost
-    // one refunds the orders (RefundPaymentAsync), a won one changes nothing. An order still Pending waits,
-    // like a refund.
+    // A customer disputed a payment (charge.dispute.created, template sale-disputed), or the platform won
+    // the dispute (charge.dispute.closed as won, dispute-won): every coach the payment paid is told, once per
+    // event (the webhook records the event id). Nothing else changes: a lost dispute refunds the orders
+    // (RefundPaymentAsync), a won one leaves the sale as it is. An order still Pending waits, like a refund.
     public static async Task<bool> NotifyDisputeAsync(
-        string paymentIntentId, ICheckoutSessions stripe, IServiceScopeFactory scopes, IConfiguration configuration, CancellationToken cancellationToken)
+        string paymentIntentId, string template, ICheckoutSessions stripe, IServiceScopeFactory scopes, IConfiguration configuration,
+        CancellationToken cancellationToken)
     {
         var (orders, _) = await stripe.OrdersOfPaymentAsync(paymentIntentId, cancellationToken);
         var done = true;
@@ -239,7 +240,7 @@ public static partial class OrderRefunds
                 }
                 else if (order?.Status == OrderStatus.Paid)
                 {
-                    db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, CoachEmail(EmailTemplates.SaleDisputed, order, configuration)));
+                    db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, CoachEmail(template, order, configuration)));
                     await db.SaveChangesAsync(cancellationToken);
                 }
             }, cancellationToken);

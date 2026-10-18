@@ -14,6 +14,7 @@ const lazyPage = <K extends string>(load: () => Promise<Record<K, ComponentType>
   lazy(async () => ({ default: (await load())[name] }))
 const Admin = lazyPage(() => import('@/features/admin/Admin'), 'Admin')
 const Cart = lazyPage(() => import('@/features/cart/Cart'), 'Cart')
+const Coaches = lazyPage(() => import('@/features/marketplace/Coaches'), 'Coaches')
 const AcceptInvite = lazyPage(() => import('@/features/studio/AcceptInvite'), 'AcceptInvite')
 const CreateWorkspace = lazyPage(() => import('@/features/studio/CreateWorkspace'), 'CreateWorkspace')
 const Me = lazyPage(() => import('@/features/account/Me'), 'Me')
@@ -57,6 +58,7 @@ export default function App() {
                 <Route path="settings" element={<StudioSettings />} />
               </Route>
               <Route path="/cart" element={<Cart />} />
+              <Route path="/coaches" element={<Coaches />} />
               <Route path="/me" element={<Me />}>
                 <Route index element={<MyPrograms />} />
                 <Route path="orders" element={<MyOrders />} />

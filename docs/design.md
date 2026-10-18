@@ -171,7 +171,7 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 
 | Service | Table | Key columns |
 |---|---|---|
-| tenancy | `tenants` | `slug` (unique), `display_name`, `status` (Active, Suspended, Deleted), `plan` (Free, Pro), `branding` (jsonb: logo URL, colors, public contact email), `stripe_account_id`, `stripe_onboarding_complete` |
+| tenancy | `tenants` | `slug` (unique), `display_name`, `status` (Active, Suspended, Deleted), `plan` (Free, Pro), `branding` (jsonb: linked logo URL, uploaded logo path, colors, public contact email, bio, Instagram, YouTube and website links), `stripe_account_id`, `stripe_onboarding_complete` |
 | tenancy | `memberships` **T** | `user_id` (Entra object id), `role` (Owner, Staff) |
 | tenancy | `user_profiles` | `user_id` (unique), `email`, `display_name` |
 | tenancy | `staff_invites` **T** | `email`, `token_hash`, `expires_at`, `accepted_at` |
@@ -286,7 +286,7 @@ Pool is what a marketplace with many small coaches would use in practice, and it
    - **Two PostgreSQL pitfalls to handle and write about:** RLS does not apply to the table owner unless `FORCE ROW LEVEL SECURITY` is set, and it never applies to superusers or roles with `BYPASSRLS`. So the migrator role owns the tables, and each service connects as a separate, non-owner role with only `SELECT, INSERT, UPDATE, DELETE`.
 
 **Other isolation points**
-- **Blob storage:** paths are `tenants/{tenantId}/programs/{programId}/...`. The API issues short-lived, read-only user-delegation SAS URLs, and only for content the caller is enrolled in or owns.
+- **Blob storage:** paths are `tenants/{tenantId}/programs/{programId}/...` (catalog-api's covers) and `tenants/{tenantId}/workspace/...` (tenancy-api's coach logos, since v1.10.0), always built from the tenant in `ITenantContext`. Both services share one private container and the `Athlos.Media` building block. The APIs issue short-lived, read-only user-delegation SAS URLs, and only for content the caller is enrolled in or owns, or that is public (a cover, a logo). Deleting a workspace removes everything under its prefix.
 - **Caches:** every cache key is prefixed with the tenant id.
 - **Logs and traces:** `tenant.id` is on every span and log scope, so one tenant's activity can be isolated in queries (see §6).
 - **Stripe:** each coach is a separate Connect account. Money never co-mingles in a way the platform has to reconcile by hand.
@@ -600,7 +600,8 @@ athlos/
 
 One SPA with four areas, plus the platform admin's `/admin`, shown to users with the `Platform.Admin` role:
 - `/` marketplace: browse, filter and search all coaches' published programs; `/cart` the cart.
-- `/c/{slug}` coach storefront: the tenant's branded page (logo, colors from workspace settings). This is the visible "configure your dedicated workspace" part of the thesis.
+- `/c/{slug}` coach storefront: the tenant's branded page (logo or photo, uploaded or linked, colors, an "About" with the coach's bio, links to Instagram, YouTube and a website, and contact, all from workspace settings). This is the visible "configure your dedicated workspace" part of the thesis. Program pages show the same coach in a "Your coach" card.
+- `/coaches` the coaches with programs on sale, most programs first (catalog's coach facet, profiles from tenancy-api); the home page features the top four.
 - `/studio/{slug}` coach dashboard: programs, sales, settings, Stripe onboarding.
 - `/me` customer area, one page per subject: purchased programs and progress (`/me`, where Stripe returns the customer), `/me/orders`, `/me/workspaces` and `/me/account` (sign out, account deletion).
 

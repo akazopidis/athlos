@@ -1,5 +1,5 @@
 using Athlos.Catalog.Api.Data;
-using Athlos.Catalog.Api.Media;
+using Athlos.Media;
 
 namespace Athlos.Catalog.Api.Features.Programs;
 

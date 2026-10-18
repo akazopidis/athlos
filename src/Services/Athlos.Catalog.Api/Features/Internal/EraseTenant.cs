@@ -1,5 +1,5 @@
 using Athlos.Catalog.Api.Data;
-using Athlos.Catalog.Api.Media;
+using Athlos.Media;
 using Athlos.Tenancy;
 using Microsoft.EntityFrameworkCore;
 

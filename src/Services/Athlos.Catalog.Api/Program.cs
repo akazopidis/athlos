@@ -5,7 +5,7 @@ using Athlos.Catalog.Api.Features.Internal;
 using Athlos.Catalog.Api.Features.Marketplace;
 using Athlos.Catalog.Api.Features.Programs;
 using Athlos.Catalog.Api.Features.Workouts;
-using Athlos.Catalog.Api.Media;
+using Athlos.Media;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Data;
 using Microsoft.AspNetCore.OpenApi;

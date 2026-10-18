@@ -63,6 +63,11 @@ var stripeSecretKey = builder.Configuration["Stripe:SecretKey"] ?? "";
 // From `stripe listen --forward-to http://localhost:5100/webhooks/stripe` (it prints the whsec_ secret).
 var stripeWebhookSecret = builder.Configuration["Stripe:WebhookSecret"] ?? "";
 
+// Program covers and coach logos in Azurite, the Blob Storage emulator (design §13).
+var media = builder.AddAzureStorage("storage")
+    .RunAsEmulator(azurite => azurite.WithDataVolume("athlos-azurite").WithLifetime(ContainerLifetime.Persistent))
+    .AddBlobs("media");
+
 var tenancyApi = builder.AddProject<Projects.Athlos_Tenancy_Api>("tenancy-api")
     .WithEnvironment("Stripe__SecretKey", stripeSecretKey)
     // Where Stripe sends coaches back after onboarding: the SPA (Vite locally).
@@ -73,12 +78,9 @@ var tenancyApi = builder.AddProject<Projects.Athlos_Tenancy_Api>("tenancy-api")
     .WithReference(tenancyDb)
     .WithReference(messaging)
     .WaitFor(messaging)
+    .WithReference(media)
+    .WaitFor(media)
     .WaitForCompletion(migrator);
-
-// Program media in Azurite, the Blob Storage emulator (design §13).
-var media = builder.AddAzureStorage("storage")
-    .RunAsEmulator(azurite => azurite.WithDataVolume("athlos-azurite").WithLifetime(ContainerLifetime.Persistent))
-    .AddBlobs("media");
 
 var catalogApi = builder.AddProject<Projects.Athlos_Catalog_Api>("catalog-api")
     .WithReference(tenancyApi)

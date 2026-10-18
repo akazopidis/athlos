@@ -273,6 +273,8 @@ module tenancyApi 'modules/container-app.bicep' = if (deployApps) {
       { name: 'OTEL_SERVICE_NAME', value: 'tenancy-api' }
       { name: 'App__PublicUrl', value: publicUrl }
       { name: 'AZURE_CLIENT_ID', value: tenancyIdentity.outputs.clientId }
+      // The coach's uploaded logo (design §8): the same container as catalog-api's covers, no key.
+      { name: 'ConnectionStrings__media', value: storage.outputs.blobEndpoint }
       // No password: the app signs in with its managed identity's token (PostgresEntraAuthentication).
       { name: 'ConnectionStrings__tenancy-db', value: 'Host=${postgresHost};Database=${tenancyDatabase};Username=${tenancyAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
       // Staff invite emails leave through the outbox (design §5.2); a namespace, no key.
@@ -301,7 +303,8 @@ module storage 'modules/storage.bicep' = {
   params: {
     name: 'stathlos${environmentName}'
     location: location
-    contributorPrincipalIds: [catalogIdentity.outputs.principalId]
+    // catalog-api's program covers, tenancy-api's coach logos (design §8).
+    contributorPrincipalIds: [catalogIdentity.outputs.principalId, tenancyIdentity.outputs.principalId]
   }
 }
 

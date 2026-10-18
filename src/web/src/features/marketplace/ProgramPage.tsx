@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { BrandScope } from '@/components/brand'
 import { Loading, Notice, Section } from '@/components/page'
+import { CoachAvatar, CoachLinks } from '@/components/coach-profile'
 import { ProgramCover } from '@/components/program-cover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -166,6 +167,21 @@ export function ProgramPage() {
                 ))}
               </ul>
             </section>
+            {coach.data && (
+              <section aria-labelledby="coach-heading" className="flex flex-col gap-5 rounded-3xl border bg-card p-6 sm:flex-row sm:p-8">
+                <CoachAvatar name={coachName} profile={coach.data.branding} className="size-16 text-2xl" />
+                <div className="min-w-0 flex-1 space-y-3">
+                  <p className="text-xs font-semibold tracking-[0.15em] text-muted-foreground uppercase">Your coach</p>
+                  <h2 id="coach-heading" className="text-xl font-bold">
+                    <Link to={`/c/${p.coachSlug}`} className="underline-offset-4 hover:underline">
+                      {coachName}
+                    </Link>
+                  </h2>
+                  {coach.data.branding.bio && <p className="line-clamp-4 whitespace-pre-line text-sm text-muted-foreground">{coach.data.branding.bio}</p>}
+                  <CoachLinks name={coachName} profile={coach.data.branding} />
+                </div>
+              </section>
+            )}
           </div>
 
           {/* The buy box: a bar pinned to the bottom of the screen on phones, a card that follows the

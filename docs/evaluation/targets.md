@@ -6,6 +6,7 @@ Measured 8 October 2026, at v0.7.0; isolation and deploy times refreshed 11 Octo
 |---|---|---|---|
 | Cross-tenant data leaks in the isolation suite | 0 | 0 in 153 isolation tests (134 at v0.7.0) | Yes |
 | Gateway p95 latency, warm, normal load | < 300 ms | 59–109 ms (tenant B's baseline, 6 runs) | Yes |
+| Gateway p95 latency, marketplace read mix at v1.8.0 | < 300 ms | 72–189 ms overall, 73–225 ms for search (3 runs, 20 req/s; below) | Yes |
 | Tenant B p95 during tenant A's flood, limits on | within 20% of baseline | −6% at 0.5 vCPU (60 vs 64 ms); +71% at 0.25 vCPU (142 vs 83 ms) | Yes, after raising the gateway to 0.5 vCPU |
 | Time from `git push` on `dev` to running in dev | < 15 min | median 14.3 min, p90 18.2 min (55 runs) | Mostly: 44 of 55 runs; the slowest step is now skipped when `infra/` is unchanged (below) |
 | Time from release tag to running in prod | < 10 min, no rebuild | median 8.1 min, p90 11.0 min (10 runs), images reused | Mostly: 7 of 10 runs |
@@ -24,6 +25,20 @@ The isolation suite (`tests/Athlos.IsolationTests`, run on every PR, where a fai
   - *Writes:* bulk update and delete skip both the filter and the SaveChanges guard, and a raw `INSERT` names tenant A outright. B still changes 0 of A's rows, and the insert fails with `insufficient_privilege` (`With_layer_3_off_RLS_still_blocks_Bs_writes_to_A`).
 - **Workspace deletion (§3.4).** Erasing tenant A leaves 0 of A's rows and blobs and every one of B's (catalog, enrollment), counted as the superuser.
 - **Suspension and plans (§3.4, v1.2.0).** B's owner cannot suspend A or change A's plan (403, A unchanged). The platform admin's suspension of A leaves B active and hides only A's programs, and the public-read RLS policy alone hides them. A's buyers keep the content.
+
+## Marketplace read mix (v1.8.0)
+
+[`tests/load/marketplace.js`](../../tests/load/marketplace.js) on staging, 18 October 2026 (v1.8.0): the shop's own read traffic at 20 req/s for 2 minutes, after a warm-up that waits until every service on the path answers in under a second. The mix: 40% catalog search with a random combination of text, category, price range, length, coach and sort (the search has filters, sorting and the coach facet since v1.3.0, categories since v1.5.0); 20% a storefront's program list; 20% a program page; 10% the coach lookup the product cards use; 10% a storefront header. Raw data: [`tests/load/results/marketplace-v1.8.0-run*.json`](../../tests/load/results/).
+
+| Run | Requests | Errors, 429s | p50 | p95 | p99 | Search p95 | Program page p95 | Coach lookup p95 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 2,401 | 0, 0 | 65 ms | 189 ms | 276 ms | 225 ms | 146 ms | 71 ms |
+| 2 | 2,401 | 0, 0 | 64 ms | 76 ms | 118 ms | 78 ms | 72 ms | 65 ms |
+| 3 | 2,400 | 0, 0 | 62 ms | 72 ms | 76 ms | 73 ms | 64 ms | 58 ms |
+
+- **Met:** every run is under the 300 ms target, with no errors and no rate limiting (the cross-coach part, about 10 req/s, stays under the per-client limit of 20).
+- **Run 1 is slower in its tail** (p95 189 ms): it started right after the apps came up from zero replicas, so it includes the first minutes of warm services (connection pools filling, JIT, caches). Runs 2 and 3, minutes later, are close to the v0.7.0 single-endpoint baseline (59–109 ms), so the shop's richer search costs little at this load.
+- **The services' own time is small:** p50 is 53–69 ms for every kind of request, even the storefront header, a single indexed lookup; most of it is likely the round trip from the test machine in Greece to `italynorth` and through the gateway, which this test does not separate out.
 
 ## Noisy neighbor
 

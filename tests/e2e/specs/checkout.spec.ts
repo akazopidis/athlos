@@ -1,41 +1,22 @@
 import { expect, test } from '@playwright/test'
+import { desktopOnly, signIn, skipWithoutTestUser } from '../signIn'
 
 // The signed-in path (design §15.1): sign in through Entra External ID, put a program in the cart,
 // check out, and arrive on Stripe's payment page with the right total. It stops there, without
 // paying: the test can run after every deploy without buying the same program again and again, and
 // the unpaid Stripe session is closed by the next checkout or expires.
 //
-// Needs, as GitHub environment secrets/variables of the stage it runs against:
-//   E2E_USER_EMAIL, E2E_USER_PASSWORD: a test customer created by a person in the External ID tenant
-//   E2E_PROGRAM_PATH: a program of a coach who finished Stripe onboarding (demo coaches cannot sell),
-//                     for example /c/some-coach/programs/some-program
-// Without them the test is skipped.
-const email = process.env.E2E_USER_EMAIL || undefined
-const password = process.env.E2E_USER_PASSWORD || undefined
+// Needs, besides the test customer (signIn.ts), the GitHub environment variable E2E_PROGRAM_PATH: a
+// program of a coach who finished Stripe onboarding (demo coaches cannot sell), for example
+// /c/some-coach/programs/some-program. Without it the test is skipped.
 const programPath = process.env.E2E_PROGRAM_PATH || undefined
 
-test.skip(!email || !password || !programPath, 'E2E_USER_EMAIL, E2E_USER_PASSWORD and E2E_PROGRAM_PATH are not set')
+skipWithoutTestUser()
+test.skip(!programPath, 'E2E_PROGRAM_PATH is not set')
 
 test('a signed-in customer checks out a cart and reaches Stripe', async ({ page }, testInfo) => {
-  // One sign-in flow is enough; the layout is covered by the other specs at every size.
-  test.skip(testInfo.project.name !== 'desktop', 'desktop only')
-
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Sign in' }).click()
-
-  // Entra External ID's sign-in page (the "Athlos sign-up and sign-in" user flow): email, then password.
-  await page.waitForURL(/ciamlogin\.com/)
-  await page.getByRole('textbox', { name: /email/i }).fill(email!)
-  await page.getByRole('button', { name: /next/i }).click()
-  await page.getByLabel(/password/i).fill(password!)
-  await page.getByRole('button', { name: /sign in/i }).click()
-  // Entra then asks "Stay signed in?" (on the same /login address), or goes straight back to Athlos.
-  const leftEntra = (url: URL) => !url.hostname.includes('ciamlogin.com')
-  const staySignedIn = page.getByRole('heading', { name: 'Stay signed in?' })
-  await Promise.race([page.waitForURL(leftEntra), staySignedIn.waitFor()])
-  if (await staySignedIn.isVisible()) await page.getByRole('button', { name: 'No', exact: true }).click()
-  await page.waitForURL(leftEntra)
-  await expect(page.getByRole('button', { name: 'Account' })).toBeVisible()
+  desktopOnly(testInfo.project.name)
+  await signIn(page)
 
   await page.goto(programPath!)
   const price = (await page.locator('aside p.font-heading').first().innerText()).trim()

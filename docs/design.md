@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v15.5, built; v1.8.1 in production (2026-10-18)
+**Status:** v16, built; v1.10.0 in production (2026-10-18)
+
+**Changes in v16.1 (v1.10.0):** coach profiles (bio, links, uploaded logo, §3.2, §8), the coach directory, program pages with an outline and a free preview, category covers, the "Sell on Athlos" page, studio numbers and link previews (§8, §8.1).
 
 **Changes in v16 (v1.9.0):** the full set of emails (§5.3): one purchase confirmation per checkout from ordering-api instead of one per program from enrollment-api, and the workspace's life and team (welcome, payouts ready, invite accepted, member left or removed, ownership received, suspended, reactivated, plan changed), dispute won, and account deleted; the studio's setup checklist and links to share; the refund promise on program pages (`refundWindowDays` in `/config.json`); search matches a coach's address; a deleted customer shows as "Deleted account" in the coach's sales.
 

@@ -141,6 +141,10 @@ namespace Athlos.Catalog.Api.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("day");
 
+                    b.Property<bool>("IsSample")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_sample");
+
                     b.Property<Guid>("ProgramId")
                         .HasColumnType("uuid")
                         .HasColumnName("program_id");
@@ -178,6 +182,71 @@ namespace Athlos.Catalog.Api.Data.Migrations
                         .HasDatabaseName("ix_workouts_tenant_id_program_id_week_day");
 
                     b.ToTable("workouts", (string)null);
+                });
+
+            modelBuilder.Entity("Athlos.Catalog.Api.Data.TrainingProgram", b =>
+                {
+                    b.OwnsMany("Athlos.Catalog.Api.Data.OutlineEntry", "Outline", b1 =>
+                        {
+                            b1.Property<Guid>("TrainingProgramId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<int>("Day");
+
+                            b1.Property<bool>("Sample");
+
+                            b1.Property<string>("Title")
+                                .IsRequired();
+
+                            b1.Property<int>("Week");
+
+                            b1.HasKey("TrainingProgramId", "__synthesizedOrdinal");
+
+                            b1.ToTable("programs");
+
+                            b1
+                                .ToJson("outline")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("TrainingProgramId")
+                                .HasConstraintName("fk_programs_programs_training_program_id");
+                        });
+
+                    b.OwnsOne("Athlos.Catalog.Api.Data.SampleWorkout", "Sample", b1 =>
+                        {
+                            b1.Property<Guid>("TrainingProgramId");
+
+                            b1.Property<string>("Content")
+                                .IsRequired();
+
+                            b1.Property<int>("Day");
+
+                            b1.Property<string>("Title")
+                                .IsRequired();
+
+                            b1.Property<string>("VideoUrl");
+
+                            b1.Property<int>("Week");
+
+                            b1.HasKey("TrainingProgramId");
+
+                            b1.ToTable("programs");
+
+                            b1
+                                .ToJson("sample")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("TrainingProgramId")
+                                .HasConstraintName("fk_programs_programs_id");
+                        });
+
+                    b.Navigation("Outline");
+
+                    b.Navigation("Sample");
                 });
 
             modelBuilder.Entity("Athlos.Catalog.Api.Data.Workout", b =>

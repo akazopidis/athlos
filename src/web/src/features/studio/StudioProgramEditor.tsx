@@ -24,6 +24,8 @@ interface Workout {
   title: string
   content: string
   videoUrl: string | null
+  // The program's free preview, shown in full on its public page.
+  isSample?: boolean
 }
 
 // One program in the studio: its details, publishing, cover image, workouts, and deleting it while
@@ -318,7 +320,7 @@ function Workouts({ slug, programId, weeks, workouts }: { slug: string; programI
             slug={slug}
             programId={programId}
             weeks={weeks}
-            initial={{ week: nextWeek, day: nextDay, title: '', content: '', videoUrl: null }}
+            initial={{ week: nextWeek, day: nextDay, title: '', content: '', videoUrl: null, isSample: false }}
             onDone={() => setAdding(false)}
           />
         )}
@@ -358,6 +360,11 @@ function WorkoutRow({ slug, programId, weeks, workout }: { slug: string; program
             Week {Number(workout.week)}, day {Number(workout.day)}:
           </span>{' '}
           <span className="font-medium">{workout.title}</span>
+          {workout.isSample && (
+            <Badge variant="secondary" className="ml-2">
+              Free preview
+            </Badge>
+          )}
         </p>
         {workout.content && <p className="line-clamp-2 text-sm text-muted-foreground">{workout.content}</p>}
         {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}
@@ -400,6 +407,7 @@ function WorkoutForm({
         title: text('title'),
         content: text('content'),
         videoUrl: text('videoUrl') || null,
+        isSample: form.get('isSample') === 'on',
       }
       const { data, error } = initial.id
         ? await api.PUT('/api/v1/studio/{tenantSlug}/programs/{programId}/workouts/{workoutId}', {
@@ -440,6 +448,13 @@ function WorkoutForm({
       <Field id={`${prefix}-video`} label="Video link (optional)" hint="An unlisted YouTube or Vimeo link; videos are not uploaded to Athlos." className="sm:col-span-2">
         <Input id={`${prefix}-video`} name="videoUrl" type="url" defaultValue={initial.videoUrl ?? ''} />
       </Field>
+      <label className="flex items-start gap-3 text-sm sm:col-span-2">
+        <input type="checkbox" name="isSample" defaultChecked={Boolean(initial.isSample)} className="mt-0.5 size-4 accent-primary" />
+        <span>
+          <span className="font-medium">Free preview</span>
+          <span className="block text-muted-foreground">Shown in full on the program page, so customers can try before they buy. One per program.</span>
+        </span>
+      </label>
       <div className="flex items-center gap-2 sm:col-span-2">
         <Button type="submit" size="sm" disabled={save.isPending}>
           Save workout

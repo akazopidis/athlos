@@ -819,6 +819,79 @@
           }
         }
       },
+      "GetPublishedProgramOutlineItem": {
+        "required": [
+          "week",
+          "day",
+          "title",
+          "sample"
+        ],
+        "type": "object",
+        "properties": {
+          "week": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "day": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "title": {
+            "type": "string"
+          },
+          "sample": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GetPublishedProgramPreview": {
+        "required": [
+          "week",
+          "day",
+          "title",
+          "content",
+          "videoUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "week": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "day": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "videoUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "GetPublishedProgramResponse": {
         "required": [
           "id",
@@ -830,7 +903,9 @@
           "durationWeeks",
           "priceAmount",
           "currency",
-          "coverImageUrl"
+          "coverImageUrl",
+          "outline",
+          "sample"
         ],
         "type": "object",
         "properties": {
@@ -876,6 +951,22 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "outline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GetPublishedProgramOutlineItem"
+            }
+          },
+          "sample": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GetPublishedProgramPreview"
+              }
             ]
           }
         }
@@ -1210,6 +1301,10 @@
               "string"
             ],
             "format": "uri"
+          },
+          "isSample": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -1220,7 +1315,8 @@
           "day",
           "title",
           "content",
-          "videoUrl"
+          "videoUrl",
+          "isSample"
         ],
         "type": "object",
         "properties": {
@@ -1255,6 +1351,9 @@
               "null",
               "string"
             ]
+          },
+          "isSample": {
+            "type": "boolean"
           }
         }
       }

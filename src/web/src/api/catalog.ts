@@ -163,6 +163,23 @@ export interface components {
             priceAmount: number | string;
             currency: string;
         };
+        GetPublishedProgramOutlineItem: {
+            /** Format: int32 */
+            week: number | string;
+            /** Format: int32 */
+            day: number | string;
+            title: string;
+            sample: boolean;
+        };
+        GetPublishedProgramPreview: {
+            /** Format: int32 */
+            week: number | string;
+            /** Format: int32 */
+            day: number | string;
+            title: string;
+            content: string;
+            videoUrl: null | string;
+        };
         GetPublishedProgramResponse: {
             /** Format: uuid */
             id: string;
@@ -177,6 +194,8 @@ export interface components {
             priceAmount: number | string;
             currency: string;
             coverImageUrl: null | string;
+            outline: components["schemas"]["GetPublishedProgramOutlineItem"][];
+            sample: null | components["schemas"]["GetPublishedProgramPreview"];
         };
         /** Format: binary */
         IFormFile: string;
@@ -252,6 +271,8 @@ export interface components {
             content: null | string;
             /** Format: uri */
             videoUrl: null | string;
+            /** @default false */
+            isSample: boolean;
         };
         WorkoutEndpointsWorkoutDetails: {
             /** Format: uuid */
@@ -263,6 +284,7 @@ export interface components {
             title: string;
             content: string;
             videoUrl: null | string;
+            isSample: boolean;
         };
     };
     responses: never;

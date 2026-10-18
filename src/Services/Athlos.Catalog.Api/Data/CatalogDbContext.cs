@@ -27,6 +27,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options,
             program.Property(p => p.Category).HasConversion<string>().HasMaxLength(20);
             program.Property(p => p.Currency).HasMaxLength(3).IsFixedLength();
             program.Property(p => p.CoverImagePath).HasMaxLength(300);
+            program.OwnsMany(p => p.Outline, outline => outline.ToJson());
+            program.OwnsOne(p => p.Sample, sample => sample.ToJson());
         });
 
         modelBuilder.Entity<Workout>(workout =>

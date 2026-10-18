@@ -329,7 +329,9 @@ function ProgramOutline({ outline, weeks }: { outline: Program['outline']; weeks
 function FreePreview({ sample }: { sample: NonNullable<Program['sample']> }) {
   return (
     <section aria-labelledby="preview-heading" className="space-y-3 rounded-3xl border border-primary/40 bg-primary/5 p-6 sm:p-8">
-      <p className="text-xs font-semibold tracking-[0.15em] text-primary uppercase">Free preview</p>
+      <p className="flex items-center gap-2 text-xs font-semibold tracking-[0.15em] uppercase">
+        <span aria-hidden className="size-2 rounded-full bg-primary" /> Free preview
+      </p>
       <h2 id="preview-heading" className="text-xl font-bold">
         Week {Number(sample.week)}, day {Number(sample.day)}: {sample.title}
       </h2>

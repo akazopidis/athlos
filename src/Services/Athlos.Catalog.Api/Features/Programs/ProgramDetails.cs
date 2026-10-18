@@ -32,8 +32,9 @@ public static class ProgramRules
 {
     public const string SlugPattern = "^[a-z0-9]+(-[a-z0-9]+)*$";
 
-    // ISO 4217; Stripe needs a real currency, and prices are in its minor units.
-    public const string CurrencyPattern = "^[A-Z]{3}$";
+    // Athlos sells in euros only (design §2.3): one currency per cart, and the €10 minimum below is in
+    // euro cents. Money stays minor units plus a code, so another currency is a change here.
+    public const string CurrencyPattern = "^EUR$";
 
     // Prices in minor units: at least €10 (no free programs; Stripe also refuses payments under €0.50),
     // at most €10,000.

@@ -44,12 +44,18 @@ public static class WorkoutEndpoints
         return TypedResults.Ok(workouts.Select(WorkoutDetails.From).ToList());
     }
 
-    private static async Task<Results<Created<WorkoutDetails>, NotFound>> Add(
+    private static async Task<Results<Created<WorkoutDetails>, NotFound, ProblemHttpResult>> Add(
         string tenantSlug, Guid programId, Request request, CatalogDbContext db, CancellationToken cancellationToken)
     {
-        if (!await db.Programs.AnyAsync(p => p.Id == programId, cancellationToken))
+        var weeks = await db.Programs.Where(p => p.Id == programId).Select(p => (int?)p.DurationWeeks).SingleOrDefaultAsync(cancellationToken);
+        if (weeks is null)
         {
             return TypedResults.NotFound();
+        }
+
+        if (request.Week > weeks)
+        {
+            return OutsideTheProgram(weeks.Value);
         }
 
         var workout = new Workout { ProgramId = programId, Title = request.Title.Trim() };
@@ -61,13 +67,19 @@ public static class WorkoutEndpoints
             $"/api/v1/studio/{tenantSlug}/programs/{programId}/workouts/{workout.Id}", WorkoutDetails.From(workout));
     }
 
-    private static async Task<Results<Ok<WorkoutDetails>, NotFound>> Update(
+    private static async Task<Results<Ok<WorkoutDetails>, NotFound, ProblemHttpResult>> Update(
         Guid programId, Guid workoutId, Request request, CatalogDbContext db, CancellationToken cancellationToken)
     {
         var workout = await db.Workouts.SingleOrDefaultAsync(w => w.Id == workoutId && w.ProgramId == programId, cancellationToken);
         if (workout is null)
         {
             return TypedResults.NotFound();
+        }
+
+        var weeks = await db.Programs.Where(p => p.Id == programId).Select(p => p.DurationWeeks).SingleAsync(cancellationToken);
+        if (request.Week > weeks)
+        {
+            return OutsideTheProgram(weeks);
         }
 
         Apply(workout, request);
@@ -95,6 +107,11 @@ public static class WorkoutEndpoints
         await db.SaveChangesAsync(cancellationToken);
         return TypedResults.NoContent();
     }
+
+    // A workout's week is inside the program's length (1 to DurationWeeks).
+    private static ProblemHttpResult OutsideTheProgram(int weeks) =>
+        TypedResults.Problem(statusCode: StatusCodes.Status400BadRequest,
+            title: $"This program lasts {weeks} {(weeks == 1 ? "week" : "weeks")}; pick a week from 1 to {weeks}, or make the program longer first.");
 
     private static void Apply(Workout workout, Request request)
     {

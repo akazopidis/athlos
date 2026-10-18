@@ -170,7 +170,7 @@ export function StudioProgramEditor() {
         <CoverCard slug={slug} programId={programId} coverImageUrl={p.coverImageUrl} onChanged={refresh} />
       </div>
 
-      <Workouts slug={slug} programId={programId} workouts={workouts.data ?? []} />
+      <Workouts slug={slug} programId={programId} weeks={Number(p.durationWeeks)} workouts={workouts.data ?? []} />
 
       <Card className="border-destructive/40">
         <CardHeader>
@@ -278,10 +278,11 @@ function CoverCard({ slug, programId, coverImageUrl, onChanged }: { slug: string
   )
 }
 
-function Workouts({ slug, programId, workouts }: { slug: string; programId: string; workouts: Workout[] }) {
+// weeks: the program's length; a workout's week is from 1 to weeks (catalog-api refuses others).
+function Workouts({ slug, programId, weeks, workouts }: { slug: string; programId: string; weeks: number; workouts: Workout[] }) {
   const [adding, setAdding] = useState(false)
   const nextDay = workouts.length ? Math.min(7, Number(workouts[workouts.length - 1].day) + 1) : 1
-  const nextWeek = workouts.length ? Number(workouts[workouts.length - 1].week) : 1
+  const nextWeek = workouts.length ? Math.min(weeks, Number(workouts[workouts.length - 1].week)) : 1
 
   return (
     <Card>
@@ -300,13 +301,14 @@ function Workouts({ slug, programId, workouts }: { slug: string; programId: stri
         {workouts.length === 0 && !adding && <p className="text-sm text-muted-foreground">No workouts yet. Add at least one before publishing.</p>}
         <ol className="divide-y rounded-lg border empty:hidden">
           {workouts.map((w) => (
-            <WorkoutRow key={w.id} slug={slug} programId={programId} workout={w} />
+            <WorkoutRow key={w.id} slug={slug} programId={programId} weeks={weeks} workout={w} />
           ))}
         </ol>
         {adding && (
           <WorkoutForm
             slug={slug}
             programId={programId}
+            weeks={weeks}
             initial={{ week: nextWeek, day: nextDay, title: '', content: '', videoUrl: null }}
             onDone={() => setAdding(false)}
           />
@@ -316,7 +318,7 @@ function Workouts({ slug, programId, workouts }: { slug: string; programId: stri
   )
 }
 
-function WorkoutRow({ slug, programId, workout }: { slug: string; programId: string; workout: Workout }) {
+function WorkoutRow({ slug, programId, weeks, workout }: { slug: string; programId: string; weeks: number; workout: Workout }) {
   const { api } = useApp()
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
@@ -334,7 +336,7 @@ function WorkoutRow({ slug, programId, workout }: { slug: string; programId: str
   if (editing) {
     return (
       <li className="p-3">
-        <WorkoutForm slug={slug} programId={programId} initial={workout} onDone={() => setEditing(false)} />
+        <WorkoutForm slug={slug} programId={programId} weeks={weeks} initial={workout} onDone={() => setEditing(false)} />
       </li>
     )
   }
@@ -366,11 +368,13 @@ function WorkoutRow({ slug, programId, workout }: { slug: string; programId: str
 function WorkoutForm({
   slug,
   programId,
+  weeks,
   initial,
   onDone,
 }: {
   slug: string
   programId: string
+  weeks: number
   initial: Omit<Workout, 'id'> & { id?: string }
   onDone: () => void
 }) {
@@ -412,7 +416,7 @@ function WorkoutForm({
     >
       <div className="grid grid-cols-2 gap-4">
         <Field id={`${prefix}-week`} label="Week">
-          <Input id={`${prefix}-week`} name="week" type="number" min={1} max={52} required defaultValue={Number(initial.week)} />
+          <Input id={`${prefix}-week`} name="week" type="number" min={1} max={weeks} required defaultValue={Number(initial.week)} />
         </Field>
         <Field id={`${prefix}-day`} label="Day">
           <Input id={`${prefix}-day`} name="day" type="number" min={1} max={7} required defaultValue={Number(initial.day)} />

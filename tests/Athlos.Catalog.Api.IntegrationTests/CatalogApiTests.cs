@@ -109,6 +109,41 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.Conflict), (tooCheap.StatusCode, published.StatusCode));
     }
 
+    // Athlos sells in euros only (design §2.3).
+    [Fact]
+    public async Task Programs_are_priced_in_euros()
+    {
+        var coach = NewCoach();
+
+        var dollars = await _api.AsCoach(coach, HttpMethod.Post, "/programs", new
+        {
+            slug = TenancyArrange.NewSlug("program"), title = "Dollars", category = "Running", durationWeeks = 4, priceAmount = 1900, currency = "USD",
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, dollars.StatusCode);
+    }
+
+    // A 12-week program's workouts are in weeks 1 to 12, and it cannot be shortened below its last one.
+    [Fact]
+    public async Task Workouts_stay_inside_the_programs_length()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach);
+        var week13 = await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/workouts", new { week = 13, day = 1, title = "Too late" });
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/workouts", new { week = 10, day = 1, title = "Week ten" });
+
+        var shorter = await _api.AsCoach(coach, HttpMethod.Put, $"/programs/{program.Id}", new
+        {
+            title = "Shorter", category = "Powerlifting", durationWeeks = 8, priceAmount = 4900, currency = "EUR",
+        });
+        var stillLongEnough = await _api.AsCoach(coach, HttpMethod.Put, $"/programs/{program.Id}", new
+        {
+            title = "Ten weeks", category = "Powerlifting", durationWeeks = 10, priceAmount = 4900, currency = "EUR",
+        });
+
+        Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.Conflict, HttpStatusCode.OK), (week13.StatusCode, shorter.StatusCode, stillLongEnough.StatusCode));
+    }
+
     // Customers' progress names a sold program's workouts: they can be edited, not deleted. A draft's can.
     [Fact]
     public async Task Workouts_of_a_program_that_has_been_on_sale_cannot_be_deleted()

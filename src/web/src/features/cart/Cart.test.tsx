@@ -36,7 +36,8 @@ const signedIn = {
   acquireTokenSilent: async () => ({ accessToken: 'token' }),
 } as unknown as PublicClientApplication
 
-function renderCart(checkout: () => Response) {
+// prices: the current price of a program by slug (its public page); unlisted programs answer 404.
+function renderCart(checkout: () => Response, prices: Record<string, number> = {}) {
   const requests: Request[] = []
   vi.stubGlobal(
     'fetch',
@@ -45,6 +46,11 @@ function renderCart(checkout: () => Response) {
       const path = new URL(request.url).pathname
       if (request.method === 'POST') return checkout()
       if (path === '/api/v1/me/programs') return Response.json({ items: [], page: 1, pageSize: 20, totalCount: 0 })
+      const program = /^\/api\/v1\/marketplace\/coaches\/[^/]+\/programs\/([^/]+)$/.exec(path)
+      if (program) {
+        const price = prices[program[1]!]
+        return price === undefined ? new Response(null, { status: 404 }) : Response.json({ priceAmount: price, currency: 'EUR' })
+      }
       return Response.json([
         { slug: 'anna', displayName: 'Anna Coaching', branding: {} },
         { slug: 'ben', displayName: 'Ben Runs', branding: {} },
@@ -79,6 +85,13 @@ test('programs from two coaches are checked out together, in one payment', async
   expect(new URL(post.url).pathname).toBe('/api/v1/orders/checkout')
   expect(await post.json()).toEqual({ programIds: [annaProgram.programId, benProgram.programId] })
   expect(post.headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/)
+})
+
+test('the cart shows and totals the current price, and says which changed', async () => {
+  renderCart(() => Response.json({}), { 'strong-start': 5900, 'run-ten-k': 2000 })
+
+  expect(await screen.findByRole('status')).toHaveTextContent('Prices changed since you added this program: Strong start is now €59.00.')
+  expect(screen.getByText('€79.00')).toBeInTheDocument()
 })
 
 test('a program no longer for sale is taken out of the cart, and the customer is told', async () => {

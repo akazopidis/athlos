@@ -1,5 +1,5 @@
 using Athlos.Catalog.Api.Data;
-using Athlos.Catalog.Api.Media;
+using Athlos.Media;
 using Athlos.Tenancy;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +10,10 @@ namespace Athlos.Catalog.Api.Features.Programs;
 // The blob path is built from the tenant in ITenantContext and the program's id, never from input.
 public static class ProgramCover
 {
+    // A new name per upload, so browsers and caches never show an old cover.
+    public static string CoverPath(Guid tenantId, Guid programId, ImageType type) =>
+        $"tenants/{tenantId}/programs/{programId}/cover-{Guid.CreateVersion7():N}.{type.Extension}";
+
     public static void MapProgramCover(this IEndpointRouteBuilder app)
     {
         app.MapPut("/programs/{programId:guid}/cover", Upload)
@@ -50,7 +54,7 @@ public static class ProgramCover
         }
 
         var previous = program.CoverImagePath;
-        program.CoverImagePath = MediaStore.CoverPath(tenant.TenantId!.Value, program.Id, type);
+        program.CoverImagePath = ProgramCover.CoverPath(tenant.TenantId!.Value, program.Id, type);
         await media.UploadAsync(program.CoverImagePath, BinaryData.FromBytes(bytes), type, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 

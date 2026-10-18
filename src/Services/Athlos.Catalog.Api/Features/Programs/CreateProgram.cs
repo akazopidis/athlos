@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Catalog.Api.Data;
-using Athlos.Catalog.Api.Media;
+using Athlos.Media;
 using Athlos.Tenancy;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;

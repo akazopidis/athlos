@@ -42,6 +42,19 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
         Assert.DoesNotContain("Hijacked", await storefront.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 
+    // The coach's logo (design §8): B's owner can neither replace nor remove A's.
+    [Theory]
+    [InlineData("PUT")]
+    [InlineData("DELETE")]
+    public async Task B_cannot_change_As_logo(string method)
+    {
+        var response = await _api.SendAsGateway(
+            new HttpRequestMessage(new HttpMethod(method), $"/api/v1/studio/{_a.Slug}/workspace/logo") { Content = new ByteArrayContent([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) },
+            _b.OwnerId, _b.TenantId, TenantRole.Owner);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     [Theory]
     [InlineData("POST", "/payouts/onboarding")]
     [InlineData("GET", "/payouts")]

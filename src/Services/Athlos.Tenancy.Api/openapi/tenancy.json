@@ -326,6 +326,76 @@
         }
       }
     },
+    "/api/v1/studio/{tenantSlug}/workspace/logo": {
+      "put": {
+        "tags": [
+          "Workspace"
+        ],
+        "operationId": "UploadWorkspaceLogo",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "$ref": "#/components/schemas/IFormFile"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "$ref": "#/components/schemas/IFormFile"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "$ref": "#/components/schemas/IFormFile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Workspace"
+        ],
+        "operationId": "DeleteWorkspaceLogo",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/v1/studio/{tenantSlug}/payouts/onboarding": {
       "post": {
         "tags": [
@@ -815,7 +885,16 @@
           }
         }
       },
-      "Branding": {
+      "CoachProfile": {
+        "required": [
+          "logoUrl",
+          "primaryColor",
+          "contactEmail",
+          "bio",
+          "instagramUrl",
+          "youTubeUrl",
+          "websiteUrl"
+        ],
         "type": "object",
         "properties": {
           "logoUrl": {
@@ -831,6 +910,30 @@
             ]
           },
           "contactEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bio": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instagramUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "youTubeUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "websiteUrl": {
             "type": [
               "null",
               "string"
@@ -983,7 +1086,7 @@
             "type": "string"
           },
           "branding": {
-            "$ref": "#/components/schemas/Branding"
+            "$ref": "#/components/schemas/CoachProfile"
           }
         }
       },
@@ -1016,12 +1119,79 @@
             "$ref": "#/components/schemas/PlanName"
           },
           "branding": {
-            "$ref": "#/components/schemas/Branding"
+            "$ref": "#/components/schemas/GetWorkspaceSettings"
           },
           "stripeOnboardingComplete": {
             "type": "boolean"
           }
         }
+      },
+      "GetWorkspaceSettings": {
+        "required": [
+          "logoUrl",
+          "uploadedLogoUrl",
+          "primaryColor",
+          "contactEmail",
+          "bio",
+          "instagramUrl",
+          "youTubeUrl",
+          "websiteUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "logoUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "uploadedLogoUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "primaryColor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "contactEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bio": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instagramUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "youTubeUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "websiteUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "IFormFile": {
+        "type": "string",
+        "format": "binary"
       },
       "ListMyMembershipsItem": {
         "required": [
@@ -1352,6 +1522,41 @@
               "null",
               "string"
             ]
+          },
+          "bio": {
+            "maxLength": 1500,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instagramUrl": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "youTubeUrl": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "websiteUrl": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
           }
         }
       },

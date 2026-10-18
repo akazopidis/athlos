@@ -5,6 +5,7 @@
     <Project Path="src/ServiceDefaults/Athlos.ServiceDefaults.csproj" />
   </Folder>
   <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/Athlos.Media/Athlos.Media.csproj" />
     <Project Path="src/BuildingBlocks/Athlos.Messaging/Athlos.Messaging.csproj" />
     <Project Path="src/BuildingBlocks/Athlos.Tenancy/Athlos.Tenancy.csproj" />
   </Folder>

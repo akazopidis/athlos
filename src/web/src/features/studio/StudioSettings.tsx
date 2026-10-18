@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { StorefrontBanner } from '@/components/brand'
 import { Field } from '@/components/field'
 import { Section } from '@/components/page'
@@ -15,8 +16,9 @@ import { useStudio } from './useStudio.ts'
 
 const DefaultColor = '#18181b'
 
-// Workspace settings (design §8: "configure your dedicated workspace"): the name, logo and color the
-// storefront shows, and the team. Owners change them; staff see them read-only.
+// Workspace settings (design §8: "configure your dedicated workspace"): the name, logo, color and
+// profile (bio, links, contact) the storefront shows, and the team. Owners change them; staff see them
+// read-only.
 export function StudioSettings() {
   const { slug, workspace, isOwner } = useStudio()
   const { api } = useApp()
@@ -25,13 +27,26 @@ export function StudioSettings() {
   const [color, setColor] = useState(current?.branding.primaryColor ?? DefaultColor)
   const [logo, setLogo] = useState(current?.branding.logoUrl ?? '')
   const [contact, setContact] = useState(current?.branding.contactEmail ?? '')
+  const [bio, setBio] = useState(current?.branding.bio ?? '')
+  const [instagram, setInstagram] = useState(current?.branding.instagramUrl ?? '')
+  const [youTube, setYouTube] = useState(current?.branding.youTubeUrl ?? '')
+  const [website, setWebsite] = useState(current?.branding.websiteUrl ?? '')
   const [name, setName] = useState(current?.displayName ?? '')
 
   const save = useMutation({
     mutationFn: async () => {
       const { error, response } = await api.PUT('/api/v1/studio/{tenantSlug}/workspace', {
         params: { path: { tenantSlug: slug } },
-        body: { displayName: name.trim(), logoUrl: logo.trim() || null, primaryColor: color, contactEmail: contact.trim() || null },
+        body: {
+          displayName: name.trim(),
+          logoUrl: logo.trim() || null,
+          primaryColor: color,
+          contactEmail: contact.trim() || null,
+          bio: bio.trim() || null,
+          instagramUrl: instagram.trim() || null,
+          youTubeUrl: youTube.trim() || null,
+          websiteUrl: website.trim() || null,
+        },
       })
       if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not save the settings.')
     },
@@ -78,6 +93,20 @@ export function StudioSettings() {
                   >
                     <Input id="ws-contact" type="email" maxLength={254} value={contact} onChange={(e) => setContact(e.target.value)} />
                   </Field>
+                  <Field id="ws-bio" label="About you (optional)" hint="A few lines on your storefront: who you coach, your background, how you train.">
+                    <Textarea id="ws-bio" rows={4} maxLength={1500} value={bio} onChange={(e) => setBio(e.target.value)} />
+                  </Field>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <Field id="ws-instagram" label="Instagram">
+                      <Input id="ws-instagram" type="url" maxLength={300} placeholder="https://instagram.com/…" value={instagram} onChange={(e) => setInstagram(e.target.value)} />
+                    </Field>
+                    <Field id="ws-youtube" label="YouTube">
+                      <Input id="ws-youtube" type="url" maxLength={300} placeholder="https://youtube.com/@…" value={youTube} onChange={(e) => setYouTube(e.target.value)} />
+                    </Field>
+                    <Field id="ws-website" label="Website">
+                      <Input id="ws-website" type="url" maxLength={300} placeholder="https://…" value={website} onChange={(e) => setWebsite(e.target.value)} />
+                    </Field>
+                  </div>
                   <Field id="ws-color" label="Brand color">
                     <div className="flex items-center gap-3">
                       <input
@@ -115,13 +144,88 @@ export function StudioSettings() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <StorefrontBanner name={name} logoUrl={logo || null} color={color} heading="p" className="rounded-2xl" innerClassName="px-5 py-8" />
+              <StorefrontBanner name={name} logoUrl={current.branding.uploadedLogoUrl ?? (logo || null)} color={color} heading="p" className="rounded-2xl" innerClassName="px-5 py-8" />
             </CardContent>
           </Card>
         </div>
       </Section>
       <StudioTeam slug={slug} isOwner={isOwner} />
+      {isOwner && <LogoUpload slug={slug} uploadedLogoUrl={current.branding.uploadedLogoUrl ?? null} />}
       {isOwner && <DeleteWorkspace slug={slug} />}
     </div>
+  )
+}
+
+// The logo or photo, uploaded (JPEG, PNG or WebP, up to 2 MB). It replaces a linked logo on the
+// storefront; removing it brings the linked one back.
+function LogoUpload({ slug, uploadedLogoUrl }: { slug: string; uploadedLogoUrl: string | null }) {
+  const { api } = useApp()
+  const queryClient = useQueryClient()
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['workspace', slug] }),
+      queryClient.invalidateQueries({ queryKey: ['storefront', slug] }),
+      queryClient.invalidateQueries({ queryKey: ['coaches'] }),
+    ])
+
+  const upload = useMutation({
+    mutationFn: async (file: File) => {
+      const { error, response } = await api.PUT('/api/v1/studio/{tenantSlug}/workspace/logo', {
+        params: { path: { tenantSlug: slug } },
+        body: file as unknown as never,
+        bodySerializer: (body: unknown) => body as BodyInit,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      })
+      if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not upload the image.')
+    },
+    onSuccess: refresh,
+  })
+
+  const remove = useMutation({
+    mutationFn: async () => {
+      const { response } = await api.DELETE('/api/v1/studio/{tenantSlug}/workspace/logo', { params: { path: { tenantSlug: slug } } })
+      if (!response.ok) throw new Error('Could not remove the image.')
+    },
+    onSuccess: refresh,
+  })
+
+  return (
+    <Section title="Logo or photo">
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-5">
+          {uploadedLogoUrl ? (
+            <img src={uploadedLogoUrl} alt="Your logo" className="size-20 rounded-2xl border object-cover" />
+          ) : (
+            <div className="flex size-20 items-center justify-center rounded-2xl border border-dashed text-xs text-muted-foreground">No image</div>
+          )}
+          <div className="min-w-0 flex-1 basis-56 space-y-2">
+            <p className="text-sm text-muted-foreground">A square image works best: your logo or a photo of you. JPEG, PNG or WebP, up to 2 MB.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm" disabled={upload.isPending}>
+                <label className="cursor-pointer">
+                  {upload.isPending ? 'Uploading…' : uploadedLogoUrl ? 'Replace image' : 'Upload image'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) upload.mutate(file)
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+              </Button>
+              {uploadedLogoUrl && (
+                <Button size="sm" variant="ghost" onClick={() => remove.mutate()} disabled={remove.isPending}>
+                  Remove
+                </Button>
+              )}
+            </div>
+            {(upload.error ?? remove.error) && <p className="text-sm text-destructive" role="alert">{(upload.error ?? remove.error)!.message}</p>}
+          </div>
+        </CardContent>
+      </Card>
+    </Section>
   )
 }

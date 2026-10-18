@@ -1,3 +1,4 @@
+using Athlos.Media;
 using Athlos.Tenancy.Api.Data;
 using Athlos.Tenancy.Api.Features.Plans;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -10,21 +11,33 @@ namespace Athlos.Tenancy.Api.Features.Workspace;
 public static class GetWorkspace
 {
     public sealed record Response(
-        Guid Id, string Slug, string DisplayName, TenantStatus Status, PlanName Plan, Branding Branding, bool StripeOnboardingComplete);
+        Guid Id, string Slug, string DisplayName, TenantStatus Status, PlanName Plan, Settings Branding, bool StripeOnboardingComplete);
+
+    // What the owner edits: the linked logo as typed, and the uploaded one's read link separately.
+    public sealed record Settings(
+        string? LogoUrl, string? UploadedLogoUrl, string? PrimaryColor, string? ContactEmail, string? Bio, string? InstagramUrl, string? YouTubeUrl,
+        string? WebsiteUrl);
 
     public static void MapGetWorkspace(this IEndpointRouteBuilder app) =>
         app.MapGet("/workspace", Handle)
             .WithName("GetWorkspace")
             .WithTags("Workspace");
 
-    private static async Task<Results<Ok<Response>, NotFound>> Handle(string tenantSlug, ITenantContext tenant, TenancyDbContext db, CancellationToken cancellationToken)
+    private static async Task<Results<Ok<Response>, NotFound>> Handle(
+        string tenantSlug, ITenantContext tenant, TenancyDbContext db, MediaStore media, CancellationToken cancellationToken)
     {
         var workspace = await db.Tenants
             .AsNoTracking()
-            .Where(t => t.Id == tenant.TenantId && t.Slug == tenantSlug && t.Status != TenantStatus.Deleted)
-            .Select(t => new Response(t.Id, t.Slug, t.DisplayName, t.Status, t.Plan, t.Branding, t.StripeOnboardingComplete))
-            .SingleOrDefaultAsync(cancellationToken);
+            .SingleOrDefaultAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug && t.Status != TenantStatus.Deleted, cancellationToken);
+        if (workspace is null)
+        {
+            return TypedResults.NotFound();
+        }
 
-        return workspace is null ? TypedResults.NotFound() : TypedResults.Ok(workspace);
+        var b = workspace.Branding;
+        var settings = new Settings(b.LogoUrl, await media.ReadLinkAsync(b.LogoPath, cancellationToken), b.PrimaryColor, b.ContactEmail, b.Bio,
+            b.InstagramUrl, b.YouTubeUrl, b.WebsiteUrl);
+        return TypedResults.Ok(new Response(workspace.Id, workspace.Slug, workspace.DisplayName, workspace.Status, workspace.Plan, settings,
+            workspace.StripeOnboardingComplete));
     }
 }

@@ -19,6 +19,9 @@ namespace Athlos.Testing;
 public abstract class ServiceApiFactory<TAnchor>(AthlosDatabases databases, string service, AthlosStorage? storage = null) : WebApplicationFactory<TAnchor>
     where TAnchor : class
 {
+    // Azurite, when the test uses media; null otherwise.
+    protected AthlosStorage? Storage => storage;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting($"ConnectionStrings:{service}-db", databases.AppConnectionString(service));
@@ -52,8 +55,10 @@ public abstract class ServiceApiFactory<TAnchor>(AthlosDatabases databases, stri
     }
 }
 
-public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConnect? stripe = null)
-    : ServiceApiFactory<TenancyDbContext>(databases, "tenancy")
+// storage: Azurite, for tests that upload a logo; without it the media client points at the emulator's
+// default address and is never called.
+public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConnect? stripe = null, AthlosStorage? storage = null)
+    : ServiceApiFactory<TenancyDbContext>(databases, "tenancy", storage)
 {
     public const string PublicUrl = "https://athlos.test";
 
@@ -76,6 +81,11 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
         base.ConfigureWebHost(builder);
         builder.UseSetting("App:PublicUrl", PublicUrl);
         builder.UseSetting("Stripe:ConnectWebhookSecret", StripeEvents.SigningSecret);
+        if (Storage is null)
+        {
+            builder.UseSetting("ConnectionStrings:media", "UseDevelopmentStorage=true");
+        }
+
         // The client is never used: tests replace the sender. Aspire only needs a well-formed value.
         builder.UseSetting("ConnectionStrings:messaging", "Endpoint=sb://localhost;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
         builder.ConfigureTestServices(services =>

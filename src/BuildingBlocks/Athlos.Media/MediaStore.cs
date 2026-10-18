@@ -2,9 +2,10 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Sas;
 
-namespace Athlos.Catalog.Api.Media;
+namespace Athlos.Media;
 
-// Program images in Blob Storage (design §3.2 "Other isolation points", §5.1).
+// Media in Blob Storage (design §3.2 "Other isolation points", §5.1): catalog-api's program covers and
+// tenancy-api's coach logos, in one private container. Each service builds its own paths.
 // - Every path starts with tenants/{tenantId}/, and the tenant always comes from ITenantContext, so
 //   one tenant can never write into another's prefix, and a tenant's media can be deleted by prefix.
 // - The container is private. Readers get read-only SAS links for one blob, valid 15 minutes.
@@ -20,10 +21,6 @@ public sealed class MediaStore(BlobServiceClient blobs, TimeProvider time) : IDi
     private readonly SemaphoreSlim _keyLock = new(1, 1);
     private UserDelegationKey? _delegationKey;
     private bool _containerChecked;
-
-    public static string CoverPath(Guid tenantId, Guid programId, ImageType type) =>
-        // A new name per upload, so browsers and caches never show an old cover.
-        $"tenants/{tenantId}/programs/{programId}/cover-{Guid.CreateVersion7():N}.{type.Extension}";
 
     public async Task UploadAsync(string path, BinaryData content, ImageType type, CancellationToken cancellationToken)
     {

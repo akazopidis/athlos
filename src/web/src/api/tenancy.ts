@@ -148,6 +148,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/studio/{tenantSlug}/workspace/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["UploadWorkspaceLogo"];
+        post?: never;
+        delete: operations["DeleteWorkspaceLogo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/studio/{tenantSlug}/payouts/onboarding": {
         parameters: {
             query?: never;
@@ -335,10 +351,14 @@ export interface components {
             slug: string;
             displayName: string;
         };
-        Branding: {
-            logoUrl?: null | string;
-            primaryColor?: null | string;
-            contactEmail?: null | string;
+        CoachProfile: {
+            logoUrl: null | string;
+            primaryColor: null | string;
+            contactEmail: null | string;
+            bio: null | string;
+            instagramUrl: null | string;
+            youTubeUrl: null | string;
+            websiteUrl: null | string;
         };
         CreateTenantRequest: {
             slug: string;
@@ -374,7 +394,7 @@ export interface components {
         GetStorefrontResponse: {
             slug: string;
             displayName: string;
-            branding: components["schemas"]["Branding"];
+            branding: components["schemas"]["CoachProfile"];
         };
         GetWorkspaceResponse: {
             /** Format: uuid */
@@ -383,9 +403,21 @@ export interface components {
             displayName: string;
             status: components["schemas"]["TenantStatus"];
             plan: components["schemas"]["PlanName"];
-            branding: components["schemas"]["Branding"];
+            branding: components["schemas"]["GetWorkspaceSettings"];
             stripeOnboardingComplete: boolean;
         };
+        GetWorkspaceSettings: {
+            logoUrl: null | string;
+            uploadedLogoUrl: null | string;
+            primaryColor: null | string;
+            contactEmail: null | string;
+            bio: null | string;
+            instagramUrl: null | string;
+            youTubeUrl: null | string;
+            websiteUrl: null | string;
+        };
+        /** Format: binary */
+        IFormFile: string;
         ListMyMembershipsItem: {
             /** Format: uuid */
             tenantId: string;
@@ -470,6 +502,13 @@ export interface components {
             logoUrl: null | string;
             primaryColor: null | string;
             contactEmail?: null | string;
+            bio?: null | string;
+            /** Format: uri */
+            instagramUrl?: null | string;
+            /** Format: uri */
+            youTubeUrl?: null | string;
+            /** Format: uri */
+            websiteUrl?: null | string;
         };
         UpsertMyProfileResponse: {
             email: string;
@@ -744,6 +783,66 @@ export interface operations {
                 "application/json": components["schemas"]["DeleteWorkspaceRequest"];
             };
         };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    UploadWorkspaceLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/jpeg": components["schemas"]["IFormFile"];
+                "image/png": components["schemas"]["IFormFile"];
+                "image/webp": components["schemas"]["IFormFile"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DeleteWorkspaceLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description No Content */
             204: {

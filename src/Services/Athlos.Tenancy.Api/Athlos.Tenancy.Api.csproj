@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\Athlos.Media\Athlos.Media.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\Athlos.Messaging\Athlos.Messaging.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\Athlos.Tenancy\Athlos.Tenancy.csproj" />
     <ProjectReference Include="..\..\ServiceDefaults\Athlos.ServiceDefaults.csproj" />

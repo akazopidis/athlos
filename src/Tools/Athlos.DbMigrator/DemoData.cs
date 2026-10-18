@@ -152,6 +152,17 @@ public static class DemoData
                 }
 
                 var published = new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
+                var workouts = Enumerable.Range(1, WorkoutsPerProgram).Select(day => new Workout
+                {
+                    Id = WorkoutId(coach, program, day),
+                    ProgramId = programId,
+                    Week = 1,
+                    Day = day,
+                    Title = coach.Workouts[day - 1],
+                    Content = $"Warm up for 10 minutes, then the main work for {program.Title}. Demo content.",
+                    // The first session is each demo program's free preview (design §8).
+                    IsSample = day == 1,
+                }).ToList();
                 db.Programs.Add(new TrainingProgram
                 {
                     Id = programId,
@@ -166,20 +177,10 @@ public static class DemoData
                     IsPublished = true,
                     PublishedAt = published,
                     FirstPublishedAt = published,
+                    Outline = [.. workouts.Select(w => new OutlineEntry { Week = w.Week, Day = w.Day, Title = w.Title, Sample = w.IsSample })],
+                    Sample = new SampleWorkout { Week = 1, Day = 1, Title = workouts[0].Title, Content = workouts[0].Content },
                 });
-
-                for (var day = 1; day <= WorkoutsPerProgram; day++)
-                {
-                    db.Workouts.Add(new Workout
-                    {
-                        Id = WorkoutId(coach, program, day),
-                        ProgramId = programId,
-                        Week = 1,
-                        Day = day,
-                        Title = coach.Workouts[day - 1],
-                        Content = $"Warm up for 10 minutes, then the main work for {program.Title}. Demo content.",
-                    });
-                }
+                db.Workouts.AddRange(workouts);
             }
         }, cancellationToken);
 

@@ -1,9 +1,10 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Check, ChevronRight, Lock, RotateCcw, ShoppingBag } from 'lucide-react'
+import { Check, ChevronRight, CirclePlay, Lock, RotateCcw, ShoppingBag } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { BrandScope } from '@/components/brand'
 import { Loading, Notice, Section } from '@/components/page'
+import type { components } from '@/api/catalog'
 import { CoachAvatar, CoachLinks } from '@/components/coach-profile'
 import { ProgramCover } from '@/components/program-cover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -136,7 +137,7 @@ export function ProgramPage() {
         </nav>
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-12">
           <div className="min-w-0 space-y-8">
-            <ProgramCover url={p.coverImageUrl} title={p.title} className="aspect-video rounded-3xl" />
+            <ProgramCover url={p.coverImageUrl} title={p.title} category={p.category} className="aspect-video rounded-3xl" />
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary">{categoryLabel(p.category)}</Badge>
@@ -154,6 +155,8 @@ export function ProgramPage() {
               </p>
               {p.description && <p className="max-w-prose text-lg whitespace-pre-line text-muted-foreground">{p.description}</p>}
             </div>
+            <ProgramOutline outline={p.outline} weeks={weeks} />
+            {p.sample && <FreePreview sample={p.sample} />}
             <section className="space-y-4 rounded-3xl border bg-card p-6 sm:p-8">
               <h2 className="text-xl font-bold">What you get</h2>
               <ul className="grid gap-3 sm:grid-cols-2">
@@ -276,5 +279,68 @@ function MoreFromCoach({ coachSlug, coachName, exclude }: { coachSlug: string; c
         ))}
       </ul>
     </Section>
+  )
+}
+
+type Program = components['schemas']['GetPublishedProgramResponse']
+
+// "What's inside": every workout's week, day and title, grouped by week (the paid content stays hidden).
+function ProgramOutline({ outline, weeks }: { outline: Program['outline']; weeks: number }) {
+  // Absent from a catalog-api older than the outline (a rolling deploy): nothing to show.
+  if (!outline?.length) return null
+  const byWeek = new Map<number, Program['outline']>()
+  for (const o of outline) byWeek.set(Number(o.week), [...(byWeek.get(Number(o.week)) ?? []), o])
+
+  return (
+    <section aria-labelledby="outline-heading" className="space-y-4 rounded-3xl border bg-card p-6 sm:p-8">
+      <div>
+        <h2 id="outline-heading" className="text-xl font-bold">
+          What's inside
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          {outline.length} {outline.length === 1 ? 'workout' : 'workouts'} over {weeks} {weeks === 1 ? 'week' : 'weeks'}
+        </p>
+      </div>
+      <ol className="space-y-4">
+        {[...byWeek].map(([week, items]) => (
+          <li key={week} className="space-y-2">
+            <p className="text-xs font-semibold tracking-[0.15em] text-muted-foreground uppercase">Week {week}</p>
+            <ul className="divide-y rounded-2xl border">
+              {items.map((o) => (
+                <li key={`${o.week}-${o.day}-${o.title}`} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                  <span className="w-12 shrink-0 text-muted-foreground">Day {Number(o.day)}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium">{o.title}</span>
+                  {o.sample ? (
+                    <Badge variant="secondary">Free preview</Badge>
+                  ) : (
+                    <Lock className="size-3.5 shrink-0 text-muted-foreground" aria-label="Included when you buy" />
+                  )}
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+// The one workout the coach shows in full, so customers can try before they buy.
+function FreePreview({ sample }: { sample: NonNullable<Program['sample']> }) {
+  return (
+    <section aria-labelledby="preview-heading" className="space-y-3 rounded-3xl border border-primary/40 bg-primary/5 p-6 sm:p-8">
+      <p className="text-xs font-semibold tracking-[0.15em] text-primary uppercase">Free preview</p>
+      <h2 id="preview-heading" className="text-xl font-bold">
+        Week {Number(sample.week)}, day {Number(sample.day)}: {sample.title}
+      </h2>
+      {sample.content && <p className="whitespace-pre-line text-muted-foreground">{sample.content}</p>}
+      {sample.videoUrl && (
+        <Button asChild variant="outline" size="sm">
+          <a href={sample.videoUrl} target="_blank" rel="noreferrer">
+            <CirclePlay aria-hidden /> Watch the video
+          </a>
+        </Button>
+      )}
+    </section>
   )
 }

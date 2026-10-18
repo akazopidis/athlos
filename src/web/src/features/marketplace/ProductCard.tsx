@@ -23,7 +23,7 @@ export function ProductCard({ program: p, coach, owned, mine = false }: { progra
     <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-card transition-shadow hover:shadow-lg">
       <Link to={href} className="block outline-none focus-visible:ring-3 focus-visible:ring-ring/50" tabIndex={-1} aria-hidden>
         <div className="relative overflow-hidden bg-muted">
-          <ProgramCover url={p.coverImageUrl} title={p.title} className="transition-transform duration-500 ease-out group-hover:scale-[1.04]" />
+          <ProgramCover url={p.coverImageUrl} title={p.title} category={p.category} className="transition-transform duration-500 ease-out group-hover:scale-[1.04]" />
           <div className="absolute top-3 left-3 flex gap-1.5">
             <span className="rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm backdrop-blur">{categoryLabel(p.category)}</span>
             <span className="rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm backdrop-blur">

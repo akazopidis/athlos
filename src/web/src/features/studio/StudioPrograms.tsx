@@ -84,7 +84,7 @@ export function StudioPrograms({ slug, plan }: { slug: string; plan?: string }) 
               <Link to={`programs/${p.id}`} className="group block">
                 <Card className="py-3 transition-shadow group-hover:shadow-md">
                   <CardContent className="flex items-center gap-3 px-3 sm:gap-4">
-                    <ProgramCover url={p.coverImageUrl} title={p.title} className="w-20 shrink-0 rounded-xl sm:w-28" />
+                    <ProgramCover url={p.coverImageUrl} title={p.title} category={p.category} className="w-20 shrink-0 rounded-xl sm:w-28" />
                     <div className="min-w-0 flex-1 space-y-1">
                       <p className="truncate font-semibold underline-offset-4 group-hover:underline">{p.title}</p>
                       <p className="truncate text-sm text-muted-foreground">

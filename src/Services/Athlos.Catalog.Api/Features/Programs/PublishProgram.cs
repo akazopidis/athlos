@@ -59,6 +59,11 @@ public static class PublishProgram
 
         if (program.IsPublished != publish)
         {
+            if (publish)
+            {
+                await Workouts.ProgramOutline.RefreshAsync(db, programId, cancellationToken);
+            }
+
             program.IsPublished = publish;
             program.PublishedAt = publish ? DateTimeOffset.UtcNow : null;
             program.FirstPublishedAt ??= program.PublishedAt;

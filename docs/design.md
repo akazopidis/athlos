@@ -601,6 +601,8 @@ athlos/
 One SPA with four areas, plus the platform admin's `/admin`, shown to users with the `Platform.Admin` role:
 - `/` marketplace: browse, filter and search all coaches' published programs; `/cart` the cart.
 - `/c/{slug}` coach storefront: the tenant's branded page (logo or photo, uploaded or linked, colors, an "About" with the coach's bio, links to Instagram, YouTube and a website, and contact, all from workspace settings). This is the visible "configure your dedicated workspace" part of the thesis. Program pages show the same coach in a "Your coach" card.
+- Program pages show "What's inside" (every workout's week, day and title) and one workout the coach marks as the free preview, in full. The paid content stays in `workouts`, which has no public-read policy: catalog-api copies the outline and the preview onto the program row (`programs.outline`, `programs.sample`, jsonb), public with the program, whenever a workout changes or the program is published (`ProgramOutline`). The `ProgramOutline` migration backfilled the outline of existing programs, lifting FORCE ROW LEVEL SECURITY for that one transaction, as `FirstPublishedAt` did.
+- Programs without a cover get a generated one: a gradient from the title and the category's icon.
 - `/coaches` the coaches with programs on sale, most programs first (catalog's coach facet, profiles from tenancy-api); the home page features the top four.
 - `/studio/{slug}` coach dashboard: programs, sales, settings, Stripe onboarding.
 - `/me` customer area, one page per subject: purchased programs and progress (`/me`, where Stripe returns the customer), `/me/orders`, `/me/workspaces` and `/me/account` (sign out, account deletion).

@@ -69,7 +69,7 @@ export function MyProgramPage() {
         </Link>
       </Button>
       <header className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-center md:gap-10">
-        <ProgramCover url={p.coverImageUrl} title={p.title} className="rounded-3xl" />
+        <ProgramCover url={p.coverImageUrl} title={p.title} category={p.category} className="rounded-3xl" />
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
             <Badge variant="secondary">{categoryLabel(p.category)}</Badge>

@@ -109,6 +109,40 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.Conflict), (tooCheap.StatusCode, published.StatusCode));
     }
 
+    // The public program page (design §8): the outline of every workout, and the one free preview in full;
+    // no other workout's content. Marking another workout as the preview moves it.
+    [Fact]
+    public async Task The_program_page_shows_the_outline_and_one_free_preview()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach);
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/workouts",
+            new { week = 1, day = 1, title = "Squat day", content = "Free: 5x5 squats", isSample = true });
+        var second = (await (await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/workouts",
+            new { week = 1, day = 2, title = "Bench day", content = "Paid: 5x5 bench" })).Content.ReadFromJsonAsync<WorkoutRow>(Json, TestContext.Current.CancellationToken))!;
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/publish");
+
+        var page = await PublicPage(coach, program.Slug);
+        await _api.AsCoach(coach, HttpMethod.Put, $"/programs/{program.Id}/workouts/{second.Id}",
+            new { week = 1, day = 2, title = "Bench day", content = "Paid: 5x5 bench", isSample = true });
+        var moved = await PublicPage(coach, program.Slug);
+
+        Assert.Equal([("Squat day", true), ("Bench day", false)], page.Outline.Select(o => (o.Title, o.Sample)));
+        Assert.Equal("Free: 5x5 squats", page.Sample!.Content);
+        Assert.DoesNotContain("Paid: 5x5 bench", System.Text.Json.JsonSerializer.Serialize(page), StringComparison.Ordinal);
+        Assert.Equal([("Squat day", false), ("Bench day", true)], moved.Outline.Select(o => (o.Title, o.Sample)));
+        Assert.Equal("Bench day", moved.Sample!.Title);
+    }
+
+    private async Task<PublicProgram> PublicPage(Coach coach, string slug) =>
+        await Read<PublicProgram>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{coach.Slug}/programs/{slug}")));
+
+    private sealed record OutlineRow(int Week, int Day, string Title, bool Sample);
+
+    private sealed record PreviewRow(string Title, string Content);
+
+    private sealed record PublicProgram(string Title, List<OutlineRow> Outline, PreviewRow? Sample);
+
     // Athlos sells in euros only (design §2.3).
     [Fact]
     public async Task Programs_are_priced_in_euros()

@@ -45,6 +45,14 @@ public sealed class TrainingProgram : ITenantOwned, IHasTimestamps
 
     public string? CoverImagePath { get; set; }
 
+    // What the public program page shows of the paid content (design §8): every workout's week, day and
+    // title, and the one workout the coach offers as a free preview, in full. Copies kept in step by
+    // ProgramOutline whenever a workout changes, so the workouts table stays private (no public-read
+    // policy) while these, on the program row, are as public as the program.
+    public List<OutlineEntry> Outline { get; set; } = [];
+
+    public SampleWorkout? Sample { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
@@ -62,4 +70,28 @@ public enum ProgramCategory
     Calisthenics,
     Running,
     Mobility,
+}
+
+public sealed class OutlineEntry
+{
+    public int Week { get; set; }
+
+    public int Day { get; set; }
+
+    public string Title { get; set; } = "";
+
+    public bool Sample { get; set; }
+}
+
+public sealed class SampleWorkout
+{
+    public int Week { get; set; }
+
+    public int Day { get; set; }
+
+    public string Title { get; set; } = "";
+
+    public string Content { get; set; } = "";
+
+    public string? VideoUrl { get; set; }
 }

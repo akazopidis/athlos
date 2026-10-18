@@ -14,11 +14,12 @@ public static class WorkoutEndpoints
         [property: Range(1, 7)] int Day,
         [property: Required, StringLength(120, MinimumLength = 1)] string Title,
         [property: StringLength(20000)] string? Content,
-        [property: Url, StringLength(500)] string? VideoUrl);
+        [property: Url, StringLength(500)] string? VideoUrl,
+        bool IsSample = false);
 
-    public sealed record WorkoutDetails(Guid Id, int Week, int Day, string Title, string Content, string? VideoUrl)
+    public sealed record WorkoutDetails(Guid Id, int Week, int Day, string Title, string Content, string? VideoUrl, bool IsSample)
     {
-        public static WorkoutDetails From(Workout w) => new(w.Id, w.Week, w.Day, w.Title, w.Content, w.VideoUrl);
+        public static WorkoutDetails From(Workout w) => new(w.Id, w.Week, w.Day, w.Title, w.Content, w.VideoUrl, w.IsSample);
     }
 
     public static void MapWorkouts(this IEndpointRouteBuilder app)
@@ -61,6 +62,8 @@ public static class WorkoutEndpoints
         var workout = new Workout { ProgramId = programId, Title = request.Title.Trim() };
         Apply(workout, request);
         db.Workouts.Add(workout);
+        await KeepOneSampleAsync(db, workout, cancellationToken);
+        await ProgramOutline.RefreshAsync(db, programId, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Created(
@@ -83,6 +86,8 @@ public static class WorkoutEndpoints
         }
 
         Apply(workout, request);
+        await KeepOneSampleAsync(db, workout, cancellationToken);
+        await ProgramOutline.RefreshAsync(db, programId, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return TypedResults.Ok(WorkoutDetails.From(workout));
     }
@@ -104,8 +109,23 @@ public static class WorkoutEndpoints
         }
 
         db.Workouts.Remove(workout);
+        await ProgramOutline.RefreshAsync(db, programId, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return TypedResults.NoContent();
+    }
+
+    // One free preview per program: marking a workout as the preview unmarks the others.
+    private static async Task KeepOneSampleAsync(CatalogDbContext db, Workout workout, CancellationToken cancellationToken)
+    {
+        if (!workout.IsSample)
+        {
+            return;
+        }
+
+        foreach (var other in await db.Workouts.Where(w => w.ProgramId == workout.ProgramId && w.IsSample && w.Id != workout.Id).ToListAsync(cancellationToken))
+        {
+            other.IsSample = false;
+        }
     }
 
     // A workout's week is inside the program's length (1 to DurationWeeks).
@@ -120,5 +140,6 @@ public static class WorkoutEndpoints
         workout.Title = request.Title.Trim();
         workout.Content = request.Content ?? "";
         workout.VideoUrl = request.VideoUrl;
+        workout.IsSample = request.IsSample;
     }
 }

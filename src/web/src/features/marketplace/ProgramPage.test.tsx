@@ -28,6 +28,12 @@ const program = {
   priceAmount: 4900,
   currency: 'EUR',
   coverImageUrl: null,
+  outline: [
+    { week: 1, day: 1, title: 'Squat day', sample: true },
+    { week: 1, day: 2, title: 'Bench day', sample: false },
+    { week: 2, day: 1, title: 'Deadlift day', sample: false },
+  ],
+  sample: { week: 1, day: 1, title: 'Squat day', content: 'Five sets of five squats.', videoUrl: null },
 }
 
 // A signed-in customer: enough of MSAL for getAccessToken.
@@ -127,4 +133,14 @@ test('Add to cart keeps the program in the cart, in this browser', async () => {
 
   expect(await screen.findByRole('link', { name: /In cart/ })).toHaveAttribute('href', '/cart')
   expect(JSON.parse(localStorage.getItem('athlos.cart')!)).toEqual([expect.objectContaining({ programId: program.id, title: 'Strong start', priceAmount: 4900 })])
+})
+
+test('the page shows the outline by week and the free preview in full', async () => {
+  renderPage(() => Response.json({}))
+
+  const outline = await screen.findByRole('region', { name: "What's inside" })
+  expect(outline).toHaveTextContent('3 workouts over 8 weeks')
+  expect(outline).toHaveTextContent('Week 2')
+  expect(outline).toHaveTextContent('Deadlift day')
+  expect(screen.getByRole('region', { name: 'Week 1, day 1: Squat day' })).toHaveTextContent('Five sets of five squats.')
 })

@@ -12,7 +12,7 @@ import { useCoaches } from '@/lib/useCoaches'
 import { useMyWorkspaces } from '@/lib/useMyWorkspaces'
 import { useOwnedPrograms } from '@/lib/useOwnedPrograms'
 import { cn } from '@/lib/utils'
-import { ProductCard } from './ProductCard.tsx'
+import { ProductCard } from '@/components/product-card'
 import { activeFilters, Lengths, PageSize, Sorts, type ProgramSearch, type SearchChange, type Sort } from './useProgramSearch.ts'
 
 type Results = components['schemas']['SearchProgramsSearchResults']

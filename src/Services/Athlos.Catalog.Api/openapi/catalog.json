@@ -183,6 +183,78 @@
         }
       }
     },
+    "/api/v1/me/saved": {
+      "get": {
+        "tags": [
+          "Saved programs"
+        ],
+        "operationId": "ListSavedPrograms",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchProgramsItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/saved/{programId}": {
+      "put": {
+        "tags": [
+          "Saved programs"
+        ],
+        "operationId": "SaveProgram",
+        "parameters": [
+          {
+            "name": "programId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Saved programs"
+        ],
+        "operationId": "UnsaveProgram",
+        "parameters": [
+          {
+            "name": "programId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/api/v1/studio/{tenantSlug}/programs": {
       "get": {
         "tags": [
@@ -1362,6 +1434,9 @@
   "tags": [
     {
       "name": "Marketplace"
+    },
+    {
+      "name": "Saved programs"
     },
     {
       "name": "Programs"

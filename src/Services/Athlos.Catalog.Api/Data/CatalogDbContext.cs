@@ -11,6 +11,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options,
 
     public DbSet<Workout> Workouts => Set<Workout>();
 
+    public DbSet<SavedProgram> SavedPrograms => Set<SavedProgram>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<TrainingProgram>(program =>
@@ -38,6 +40,13 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options,
             workout.Property(w => w.Content).HasMaxLength(20000);
             workout.Property(w => w.VideoUrl).HasMaxLength(500);
             workout.HasOne<TrainingProgram>().WithMany().HasForeignKey(w => w.ProgramId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SavedProgram>(saved =>
+        {
+            saved.ToTable("saved_programs");
+            saved.HasIndex(s => new { s.CustomerId, s.ProgramId }).IsUnique();
+            saved.HasOne<TrainingProgram>().WithMany().HasForeignKey(s => s.ProgramId).OnDelete(DeleteBehavior.Cascade);
         });
 
         base.OnModelCreating(modelBuilder);

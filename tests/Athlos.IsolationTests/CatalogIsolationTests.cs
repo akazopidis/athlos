@@ -337,18 +337,61 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, insert.SqlState);
     }
 
+    // Saved programs (design §2.4) are the customer's own rows: another customer neither sees nor removes
+    // them, and only a program on sale can be saved (A's draft is 404).
+    [Fact]
+    public async Task A_customers_saved_programs_are_theirs_alone()
+    {
+        var customer = Guid.CreateVersion7();
+        var other = Guid.CreateVersion7();
+        var saved = await AsCustomer(customer, HttpMethod.Put, $"/saved/{_aPublished.Id}");
+        var draft = await AsCustomer(customer, HttpMethod.Put, $"/saved/{_aDraft.Id}");
+        await AsCustomer(other, HttpMethod.Delete, $"/saved/{_aPublished.Id}");
+
+        var othersList = await (await AsCustomer(other, HttpMethod.Get, "/saved")).Content.ReadAsStringAsync(Cancel);
+        var ownList = await (await AsCustomer(customer, HttpMethod.Get, "/saved")).Content.ReadAsStringAsync(Cancel);
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NotFound), (saved.StatusCode, draft.StatusCode));
+        Assert.Equal("[]", othersList);
+        Assert.Contains(_aPublished.Id.ToString(), ownList, StringComparison.Ordinal);
+    }
+
+    // Layer 4 alone: as another user, raw SQL reads none of the customer's saved rows and cannot add one in their name.
+    [Fact]
+    public async Task RLS_shows_saved_programs_to_their_customer_only()
+    {
+        var customer = Guid.CreateVersion7();
+        await AsCustomer(customer, HttpMethod.Put, $"/saved/{_aPublished.Id}");
+
+        var (own, others) = (
+            await AsAppRole(_b.TenantId, scope: "public-read", connection => Count(connection, $"SELECT count(*) FROM saved_programs WHERE customer_id = '{customer}'"), customer),
+            await AsAppRole(_b.TenantId, scope: "public-read", connection => Count(connection, $"SELECT count(*) FROM saved_programs WHERE customer_id = '{customer}'"), _b.OwnerId));
+        var planted = await Assert.ThrowsAsync<PostgresException>(() => AsAppRole(_b.TenantId, scope: "public-read", async connection =>
+        {
+            await using var command = new NpgsqlCommand(
+                $"INSERT INTO saved_programs (id, customer_id, program_id, saved_at) VALUES ('{Guid.CreateVersion7()}', '{customer}', '{_aPublished.Id}', now())", connection);
+            return await command.ExecuteNonQueryAsync(Cancel);
+        }, _b.OwnerId));
+
+        Assert.Equal((1L, 0L), (own, others));
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, planted.SqlState);
+    }
+
+    private Task<HttpResponseMessage> AsCustomer(Guid customer, HttpMethod method, string path) =>
+        _api.SendAsGateway(new HttpRequestMessage(method, $"/api/v1/me{path}"), customer);
+
     private string Resolve(string path) => path
         .Replace("{draft}", _aDraft.Id.ToString(), StringComparison.Ordinal)
         .Replace("{published}", _aPublished.Id.ToString(), StringComparison.Ordinal)
         .Replace("{workout}", _aWorkout.ToString(), StringComparison.Ordinal);
 
-    private async Task<T> AsAppRole<T>(Guid tenantId, string scope, Func<NpgsqlConnection, Task<T>> act)
+    private async Task<T> AsAppRole<T>(Guid tenantId, string scope, Func<NpgsqlConnection, Task<T>> act, Guid? userId = null)
     {
         await using var connection = new NpgsqlConnection(databases.AppConnectionString("catalog"));
         await connection.OpenAsync(Cancel);
         await using var transaction = await connection.BeginTransactionAsync(Cancel);
         await using (var set = new NpgsqlCommand(
-            $"SELECT set_config('app.tenant_id', '{tenantId}', true), set_config('app.scope', '{scope}', true)", connection))
+            $"SELECT set_config('app.tenant_id', '{tenantId}', true), set_config('app.scope', '{scope}', true), set_config('app.user_id', '{userId}', true)", connection))
         {
             await set.ExecuteNonQueryAsync(Cancel);
         }

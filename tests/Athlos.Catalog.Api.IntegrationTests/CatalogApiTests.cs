@@ -382,6 +382,41 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    // Saved programs (design §2.4): newest saved first, idempotent, a program that leaves the shop is not
+    // listed (and returns when published again), and erasing the customer removes their rows only.
+    [Fact]
+    public async Task Saved_programs_list_what_is_on_sale_and_go_with_the_account()
+    {
+        var coach = NewCoach();
+        var first = await _api.CreateProgram(coach, publish: true);
+        var second = await _api.CreateProgram(coach, publish: true);
+        var customer = Guid.CreateVersion7();
+        var other = Guid.CreateVersion7();
+        await AsCustomer(customer, HttpMethod.Put, $"/saved/{first.Id}");
+        await AsCustomer(customer, HttpMethod.Put, $"/saved/{second.Id}");
+        var again = await AsCustomer(customer, HttpMethod.Put, $"/saved/{second.Id}");
+        await AsCustomer(other, HttpMethod.Put, $"/saved/{first.Id}");
+
+        var both = await Read<List<SearchItem>>(await AsCustomer(customer, HttpMethod.Get, "/saved"));
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{first.Id}/unpublish");
+        var onSale = await Read<List<SearchItem>>(await AsCustomer(customer, HttpMethod.Get, "/saved"));
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{first.Id}/publish");
+        await AsCustomer(customer, HttpMethod.Delete, $"/saved/{second.Id}");
+        var erased = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/customers/{customer}"));
+        var afterErasure = await Read<List<SearchItem>>(await AsCustomer(customer, HttpMethod.Get, "/saved"));
+        var othersAfter = await Read<List<SearchItem>>(await AsCustomer(other, HttpMethod.Get, "/saved"));
+
+        Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
+        Assert.Equal([second.Slug, first.Slug], both.Select(p => p.Slug));
+        Assert.Equal([second.Slug], onSale.Select(p => p.Slug));
+        Assert.Equal(HttpStatusCode.NoContent, erased.StatusCode);
+        Assert.Empty(afterErasure);
+        Assert.Equal([first.Slug], othersAfter.Select(p => p.Slug));
+    }
+
+    private Task<HttpResponseMessage> AsCustomer(Guid customer, HttpMethod method, string path) =>
+        _api.SendAsGateway(new HttpRequestMessage(method, $"/api/v1/me{path}"), customer);
+
     private async Task<SearchPage> Search(string query)
     {
         var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs{query}"));

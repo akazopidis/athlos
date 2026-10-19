@@ -22,6 +22,38 @@ namespace Athlos.Catalog.Api.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Athlos.Catalog.Api.Data.SavedProgram", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<Guid>("ProgramId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("program_id");
+
+                    b.Property<DateTimeOffset>("SavedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("saved_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_saved_programs");
+
+                    b.HasIndex("ProgramId")
+                        .HasDatabaseName("ix_saved_programs_program_id");
+
+                    b.HasIndex("CustomerId", "ProgramId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_saved_programs_customer_id_program_id");
+
+                    b.ToTable("saved_programs", (string)null);
+                });
+
             modelBuilder.Entity("Athlos.Catalog.Api.Data.TrainingProgram", b =>
                 {
                     b.Property<Guid>("Id")
@@ -182,6 +214,16 @@ namespace Athlos.Catalog.Api.Data.Migrations
                         .HasDatabaseName("ix_workouts_tenant_id_program_id_week_day");
 
                     b.ToTable("workouts", (string)null);
+                });
+
+            modelBuilder.Entity("Athlos.Catalog.Api.Data.SavedProgram", b =>
+                {
+                    b.HasOne("Athlos.Catalog.Api.Data.TrainingProgram", null)
+                        .WithMany()
+                        .HasForeignKey("ProgramId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_saved_programs_programs_program_id");
                 });
 
             modelBuilder.Entity("Athlos.Catalog.Api.Data.TrainingProgram", b =>

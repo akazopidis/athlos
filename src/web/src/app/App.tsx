@@ -21,6 +21,7 @@ const CreateWorkspace = lazyPage(() => import('@/features/studio/CreateWorkspace
 const Me = lazyPage(() => import('@/features/account/Me'), 'Me')
 const MyPrograms = lazyPage(() => import('@/features/account/MyPrograms'), 'MyPrograms')
 const MyOrders = lazyPage(() => import('@/features/account/MyOrders'), 'MyOrders')
+const SavedPrograms = lazyPage(() => import('@/features/account/SavedPrograms'), 'SavedPrograms')
 const MyWorkspaces = lazyPage(() => import('@/features/account/MyWorkspaces'), 'MyWorkspaces')
 const AccountSettings = lazyPage(() => import('@/features/account/AccountSettings'), 'AccountSettings')
 const MyProgramPage = lazyPage(() => import('@/features/account/MyProgramPage'), 'MyProgramPage')
@@ -63,6 +64,7 @@ export default function App() {
               <Route path="/coaches" element={<Coaches />} />
               <Route path="/me" element={<Me />}>
                 <Route index element={<MyPrograms />} />
+                <Route path="saved" element={<SavedPrograms />} />
                 <Route path="orders" element={<MyOrders />} />
                 <Route path="workspaces" element={<MyWorkspaces />} />
                 <Route path="account" element={<AccountSettings />} />

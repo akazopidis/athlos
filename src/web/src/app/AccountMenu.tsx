@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Dumbbell, LogOut, Plus, Receipt, Settings, ShieldCheck, Store, type LucideIcon } from 'lucide-react'
+import { Dumbbell, Heart, LogOut, Plus, Receipt, Settings, ShieldCheck, Store, type LucideIcon } from 'lucide-react'
 import { useRef, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
@@ -69,6 +69,9 @@ export function AccountMenu() {
           <p className="truncate px-3 pt-2 pb-1 text-sm font-semibold">{name}</p>
           <MenuLink to="/me" icon={Dumbbell} onClick={menu.close}>
             My programs
+          </MenuLink>
+          <MenuLink to="/me/saved" icon={Heart} onClick={menu.close}>
+            Saved
           </MenuLink>
           <MenuLink to="/me/orders" icon={Receipt} onClick={menu.close}>
             Orders

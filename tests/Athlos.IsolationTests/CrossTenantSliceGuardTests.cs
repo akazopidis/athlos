@@ -11,6 +11,8 @@ public sealed class CrossTenantSliceGuardTests
         "src/Services/Athlos.Catalog.Api/Features/Marketplace/SearchPrograms.cs",
         // Checkout's price lookup: the buyer is outside the coach's tenant (published only).
         "src/Services/Athlos.Catalog.Api/Features/Internal/GetProgramOffer.cs",
+        // A customer's saved programs: their own rows, joined to published programs (design §2.4).
+        "src/Services/Athlos.Catalog.Api/Features/Saved/SavedPrograms.cs",
         // A customer's own orders across coaches.
         "src/Services/Athlos.Ordering.Api/Features/Orders/OrderLists.cs",
         // A customer's own enrollments and progress across coaches.

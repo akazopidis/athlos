@@ -11,8 +11,9 @@ import { useApp } from '@/lib/AppContext'
 import { categoryLabel } from '@/lib/categories'
 import { useTitle } from '@/lib/useTitle'
 import { cn } from '@/lib/utils'
+import { MyReview } from './MyReview.tsx'
 
-// A program the customer bought: its workouts (the paid content) and which are done.
+// A program the customer bought: its workouts (the paid content), which are done, and their review.
 // enrollment-api answers 404 for a program the customer did not buy.
 export function MyProgramPage() {
   const { programId = '' } = useParams()
@@ -154,6 +155,7 @@ export function MyProgramPage() {
           )
         })}
       </div>
+      <MyReview key={p.review?.updatedAt ?? 'none'} programId={programId} review={p.review} />
     </article>
   )
 }

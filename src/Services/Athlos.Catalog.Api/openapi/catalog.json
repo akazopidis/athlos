@@ -977,7 +977,9 @@
           "currency",
           "coverImageUrl",
           "outline",
-          "sample"
+          "sample",
+          "ratingAverage",
+          "ratingCount"
         ],
         "type": "object",
         "properties": {
@@ -1040,6 +1042,22 @@
                 "$ref": "#/components/schemas/GetPublishedProgramPreview"
               }
             ]
+          },
+          "ratingAverage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "ratingCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -1167,7 +1185,9 @@
           "durationWeeks",
           "priceAmount",
           "currency",
-          "coverImageUrl"
+          "coverImageUrl",
+          "ratingAverage",
+          "ratingCount"
         ],
         "type": "object",
         "properties": {
@@ -1211,6 +1231,22 @@
               "null",
               "string"
             ]
+          },
+          "ratingAverage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "ratingCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -1266,7 +1302,8 @@
         "enum": [
           "Newest",
           "PriceLowToHigh",
-          "PriceHighToLow"
+          "PriceHighToLow",
+          "TopRated"
         ]
       },
       "UpdateProgramRequest": {

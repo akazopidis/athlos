@@ -38,14 +38,14 @@ public static class SavedPrograms
             .Join(OnSale(db), s => s.ProgramId, p => p.Id, (s, p) => new { s.SavedAt, Program = p })
             .OrderByDescending(r => r.SavedAt)
             .Select(r => new { r.Program.Id, r.Program.CoachSlug, r.Program.Slug, r.Program.Title, r.Program.Category, r.Program.DurationWeeks,
-                r.Program.PriceAmount, r.Program.Currency, r.Program.CoverImagePath })
+                r.Program.PriceAmount, r.Program.Currency, r.Program.CoverImagePath, r.Program.RatingAverage, r.Program.RatingCount })
             .ToListAsync(cancellationToken);
 
         var items = new List<SearchPrograms.Item>(rows.Count);
         foreach (var p in rows)
         {
             items.Add(new SearchPrograms.Item(p.Id, p.CoachSlug, p.Slug, p.Title, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency,
-                await media.ReadLinkAsync(p.CoverImagePath, cancellationToken)));
+                await media.ReadLinkAsync(p.CoverImagePath, cancellationToken), p.RatingAverage, p.RatingCount));
         }
 
         return TypedResults.Ok(items);

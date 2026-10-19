@@ -45,6 +45,12 @@ public sealed class TrainingProgram : ITenantOwned, IHasTimestamps
 
     public string? CoverImagePath { get; set; }
 
+    // Copies of the program's reviews, which enrollment-api owns (design §2.4): how many, and their
+    // average (0 without reviews). Set through PUT /internal/tenants/{id}/programs/{id}/rating.
+    public int RatingCount { get; set; }
+
+    public decimal RatingAverage { get; set; }
+
     // What the public program page shows of the paid content (design §8): every workout's week, day and
     // title, and the one workout the coach offers as a free preview, in full. Copies kept in step by
     // ProgramOutline whenever a workout changes, so the workouts table stays private (no public-read

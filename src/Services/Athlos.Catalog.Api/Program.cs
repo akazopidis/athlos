@@ -107,6 +107,9 @@ app.MapGroup("/internal")
 // Tenancy-api only (signed): hide or show a suspended workspace's programs (design §3.4)
 app.MapGroup("/internal")
     .MapSuspendTenant();
+// Enrollment-api only (signed): a program's rating, from its reviews (design §2.4); the handler enters that tenant
+app.MapGroup("/internal")
+    .MapSetProgramRating();
 // Tenancy-api only (signed): erase a deleted account's saved programs (design §5.2)
 app.MapGroup("/internal")
     .MapEraseCustomer();

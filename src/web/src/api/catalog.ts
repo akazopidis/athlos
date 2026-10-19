@@ -228,6 +228,10 @@ export interface components {
             coverImageUrl: null | string;
             outline: components["schemas"]["GetPublishedProgramOutlineItem"][];
             sample: null | components["schemas"]["GetPublishedProgramPreview"];
+            /** Format: double */
+            ratingAverage: number | string;
+            /** Format: int32 */
+            ratingCount: number | string;
         };
         /** Format: binary */
         IFormFile: string;
@@ -271,6 +275,10 @@ export interface components {
             priceAmount: number | string;
             currency: string;
             coverImageUrl: null | string;
+            /** Format: double */
+            ratingAverage: number | string;
+            /** Format: int32 */
+            ratingCount: number | string;
         };
         SearchProgramsSearchResults: {
             items: components["schemas"]["SearchProgramsItem"][];
@@ -283,7 +291,7 @@ export interface components {
             coaches: components["schemas"]["SearchProgramsCoachFacet"][];
         };
         /** @enum {unknown} */
-        SearchProgramsSort: "Newest" | "PriceLowToHigh" | "PriceHighToLow";
+        SearchProgramsSort: "Newest" | "PriceLowToHigh" | "PriceHighToLow" | "TopRated";
         UpdateProgramRequest: {
             title: string;
             description: null | string;

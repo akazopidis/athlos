@@ -377,6 +377,30 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, planted.SqlState);
     }
 
+    // The rating copy (design §2.4) is written inside the tenant enrollment-api names: naming B for A's
+    // program changes nothing.
+    [Fact]
+    public async Task A_rating_sent_under_Bs_tenant_does_not_change_As_program()
+    {
+        var wrong = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{_b.TenantId}/programs/{_aPublished.Id}/rating")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new { count = 9, average = 1.0m }),
+        });
+        var right = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{_a.TenantId}/programs/{_aPublished.Id}/rating")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new { count = 2, average = 4.5m }),
+        });
+        var unsigned = await _api.CreateClient().PutAsync($"/internal/tenants/{_a.TenantId}/programs/{_aPublished.Id}/rating",
+            System.Net.Http.Json.JsonContent.Create(new { count = 9, average = 1.0m }), Cancel);
+
+        var page = await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{_a.Slug}/programs/{_aPublished.Slug}")))
+            .Content.ReadAsStringAsync(Cancel);
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent, HttpStatusCode.Unauthorized), (wrong.StatusCode, right.StatusCode, unsigned.StatusCode));
+        Assert.Contains("\"ratingAverage\":4.5", page, StringComparison.Ordinal);
+        Assert.Contains("\"ratingCount\":2", page, StringComparison.Ordinal);
+    }
+
     private Task<HttpResponseMessage> AsCustomer(Guid customer, HttpMethod method, string path) =>
         _api.SendAsGateway(new HttpRequestMessage(method, $"/api/v1/me{path}"), customer);
 

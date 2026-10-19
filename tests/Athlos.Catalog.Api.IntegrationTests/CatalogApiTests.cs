@@ -414,6 +414,40 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal([first.Slug], othersAfter.Select(p => p.Slug));
     }
 
+    // Ratings come from enrollment-api (design §2.4): cards carry them and "Top rated" sorts by the
+    // average, then the number of reviews; programs without reviews come last.
+    [Fact]
+    public async Task Top_rated_sorts_by_average_then_number_of_reviews()
+    {
+        var coach = NewCoach();
+        var unrated = await _api.CreateProgram(coach, publish: true);
+        var fewer = await _api.CreateProgram(coach, publish: true);
+        var more = await _api.CreateProgram(coach, publish: true);
+        var best = await _api.CreateProgram(coach, publish: true);
+        await SetRating(coach, fewer.Id, 1, 4.5m);
+        await SetRating(coach, more.Id, 8, 4.5m);
+        await SetRating(coach, best.Id, 2, 5m);
+
+        var page = await Read<RatedPage>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs?coach={coach.Slug}&sort=TopRated")));
+
+        Assert.Equal([best.Slug, more.Slug, fewer.Slug, unrated.Slug], page.Items.Select(p => p.Slug));
+        Assert.Equal((5m, 2), (page.Items[0].RatingAverage, page.Items[0].RatingCount));
+        Assert.Equal((0m, 0), (page.Items[3].RatingAverage, page.Items[3].RatingCount));
+    }
+
+    private async Task SetRating(Coach coach, Guid programId, int count, decimal average)
+    {
+        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{coach.TenantId}/programs/{programId}/rating")
+        {
+            Content = JsonContent.Create(new { count, average }),
+        });
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    private sealed record RatedItem(string Slug, decimal RatingAverage, int RatingCount);
+
+    private sealed record RatedPage(List<RatedItem> Items);
+
     private Task<HttpResponseMessage> AsCustomer(Guid customer, HttpMethod method, string path) =>
         _api.SendAsGateway(new HttpRequestMessage(method, $"/api/v1/me{path}"), customer);
 

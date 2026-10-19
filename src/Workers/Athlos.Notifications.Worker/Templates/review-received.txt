@@ -1,0 +1,8 @@
+Subject: New review of {{programTitle}}: {{rating}} out of 5
+A customer reviewed {{programTitle}}: {{stars}}
+
+"{{comment}}"
+
+Read it and reply in your studio: {{reviewsUrl}}
+
+Athlos

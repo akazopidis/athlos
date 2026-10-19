@@ -59,6 +59,9 @@ public static class EmailTemplates
     // transferred and waits in payout_retries (design §2.2): their Stripe account needs attention.
     public const string PayoutFailed = "payout-failed";
 
+    // To the coach's owners, queued by enrollment-api when a customer first reviews a program (design §2.4).
+    public const string ReviewReceived = "review-received";
+
     // To the invitee, queued by tenancy-api with the invite (design §5.2).
     public const string StaffInvite = "staff-invite";
 }

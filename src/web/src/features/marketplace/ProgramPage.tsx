@@ -7,6 +7,7 @@ import { Loading, Notice, Section } from '@/components/page'
 import type { components } from '@/api/catalog'
 import { CoachAvatar, CoachLinks } from '@/components/coach-profile'
 import { ProgramCover } from '@/components/program-cover'
+import { SaveButton } from '@/components/save-button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,7 +22,7 @@ import { useMyWorkspaces } from '@/lib/useMyWorkspaces'
 import { useOwnedPrograms } from '@/lib/useOwnedPrograms'
 import { useSlow } from '@/lib/useSlow'
 import { useTitle } from '@/lib/useTitle'
-import { ProductCard } from './ProductCard.tsx'
+import { ProductCard } from '@/components/product-card'
 import { useStorefront } from './useStorefront.ts'
 
 // A published program's product page, in the coach's colors: breadcrumbs, the buy box ("Add to cart",
@@ -139,12 +140,13 @@ export function ProgramPage() {
           <div className="min-w-0 space-y-8">
             <ProgramCover url={p.coverImageUrl} title={p.title} category={p.category} className="aspect-video rounded-3xl" />
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">{categoryLabel(p.category)}</Badge>
                 <Badge variant="outline">
                   {weeks} {weeks === 1 ? 'week' : 'weeks'}
                 </Badge>
                 {ownsIt && <Badge>Owned</Badge>}
+                {!ownsIt && !mine && <SaveButton programId={p.id} title={p.title} className="ml-auto" />}
               </div>
               <h1 className="text-4xl leading-tight font-black tracking-tight sm:text-5xl">{p.title}</h1>
               <p className="text-muted-foreground">

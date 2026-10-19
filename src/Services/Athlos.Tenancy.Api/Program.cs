@@ -42,6 +42,7 @@ builder.Services.AddScoped<ITenantSuspension, ServiceTenantSuspension>();
 // the Entra user (design §5.2).
 builder.Services.AddHttpClient(ServiceCustomerErasure.Ordering, http => http.BaseAddress = new Uri("https+http://ordering-api")).AddSignedRequests();
 builder.Services.AddHttpClient(ServiceCustomerErasure.Enrollment, http => http.BaseAddress = new Uri("https+http://enrollment-api")).AddSignedRequests();
+builder.Services.AddHttpClient(ServiceCustomerErasure.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api")).AddSignedRequests();
 builder.Services.AddScoped<ICustomerErasure, ServiceCustomerErasure>();
 builder.Services.Configure<EntraAccountDeletionOptions>(builder.Configuration.GetSection("EntraAccountDeletion"));
 builder.Services.AddHttpClient<IEntraUsers, GraphEntraUsers>();

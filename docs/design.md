@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v16, built; v1.10.0 in production (2026-10-18)
+**Status:** v17, built; v1.10.0 in production (2026-10-18)
+
+**Changes in v17 (v1.11.0):** saved programs, reviews and ratings, and discount codes (§2.4); new tables in §2.3; the `review-received` email (§5.3); the saved-programs list is a listed cross-tenant slice (§3.2).
 
 **Changes in v16.1 (v1.10.0):** coach profiles (bio, links, uploaded logo, §3.2, §8), the coach directory, program pages with an outline and a free preview, category covers, the "Sell on Athlos" page, studio numbers and link previews (§8, §8.1).
 
@@ -177,15 +179,18 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 | tenancy | `memberships` **T** | `user_id` (Entra object id), `role` (Owner, Staff) |
 | tenancy | `user_profiles` | `user_id` (unique), `email`, `display_name` |
 | tenancy | `staff_invites` **T** | `email`, `token_hash`, `expires_at`, `accepted_at` |
-| catalog | `programs` **T** | `title`, `slug`, `description`, `category`, `duration_weeks`, `price_amount` (integer cents, at least 1,000: €10), `currency` (`EUR` only: one currency per cart; the data model keeps a code for later), `is_published`, `cover_image_path` |
+| catalog | `programs` **T** | `title`, `slug`, `description`, `category`, `duration_weeks`, `price_amount` (integer cents, at least 1,000: €10), `currency` (`EUR` only: one currency per cart; the data model keeps a code for later), `is_published`, `cover_image_path`, `rating_count`, `rating_average` (copies from enrollment-api, §2.4) |
 | catalog | `workouts` **T** | `program_id`, `week`, `day`, `title`, `content` (Markdown), `video_url` |
-| ordering | `orders` **T** | `customer_id`, `customer_email`, `program_id`, `program_title` (copy at purchase time), `amount`, `currency`, `platform_fee`, `status` (Pending, Paid, Failed, Refunded), `stripe_checkout_session_id` (shared by a cart's orders), `checkout_id`, `seller_account_id` (the coach's Connect account at checkout), `stripe_transfer_id`, `stripe_payment_intent_id`, `refunded_at` |
+| ordering | `orders` **T** | `customer_id`, `customer_email`, `program_id`, `program_title` (copy at purchase time), `amount`, `currency`, `platform_fee`, `status` (Pending, Paid, Failed, Refunded), `stripe_checkout_session_id` (shared by a cart's orders), `checkout_id`, `seller_account_id` (the coach's Connect account at checkout), `stripe_transfer_id`, `stripe_payment_intent_id`, `refunded_at`, `discount_code`, `discount_amount` (§2.4) |
 | ordering | `payout_retries` | `order_id` (primary key), `tenant_id`, `coach_slug`, `amount`, `currency`, `attempts`, `next_attempt_at`, `last_error`. A work queue of the service (allow-all policy, like the outbox) |
 | ordering | `checkouts` | `customer_id`, `idempotency_key` (unique per customer), `stripe_checkout_session_id`, `checkout_url`. The customer's, not a tenant's: RLS `customer_id = app.user_id` |
 | ordering | `processed_stripe_events` | `stripe_event_id` (primary key, for webhook idempotency) |
 | ordering | `outbox_messages` | `type`, `payload` (jsonb), `occurred_at`, `sent_at` |
 | enrollment | `enrollments` **T** | `customer_id`, `program_id`, `order_id` (unique, for idempotency) |
 | enrollment | `workout_progress` **T** | `enrollment_id`, `workout_id`, `completed_at` |
+| enrollment | `reviews` **T** | `enrollment_id` (unique), `customer_id`, `program_id`, `rating` (1 to 5), `comment`, `author_name`, `reply`, `replied_at` (§2.4) |
+| catalog | `saved_programs` | `customer_id`, `program_id` (unique together). The customer's: RLS `customer_id = app.user_id` (§2.4) |
+| ordering | `discount_codes` **T** | `code` (unique per tenant), `percent_off`, `program_id`, `expires_at`, `max_redemptions`, `is_active` (§2.4) |
 
 Catalog notes (phase 3):
 - `programs.coach_slug` is a copy of the owning workspace's slug, taken from the gateway-verified route when the program is created. Marketplace results link to `/c/{slug}` without catalog reading tenancy's database; slugs never change, so the copy cannot go stale.
@@ -220,6 +225,33 @@ Enrollment notes (phase 5):
 Workout videos are links to an external host (for example unlisted YouTube or Vimeo), not files in Blob Storage: streaming video from Azure would cost bandwidth and needs transcoding. Blob Storage holds images and small PDFs only.
 
 Money is always integer minor units plus a currency code, never `decimal` floats in JSON. Services refer to each other's data by id only; ordering copies the title and price it needs at purchase time instead of joining across services.
+
+### 2.4 Saved programs, reviews and discount codes (v1.11.0)
+
+Three things every e-shop has. Each lives in the service that already owns the data it depends on, so no service reads another's database.
+
+**Saved programs (a wishlist), catalog-api.**
+- *Data.* `saved_programs` (`customer_id`, `program_id`, unique together; the foreign key to `programs` cascades). The customer's rows, not a tenant's, like ordering's `checkouts`: one RLS policy, `customer_id = app.user_id`, for every command.
+- *Routes.* `GET /api/v1/me/saved` lists the saved programs that are still on sale, newest saved first, as shop cards. `PUT` and `DELETE /api/v1/me/saved/{programId}` save and unsave (`204`, idempotent). Only a published program of an active coach can be saved (`404` otherwise), and a customer keeps at most 100.
+- *Reading.* The list joins the customer's rows to programs in the public-read scope, so RLS shows the customer's own rows and published programs only (a listed cross-tenant slice, §3.2). A program that leaves the shop disappears from the list and comes back if it is published again. A deleted program's rows go with it (the cascade).
+- *Account deletion.* tenancy-api also calls catalog-api's `DELETE /internal/customers/{id}` (§5.2).
+
+**Reviews and ratings, enrollment-api.**
+- *Who reviews.* Only a customer who owns the program: the review hangs on their enrollment. One review per enrollment, 1 to 5 stars and an optional comment (up to 2,000 characters), shown with the reviewer's first name and initial from their token's `name` claim (copied, like order titles). The customer edits or deletes it.
+- *Data.* `reviews` **T** (`enrollment_id` unique, `customer_id`, `program_id`, `rating`, `comment`, `author_name`, `reply`, `replied_at`). A composite foreign key `(enrollment_id, tenant_id, customer_id)` to the enrollment cascades, as progress does, so a refund (`OrderRefunded`), a deleted account and a deleted workspace take the review with the access. RLS: the tenant's rows, plus reads of the customer's own rows and, in the public-read scope, every review (`AddTenantIsolationPolicy` with widened reads, so writes stay inside the tenant).
+- *Routes.*
+  - Customer: `PUT` and `DELETE /api/v1/me/programs/{programId}/review`; the review comes back in `GET /api/v1/me/programs/{programId}`. Writes enter the enrollment's tenant, like progress.
+  - Public: `GET /api/v1/marketplace/programs/{programId}/reviews` (paged, newest first, with the average, the count and how many of each star). The gateway routes this one path to enrollment-api ahead of catalog's `marketplace/programs` route.
+  - Coach: `GET /api/v1/studio/{slug}/reviews` (owners and staff, optionally one program) and `PUT`/`DELETE /api/v1/studio/{slug}/reviews/{reviewId}/reply`: one public reply per review.
+- *The average in the shop.* Product cards, sorting by rating and link previews need each program's rating where programs are searched, in catalog. After every change to a program's reviews, enrollment-api computes the count and average inside the tenant and sends them to catalog-api's `PUT /internal/tenants/{tenantId}/programs/{programId}/rating` (signed), which enters that tenant and stores them on the program (`rating_count`, `rating_average`). The values are absolute, so a repeated call is harmless. A transaction-level advisory lock per program orders concurrent changes, and the call is made before the change commits: if catalog cannot be reached, the change is refused (`502`, or the queue retries a refund), so the two never drift apart for long.
+- *The coach is told.* A new review emails the workspace's owners (`review-received`, through enrollment-api's outbox).
+- *Moderation.* The coach replies, but cannot delete a customer's review; removing abusive reviews is left to future work (`limitations.md`).
+
+**Discount codes, ordering-api.**
+- *Data.* `discount_codes` **T** (`code`, unique per workspace, 3 to 20 capital letters, digits or dashes; `percent_off` 5 to 90; an optional `program_id`, otherwise every program of the workspace; optional `expires_at` and `max_redemptions`; `is_active`). Standard tenant isolation, no widened reads. Orders keep what was applied: `discount_code` and `discount_amount`; `amount` stays what the customer paid, so fees, transfers, refunds and the coach's numbers are all on the discounted price.
+- *Coach.* `GET`/`POST /api/v1/studio/{slug}/discounts`, `PUT`/`DELETE .../discounts/{id}` (owners and staff, like prices), at most 50 codes per workspace. The list shows each code's paid uses.
+- *Customer.* The cart takes one code. `POST /api/v1/orders/discount` (`{ code, programIds }`) prices the cart with it: the code is looked up inside each coach's tenant in the cart, so a code applies only to the programs of coaches who created it (two coaches may both have `SUMMER`), and the answer lists the discount on each program; a code that applies to nothing is `404`. Checkout takes the same `discountCode` and applies it the same way, again inside each tenant. The discount is the percentage of the price rounded down; the platform fee is taken from what is paid.
+- *Limits.* A code is used when its order is Paid or still Pending (an open payment page), so `max_redemptions` cannot be passed by opening many pages; two customers paying at the same moment for the last use can both get it (accepted and documented). Checking codes counts toward the per-customer checkout limit at the gateway (§4), so codes cannot be guessed quickly.
 
 ---
 
@@ -256,7 +288,7 @@ Pool is what a marketplace with many small coaches would use in practice, and it
    - Every tenant-owned entity implements `ITenantOwned { Guid TenantId }`.
    - A global query filter `e => e.TenantId == tenantContext.TenantId` is applied to all of them.
    - An override of `SaveChanges` sets `TenantId` on insert and throws if an update or delete targets another tenant's row.
-   - `IgnoreQueryFilters()` is allowed only in explicitly named "cross-tenant" slices (public marketplace search, a customer's own orders, a customer's own enrollments and progress, a user's own memberships in `GET /api/v1/me/memberships`, and account deletion's search for a user's own memberships, orders and enrollments, which then changes them one tenant at a time) and is caught by a test that greps for it (`CrossTenantSliceGuardTests`).
+   - `IgnoreQueryFilters()` is allowed only in explicitly named "cross-tenant" slices (public marketplace search, a customer's own orders, a customer's own enrollments and progress, a user's own memberships in `GET /api/v1/me/memberships`, a customer's saved programs in `GET /api/v1/me/saved`, the public reviews of a program, and account deletion's search for a user's own memberships, orders and enrollments, which then changes them one tenant at a time) and is caught by a test that greps for it (`CrossTenantSliceGuardTests`).
    - Every tenant-scoped endpoint runs inside one database transaction (`WithTenantTransaction`), because the RLS settings below live only as long as a transaction. An endpoint that forgets it sees no rows at all: the failure is closed, not open.
 4. **PostgreSQL Row-Level Security.** The last line, which protects even against a bug in layer 3.
    - An EF Core interceptor sets the tenant for the current transaction with `SELECT set_config('app.tenant_id', @t, true)` (and `app.user_id`, `app.scope`). The `true` makes the setting **transaction-local**, so a pooled connection can never carry one tenant's context into another request.
@@ -417,7 +449,7 @@ Entra External ID does the account work, so Athlos never stores or handles passw
 - *Owners first.* Someone who owns a workspace gets `409` naming it: they hand ownership to a staff member or delete the workspace first (§3.4, §5.3), so nothing coaches' customers paid for disappears as a side effect.
 - *Order of steps.*
   1. ordering-api's `DELETE /internal/customers/{id}` closes the customer's open Stripe payment pages and anonymizes their orders. The orders stay for the coaches' accounting, with the email replaced by `erased@deleted.invalid`; the customer id that stays is the object id of an Entra user that no longer exists. A page paid in the moment before it closed is refunded by the webhook, without access or a payout, because its order has no address left.
-  2. enrollment-api's `DELETE /internal/customers/{id}` erases enrollments and progress.
+  2. enrollment-api's `DELETE /internal/customers/{id}` erases enrollments and progress (and, since v1.11.0, the reviews on them), and catalog-api's erases saved programs (§2.4).
   3. tenancy removes the user's staff memberships and the invites sent to them, then their profile.
   4. Last, Microsoft Graph deletes the Entra user.
   - Every step is idempotent: if one fails, the user is told and retries (502). A failure before step 3 leaves tenancy untouched; a Graph failure leaves only the sign-in account, which the retry removes.
@@ -455,7 +487,7 @@ Built in phase 5:
 - **Contract** (`Athlos.Messaging.Contracts.EmailNotification`): `{ template, to, toOwnersOfTenant, locale, data }`. Services write it to their outbox in the same transaction as the change it announces: ordering-api with the order turning `Paid` (sale email), with a refund (refund email to the customer, and to the coach when they did not make it) and with a dispute opened (dispute email to the coach), enrollment-api with the enrollment (purchase email, so it is sent once access exists, and only once per order).
 - **Every email** (v1.9.0), by who receives it:
   - *Customer:* `purchase-confirmation`, one per checkout, queued by ordering-api after the checkout's orders are Paid, listing each program, the total and the refund window (a crash between the orders and the email loses the email, never an order or its access); `refund-confirmation`; `account-deleted`, the last one, queued with the profile's deletion.
-  - *Coach's owners* (`toOwnersOfTenant`): `sale-made`, `sale-refunded`, `sale-disputed`, `dispute-won`, `payout-failed` (ordering-api); `workspace-welcome`, `payouts-ready` (the first time Stripe confirms the account, from the studio's status read or the Connect webhook), `invite-accepted`, `member-left`, `ownership-received` (sent when the worker sends it, so to the new owner), `workspace-suspended`, `workspace-reactivated`, `plan-changed` (tenancy-api).
+  - *Coach's owners* (`toOwnersOfTenant`): `review-received` (enrollment-api, v1.11.0), `sale-made`, `sale-refunded`, `sale-disputed`, `dispute-won`, `payout-failed` (ordering-api); `workspace-welcome`, `payouts-ready` (the first time Stripe confirms the account, from the studio's status read or the Connect webhook), `invite-accepted`, `member-left`, `ownership-received` (sent when the worker sends it, so to the new owner), `workspace-suspended`, `workspace-reactivated`, `plan-changed` (tenancy-api).
   - *Others:* `staff-invite` to the invitee, `member-removed` to the removed member's profile address.
   - Catalog-api sends none (it has no outbox): a published program's link is offered in the studio instead.
 - **Coach recipients** (this was not decided before phase 5): the sale email names the tenant (`toOwnersOfTenant`), not addresses. The worker asks tenancy-api `GET /internal/tenants/{id}/owner-emails` (signed) when it sends, so ordering never handles coaches' addresses and the email reaches whoever owns the workspace at that moment. Tenancy enters that tenant to answer; a SELECT-only policy `tenant_members_read` on `user_profiles` lets a tenant session read the profiles of that tenant's members (writes still need `own_profile`). The customer's address is not in the sale email.

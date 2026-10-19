@@ -185,8 +185,13 @@ The limitations fall into three kinds:
 
 ### 21. Shop features of a mature marketplace are missing
 Each of these is ordinary product work with no new multi-tenancy question:
-- **Reviews and ratings:** none.
-- **Search engine visibility:** the SPA has no per-page titles for crawlers, no social preview tags, no sitemap and no server-side rendering.
+- **Reviews (since v1.11.0, design §2.4):** only buyers review, and a refund takes the review away. Still missing:
+  - *Moderation.* The coach replies but cannot remove an abusive review, and the platform admin has no review queue. A "report" button and an admin list of reported reviews would be the next step.
+  - *Reviews of a program off sale.* The public list answers for any program id, so a program the coach unpublished (or a suspended coach's) still shows its reviews to someone who knows the id. They were public when written, so nothing private leaks.
+  - *Two copies of the rating.* enrollment-api owns the reviews and catalog keeps the count and average for cards and sorting. The copy is written before the review commits, so the two can only differ if that commit fails after catalog took the new values; the next review of the program sets it right.
+- **Discount codes (since v1.11.0):** percentages only, one code per cart, no "once per customer" rule, and two customers paying at the same moment for a code's last use can both get it (the use count is read, not locked).
+- **Saved programs (since v1.11.0):** no email when a saved program's price drops.
+- **Search engine visibility:** storefronts and program pages have their own titles and link previews (v1.10.0), but there is no sitemap and no server-side rendering.
 - **Search quality:** search is a case-insensitive text match on title, description and the coach's address (not the coach's display name, which catalog does not hold), with no full-text index, ranking or typo tolerance (§8). A PostgreSQL full-text or trigram index would be the next step.
 - **Languages and currencies:** English only, euros only. Money is already stored as minor units plus a currency code, so the data model is ready.
 - **Cart:** it lives in the browser, not in the account, so it does not follow the customer to another device and is shared by two accounts on one browser. (Since v1.8.1 it shows current prices and names any that changed.)
@@ -194,12 +199,10 @@ Each of these is ordinary product work with no new multi-tenancy question:
 - **Customer support:** no help center or ticketing. Customers reach a coach through the coach's contact email, if set (v1.6.0); there is no way to reach the platform.
 
 ### 22. Gaps in automated testing
-- **Missing:** some kinds of automated test. The backend has 320 tests on every PR, 163 of them in the isolation suite. Playwright covers the shop, the cart, layouts on three screen sizes, and a signed-in checkout up to Stripe's page, after every staging deploy.
-  - *Not covered end to end:* the studio, refunds, the platform admin, or paying on Stripe's page itself (only a person may enter card details).
-  - *No automated accessibility checks:* for example, axe in the Playwright suite.
+- **Missing:** some kinds of automated test. The backend has 461 tests on every PR, 194 of them in the isolation suite. Playwright covers, after every staging deploy, the shop, the cart, layouts on three screen sizes, the account pages and saved programs, a studio's lifecycle (with a discount code) on a throwaway workspace, axe accessibility checks on the public pages, and a signed-in checkout up to Stripe's page.
+  - *Not covered end to end:* refunds, writing a review (it needs a paid purchase), the platform admin, or paying on Stripe's page itself (only a person may enter card details).
   - *No load test of checkout or webhooks:* only of reads (k6).
 - **Why:** time. The isolation suite was the priority, because isolation is the subject of the thesis.
 - **Solution:**
-  - Playwright tests for a coach's studio, with a seeded test coach;
-  - `@axe-core/playwright` on each page;
+  - a test customer who owns a program on staging, so Playwright can write and delete a review;
   - a k6 scenario against Stripe's test mode for checkout, within Stripe's rate limits.

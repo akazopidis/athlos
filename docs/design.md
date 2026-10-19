@@ -627,10 +627,10 @@ athlos/
 
 **A shop (v1.3.0).** The marketplace looks and works like an e-shop:
 - *Header.* A search box, the categories (a program's sport: bodybuilding, powerlifting, CrossFit, weightlifting, calisthenics, running, mobility and yoga, general fitness), a cart icon with a count, and the account menu, which opens each account page directly (programs, orders, account settings, and the studio of each workspace).
-- *Catalog.* A filter sidebar (price first, then category, coach with counts, length; a drawer on phones), a "Sort by" menu (newest, price up or down) and the result count. Catalog's search takes `minPrice`, `maxPrice`, `minWeeks`, `maxWeeks` and `sort`, and returns a coach facet. Coach names and logos come from tenancy-api's `GET /api/v1/marketplace/coaches?slug=…`.
-- *Product cards.* Category and length, the coach, the price, "Add to cart", and "Owned" for programs already bought.
-- *Product pages.* Breadcrumbs, a buy box (Add to cart, Buy now), and "More from this coach".
-- *Cart.* `/cart` keeps the cart in the browser (`localStorage`, up to 10 programs), grouped by coach, and checks out once.
+- *Catalog.* A filter sidebar (price first, then category, coach with counts, length; a drawer on phones), a "Sort by" menu (newest, top rated, price up or down) and the result count. Catalog's search takes `minPrice`, `maxPrice`, `minWeeks`, `maxWeeks` and `sort`, and returns a coach facet. Coach names and logos come from tenancy-api's `GET /api/v1/marketplace/coaches?slug=…`.
+- *Product cards.* Category and length, the coach, the rating, the price, "Add to cart", a heart to save it, and "Owned" for programs already bought.
+- *Product pages.* Breadcrumbs, a buy box (Add to cart, Buy now), the rating and reviews with the coach's replies, "Save", and "More from this coach".
+- *Cart.* `/cart` keeps the cart in the browser (`localStorage`, up to 10 programs), grouped by coach, takes one discount code (§2.4), and checks out once.
 
 One SPA with four areas, plus the platform admin's `/admin`, shown to users with the `Platform.Admin` role:
 - `/` marketplace: browse, filter and search all coaches' published programs; `/cart` the cart.
@@ -638,9 +638,9 @@ One SPA with four areas, plus the platform admin's `/admin`, shown to users with
 - Program pages show "What's inside" (every workout's week, day and title) and one workout the coach marks as the free preview, in full. The paid content stays in `workouts`, which has no public-read policy: catalog-api copies the outline and the preview onto the program row (`programs.outline`, `programs.sample`, jsonb), public with the program, whenever a workout changes or the program is published (`ProgramOutline`). The `ProgramOutline` migration backfilled the outline of existing programs, lifting FORCE ROW LEVEL SECURITY for that one transaction, as `FirstPublishedAt` did.
 - Programs without a cover get a generated one: a gradient from the title and the category's icon.
 - `/coaches` the coaches with programs on sale, most programs first (catalog's coach facet, profiles from tenancy-api); the home page features the top four.
-- `/studio/{slug}` coach dashboard: programs, sales, settings, Stripe onboarding. The overview shows a setup checklist until a program is on sale, the storefront's link to share, and "Your numbers" (ordering-api's `GET /api/v1/studio/{slug}/sales/summary`: paid sales and earnings after the fee, this month and in total, customers, best seller; another coach's address gives zeros).
+- `/studio/{slug}` coach dashboard: programs, sales, reviews (with replies), discount codes, settings, Stripe onboarding. The overview shows a setup checklist until a program is on sale, the storefront's link to share, and "Your numbers" (ordering-api's `GET /api/v1/studio/{slug}/sales/summary`: paid sales and earnings after the fee, this month and in total, customers, best seller; another coach's address gives zeros).
 - `/sell` the page that wins coaches: how it works, what they get, pricing (the plans' real limits from `GET /api/v1/plans`, the fee and the refund window from `/config.json`) and an FAQ.
-- `/me` customer area, one page per subject: purchased programs and progress (`/me`, where Stripe returns the customer), `/me/orders`, `/me/workspaces` and `/me/account` (sign out, account deletion).
+- `/me` customer area, one page per subject: purchased programs and progress (`/me`, where Stripe returns the customer; each program's page also holds the customer's review), `/me/saved`, `/me/orders`, `/me/workspaces` and `/me/account` (sign out, account deletion).
 
 The footer shows the running version (from the gateway's `/version` endpoint), which makes releases visible in demos.
 

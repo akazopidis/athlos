@@ -12,6 +12,8 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
 
     public DbSet<Checkout> Checkouts => Set<Checkout>();
 
+    public DbSet<DiscountCode> DiscountCodes => Set<DiscountCode>();
+
     public DbSet<PayoutRetry> PayoutRetries => Set<PayoutRetry>();
 
     public DbSet<ProcessedStripeEvent> ProcessedStripeEvents => Set<ProcessedStripeEvent>();
@@ -39,6 +41,15 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
             order.Property(o => o.StripeTransferId).HasMaxLength(255);
             order.Property(o => o.StripePaymentIntentId).HasMaxLength(255);
             order.HasIndex(o => o.StripePaymentIntentId);
+            order.Property(o => o.DiscountCode).HasMaxLength(20);
+            // A code's uses are counted inside its tenant.
+            order.HasIndex(o => new { o.TenantId, o.DiscountCode }).HasFilter("discount_code IS NOT NULL");
+        });
+
+        modelBuilder.Entity<DiscountCode>(code =>
+        {
+            code.HasIndex(d => new { d.TenantId, d.Code }).IsUnique();
+            code.Property(d => d.Code).HasMaxLength(20);
         });
 
         modelBuilder.Entity<Checkout>(checkout =>

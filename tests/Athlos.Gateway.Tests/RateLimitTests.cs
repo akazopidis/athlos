@@ -31,6 +31,7 @@ public sealed class RateLimitTests : IAsyncLifetime
         _backend.MapGet("/api/v1/marketplace/coaches/{slug}", () => Results.Ok());
         _backend.MapGet("/api/v1/marketplace/programs", () => Results.Ok());
         _backend.MapPost("/api/v1/orders/checkout", () => Results.Ok());
+        _backend.MapPost("/api/v1/orders/discount", () => Results.Ok());
         await _backend.StartAsync(TestContext.Current.CancellationToken);
     }
 
@@ -123,9 +124,23 @@ public sealed class RateLimitTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, bens);
     }
 
-    private static async Task<HttpStatusCode> Checkout(HttpClient client, Guid customer)
+    // Checking discount codes shares the checkout bucket (design §2.4): codes cannot be guessed quickly.
+    [Fact]
+    public async Task Discount_checks_share_the_checkout_limit()
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout");
+        var client = Gateway();
+        var customer = Guid.CreateVersion7();
+
+        var first = await Checkout(client, customer, "/api/v1/orders/discount");
+        var second = await Checkout(client, customer);
+        var third = await Checkout(client, customer, "/api/v1/orders/discount");
+
+        Assert.Equal([HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests], [first, second, third]);
+    }
+
+    private static async Task<HttpStatusCode> Checkout(HttpClient client, Guid customer, string path = "/api/v1/orders/checkout")
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, path);
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Athlos.Testing.TestTokens.For(customer));
         return (await client.SendAsync(request, TestContext.Current.CancellationToken)).StatusCode;
     }

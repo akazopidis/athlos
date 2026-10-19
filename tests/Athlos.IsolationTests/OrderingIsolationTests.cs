@@ -71,6 +71,11 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         { "POST", "/webhooks/stripe" },
         { "GET", "/api/v1/admin/payouts" },
         { "POST", $"/api/v1/admin/payouts/{Guid.Empty}/retry" },
+        { "POST", "/api/v1/orders/discount" },
+        { "GET", "/api/v1/studio/some-coach/discounts" },
+        { "POST", "/api/v1/studio/some-coach/discounts" },
+        { "PUT", $"/api/v1/studio/some-coach/discounts/{Guid.Empty}" },
+        { "DELETE", $"/api/v1/studio/some-coach/discounts/{Guid.Empty}" },
     };
 
     [Theory]
@@ -226,6 +231,47 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         Assert.Equal((2L, 0L), (visible, others));
         Assert.Equal((0, 0), (updated, deleted));
     }
+
+    // Discount codes (design §2.4): B neither sees, changes nor deletes A's code, and A's code takes
+    // nothing off B's programs, even when B has no code of that name.
+    [Fact]
+    public async Task B_cannot_see_change_delete_or_use_As_discount_code()
+    {
+        var created = await AsCoach(_a, HttpMethod.Post, "/discounts", new { code = "A-ONLY", percentOff = 50 });
+        var id = System.Text.Json.JsonDocument.Parse(await created.Content.ReadAsStringAsync(Cancel)).RootElement.GetProperty("id").GetGuid();
+        var bsProgram = _api.Sellers.Sell(_b.TenantId, _b.Slug);
+
+        var list = await Body(await AsCoach(_b, HttpMethod.Get, "/discounts"));
+        var updated = await AsCoach(_b, HttpMethod.Put, $"/discounts/{id}", new { percentOff = 90, isActive = true });
+        var deleted = await AsCoach(_b, HttpMethod.Delete, $"/discounts/{id}");
+        var used = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/discount") { Content = System.Net.Http.Json.JsonContent.Create(new { code = "A-ONLY", programIds = new[] { bsProgram.ProgramId } }) },
+            _bob);
+        var percent = await Scalar<int>(_a.TenantId, null, $"SELECT percent_off FROM discount_codes WHERE id = '{id}'");
+
+        Assert.DoesNotContain("A-ONLY", list, StringComparison.Ordinal);
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound, HttpStatusCode.NotFound), (updated.StatusCode, deleted.StatusCode, used.StatusCode));
+        Assert.Equal(50, percent);
+    }
+
+    // Layer 4 alone: tenant B reads none of A's codes and cannot plant one in A's name.
+    [Fact]
+    public async Task RLS_tenant_B_sees_none_of_As_discount_codes()
+    {
+        await AsCoach(_a, HttpMethod.Post, "/discounts", new { code = "RLS-A", percentOff = 20 });
+
+        var seen = await Scalar<long>(_b.TenantId, null, $"SELECT count(*) FROM discount_codes WHERE tenant_id = '{_a.TenantId}'");
+        var planted = await Assert.ThrowsAsync<PostgresException>(() => Execute(_b.TenantId, null,
+            $"INSERT INTO discount_codes (id, tenant_id, code, percent_off, is_active, created_at, updated_at) VALUES ('{Guid.CreateVersion7()}', '{_a.TenantId}', 'PLANTED', 90, true, now(), now())"));
+
+        Assert.Equal(0L, seen);
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, planted.SqlState);
+    }
+
+    private Task<HttpResponseMessage> AsCoach(Coach coach, HttpMethod method, string path, object? body = null) =>
+        _api.SendAsGateway(
+            new HttpRequestMessage(method, $"/api/v1/studio/{coach.Slug}{path}") { Content = body is null ? null : System.Net.Http.Json.JsonContent.Create(body) },
+            coach.OwnerId, coach.TenantId, TenantRole.Owner);
 
     private static async Task<string> Body(HttpResponseMessage response)
     {

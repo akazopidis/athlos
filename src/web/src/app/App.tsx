@@ -30,6 +30,7 @@ const StudioOverview = lazyPage(() => import('@/features/studio/StudioOverview')
 const StudioProgramEditor = lazyPage(() => import('@/features/studio/StudioProgramEditor'), 'StudioProgramEditor')
 const StudioSales = lazyPage(() => import('@/features/studio/StudioSales'), 'StudioSales')
 const StudioReviews = lazyPage(() => import('@/features/studio/StudioReviews'), 'StudioReviews')
+const StudioDiscounts = lazyPage(() => import('@/features/studio/StudioDiscounts'), 'StudioDiscounts')
 const StudioSettings = lazyPage(() => import('@/features/studio/StudioSettings'), 'StudioSettings')
 
 // Four areas (design §8): marketplace (with the cart), coach storefront, coach studio, customer area.
@@ -60,6 +61,7 @@ export default function App() {
                 <Route path="programs/:programId" element={<StudioProgramEditor />} />
                 <Route path="sales" element={<StudioSales />} />
                 <Route path="reviews" element={<StudioReviews />} />
+                <Route path="discounts" element={<StudioDiscounts />} />
                 <Route path="settings" element={<StudioSettings />} />
               </Route>
               <Route path="/cart" element={<Cart />} />

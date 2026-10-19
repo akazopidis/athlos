@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Ordering.Api.Data;
+using Athlos.Ordering.Api.Features.Discounts;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -15,12 +16,15 @@ namespace Athlos.Ordering.Api.Features.Checkout;
 // 1. Every program must be on sale (catalog's offer), in one currency, from a coach who can take
 //    payments (tenancy), not from a workspace the buyer works in (a coach's own programs are theirs in
 //    the studio), and not already owned. Otherwise nothing is created, and the problem names
-//    the programIds at fault and a reason (notForSale, currencies, cannotSell, ownWorkspace, owned), so the cart
+//    the programIds at fault and a reason (notForSale, currencies, cannotSell, ownWorkspace, owned, discountCode), so the cart
 //    can drop or flag them.
 // 2. Stripe creates one Checkout Session for all of them (separate charges and transfers).
 // 3. The customer's Checkout row (the Idempotency-Key) and one Order per program are written; each
 //    order inside its coach's tenant, one tenant at a time, so the EF filter and RLS check every
 //    insert. The tenant comes from catalog's signed offer, never from the request.
+// A discount code (design §2.4) is looked up inside each coach's tenant, like the cart's price check;
+// one that applies to nothing refuses the checkout (reason discountCode), so the customer never pays
+// more than the cart showed.
 // The session is created before the rows, so a failure leaves no order pending without a payment
 // page; an unused session expires at Stripe.
 // A program is paid for once: a new checkout closes the customer's older, still-open Stripe pages for
@@ -30,7 +34,9 @@ public static class StartCheckout
 {
     public const int MaxPrograms = 10;
 
-    public sealed record Request([property: Required, MinLength(1), MaxLength(MaxPrograms)] List<Guid> ProgramIds);
+    public sealed record Request(
+        [property: Required, MinLength(1), MaxLength(MaxPrograms)] List<Guid> ProgramIds,
+        [property: MaxLength(40)] string? DiscountCode = null);
 
     public sealed record Response(Guid CheckoutId, string CheckoutUrl);
 
@@ -50,6 +56,7 @@ public static class StartCheckout
         ICheckoutSessions checkout,
         IServiceScopeFactory scopes,
         IConfiguration configuration,
+        TimeProvider time,
         CancellationToken cancellationToken)
     {
         var email = http.User.FindFirst("email")?.Value;
@@ -152,20 +159,37 @@ public static class StartCheckout
             return Problem(StatusCodes.Status409Conflict, "owned", "A payment for some of these programs has just gone through. See My orders.", paidMeanwhile.Distinct());
         }
 
-        var checkoutId = Guid.CreateVersion7();
-        var newOrders = offers.Select(offer => new Order
+        var discounts = new Dictionary<Guid, DiscountRules.Applied>();
+        if (!string.IsNullOrWhiteSpace(request.DiscountCode))
         {
-            TenantId = offer.TenantId,
-            CustomerId = customerId,
-            CustomerEmail = email,
-            ProgramId = offer.ProgramId,
-            ProgramTitle = offer.Title,
-            CoachSlug = offer.CoachSlug,
-            Amount = offer.PriceAmount,
-            Currency = offer.Currency,
-            PlatformFee = PlatformFee(offer.PriceAmount, configuration),
-            CheckoutId = checkoutId,
-            SellerAccountId = accounts[offer.TenantId],
+            discounts = await DiscountRules.ApplyAsync(scopes, offers, DiscountRules.Normalize(request.DiscountCode), time.GetUtcNow(), cancellationToken);
+            if (discounts.Count == 0)
+            {
+                return Problem(StatusCodes.Status400BadRequest, "discountCode", "This discount code does not apply to the programs in your cart.", []);
+            }
+        }
+
+        var checkoutId = Guid.CreateVersion7();
+        var newOrders = offers.Select(offer =>
+        {
+            var discount = discounts.TryGetValue(offer.ProgramId, out var applied) ? DiscountRules.Amount(offer.PriceAmount, applied.PercentOff) : 0;
+            var amount = offer.PriceAmount - discount;
+            return new Order
+            {
+                TenantId = offer.TenantId,
+                CustomerId = customerId,
+                CustomerEmail = email,
+                ProgramId = offer.ProgramId,
+                ProgramTitle = offer.Title,
+                CoachSlug = offer.CoachSlug,
+                Amount = amount,
+                Currency = offer.Currency,
+                PlatformFee = PlatformFee(amount, configuration),
+                DiscountCode = applied?.Code,
+                DiscountAmount = discount,
+                CheckoutId = checkoutId,
+                SellerAccountId = accounts[offer.TenantId],
+            };
         }).ToList();
 
         var publicUrl = new Uri(configuration["App:PublicUrl"] ?? throw new InvalidOperationException("App:PublicUrl is not configured."));

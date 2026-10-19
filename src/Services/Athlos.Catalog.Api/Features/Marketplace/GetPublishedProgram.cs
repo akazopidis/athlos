@@ -13,7 +13,7 @@ public static class GetPublishedProgram
 {
     public sealed record Response(
         Guid Id, string CoachSlug, string Slug, string Title, string Description, ProgramCategory Category, int DurationWeeks, long PriceAmount, string Currency, string? CoverImageUrl,
-        List<OutlineItem> Outline, Preview? Sample);
+        List<OutlineItem> Outline, Preview? Sample, decimal RatingAverage, int RatingCount);
 
     // The outline shows every workout's place and title; the free preview is one workout in full.
     public sealed record OutlineItem(int Week, int Day, string Title, bool Sample);
@@ -38,6 +38,7 @@ public static class GetPublishedProgram
             : TypedResults.Ok(new Response(program.Id, program.CoachSlug, program.Slug, program.Title, program.Description, program.Category,
                 program.DurationWeeks, program.PriceAmount, program.Currency, await media.ReadLinkAsync(program.CoverImagePath, cancellationToken),
                 [.. program.Outline.Select(o => new OutlineItem(o.Week, o.Day, o.Title, o.Sample))],
-                program.Sample is { } s ? new Preview(s.Week, s.Day, s.Title, s.Content, s.VideoUrl) : null));
+                program.Sample is { } s ? new Preview(s.Week, s.Day, s.Title, s.Content, s.VideoUrl) : null,
+                program.RatingAverage, program.RatingCount));
     }
 }

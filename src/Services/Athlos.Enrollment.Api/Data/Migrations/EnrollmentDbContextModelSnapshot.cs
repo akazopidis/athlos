@@ -89,6 +89,86 @@ namespace Athlos.Enrollment.Api.Data.Migrations
                     b.ToTable("enrollments", (string)null);
                 });
 
+            modelBuilder.Entity("Athlos.Enrollment.Api.Data.Review", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AuthorName")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("author_name");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<Guid>("EnrollmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("enrollment_id");
+
+                    b.Property<Guid>("ProgramId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("program_id");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer")
+                        .HasColumnName("rating");
+
+                    b.Property<DateTimeOffset?>("RepliedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("replied_at");
+
+                    b.Property<string>("Reply")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reply");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_reviews");
+
+                    b.HasIndex("CustomerId")
+                        .HasDatabaseName("ix_reviews_customer_id");
+
+                    b.HasIndex("EnrollmentId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_reviews_enrollment_id");
+
+                    b.HasIndex("ProgramId")
+                        .HasDatabaseName("ix_reviews_program_id");
+
+                    b.HasIndex("EnrollmentId", "TenantId", "CustomerId")
+                        .HasDatabaseName("ix_reviews_enrollment_id_tenant_id_customer_id");
+
+                    b.HasIndex("TenantId", "ProgramId", "CreatedAt")
+                        .HasDatabaseName("ix_reviews_tenant_id_program_id_created_at");
+
+                    b.ToTable("reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_reviews_rating", "rating BETWEEN 1 AND 5");
+                        });
+                });
+
             modelBuilder.Entity("Athlos.Enrollment.Api.Data.WorkoutProgress", b =>
                 {
                     b.Property<Guid>("Id")
@@ -180,6 +260,17 @@ namespace Athlos.Enrollment.Api.Data.Migrations
                         .HasFilter("sent_at IS NULL");
 
                     b.ToTable("outbox_messages", (string)null);
+                });
+
+            modelBuilder.Entity("Athlos.Enrollment.Api.Data.Review", b =>
+                {
+                    b.HasOne("Athlos.Enrollment.Api.Data.ProgramEnrollment", null)
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId", "TenantId", "CustomerId")
+                        .HasPrincipalKey("Id", "TenantId", "CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_reviews_enrollments_enrollment_id_tenant_id_customer_id");
                 });
 
             modelBuilder.Entity("Athlos.Enrollment.Api.Data.WorkoutProgress", b =>

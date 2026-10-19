@@ -17,9 +17,11 @@ public static class SearchPrograms
     public const int MaxPageSize = 50;
 
     // Id: what checkout takes, public like on the program page; the shop's "Add to cart" sends it.
+    // RatingAverage and RatingCount: the program's reviews (design §2.4); 0 and 0 without any.
     public sealed record Item(
         Guid Id,
-        string CoachSlug, string Slug, string Title, ProgramCategory Category, int DurationWeeks, long PriceAmount, string Currency, string? CoverImageUrl);
+        string CoachSlug, string Slug, string Title, ProgramCategory Category, int DurationWeeks, long PriceAmount, string Currency, string? CoverImageUrl,
+        decimal RatingAverage, int RatingCount);
 
     // How many programs each coach has among the results, ignoring the coach filter itself, for the
     // shop's coach filter.
@@ -33,6 +35,9 @@ public static class SearchPrograms
         Newest,
         PriceLowToHigh,
         PriceHighToLow,
+
+        // Best average first, programs without reviews last; more reviews break a tie.
+        TopRated,
     }
 
     // Prices in minor units, compared whatever the currency (programs are priced in EUR today).
@@ -112,19 +117,20 @@ public static class SearchPrograms
         {
             Sort.PriceLowToHigh => programs.OrderBy(p => p.PriceAmount).ThenByDescending(p => p.PublishedAt),
             Sort.PriceHighToLow => programs.OrderByDescending(p => p.PriceAmount).ThenByDescending(p => p.PublishedAt),
+            Sort.TopRated => programs.OrderByDescending(p => p.RatingAverage).ThenByDescending(p => p.RatingCount).ThenByDescending(p => p.PublishedAt),
             _ => programs.OrderByDescending(p => p.PublishedAt),
         };
         var page = await sorted.ThenBy(p => p.Id)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(p => new { p.Id, p.CoachSlug, p.Slug, p.Title, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency, p.CoverImagePath })
+            .Select(p => new { p.Id, p.CoachSlug, p.Slug, p.Title, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency, p.CoverImagePath, p.RatingAverage, p.RatingCount })
             .ToListAsync(cancellationToken);
 
         var items = new List<Item>(page.Count);
         foreach (var p in page)
         {
             items.Add(new Item(p.Id, p.CoachSlug, p.Slug, p.Title, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency,
-                await media.ReadLinkAsync(p.CoverImagePath, cancellationToken)));
+                await media.ReadLinkAsync(p.CoverImagePath, cancellationToken), p.RatingAverage, p.RatingCount));
         }
 
         return TypedResults.Ok(new SearchResults(items, query.Page, query.PageSize, total, coaches));

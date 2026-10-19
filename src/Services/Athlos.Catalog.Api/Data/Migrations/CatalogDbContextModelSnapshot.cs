@@ -115,6 +115,15 @@ namespace Athlos.Catalog.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("published_at");
 
+                    b.Property<decimal>("RatingAverage")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("numeric(3,2)")
+                        .HasColumnName("rating_average");
+
+                    b.Property<int>("RatingCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("rating_count");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(60)

@@ -1,10 +1,11 @@
 import { useSearchParams } from 'react-router'
 import { isCategory, type Category } from '@/lib/categories'
 
-export type Sort = 'Newest' | 'PriceLowToHigh' | 'PriceHighToLow'
+export type Sort = 'Newest' | 'TopRated' | 'PriceLowToHigh' | 'PriceHighToLow'
 
 export const Sorts: { value: Sort; label: string }[] = [
   { value: 'Newest', label: 'Newest' },
+  { value: 'TopRated', label: 'Top rated' },
   { value: 'PriceLowToHigh', label: 'Price: low to high' },
   { value: 'PriceHighToLow', label: 'Price: high to low' },
 ]

@@ -199,7 +199,7 @@ Each of these is ordinary product work with no new multi-tenancy question:
 - **Customer support:** no help center or ticketing. Customers reach a coach through the coach's contact email, if set (v1.6.0); there is no way to reach the platform.
 
 ### 22. Gaps in automated testing
-- **Missing:** some kinds of automated test. The backend has 461 tests on every PR, 194 of them in the isolation suite. Playwright covers, after every staging deploy, the shop, the cart, layouts on three screen sizes, the account pages and saved programs, a studio's lifecycle (with a discount code) on a throwaway workspace, axe accessibility checks on the public pages, and a signed-in checkout up to Stripe's page.
+- **Missing:** some kinds of automated test. The backend has 462 tests on every PR, 195 of them in the isolation suite. Playwright covers, after every staging deploy, the shop, the cart, layouts on three screen sizes, the account pages and saved programs, a studio's lifecycle (with a discount code) on a throwaway workspace, axe accessibility checks on the public pages, and a signed-in checkout up to Stripe's page.
   - *Not covered end to end:* refunds, writing a review (it needs a paid purchase), the platform admin, or paying on Stripe's page itself (only a person may enter card details).
   - *No load test of checkout or webhooks:* only of reads (k6).
 - **Why:** time. The isolation suite was the priority, because isolation is the subject of the thesis.

@@ -401,6 +401,26 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Contains("\"ratingCount\":2", page, StringComparison.Ordinal);
     }
 
+    // Deleting an account (design §5.2) erases that customer's saved programs and nobody else's; the
+    // endpoint, like every internal one, needs the gateway signature.
+    [Fact]
+    public async Task Erasing_a_customer_removes_only_their_saved_programs()
+    {
+        var (alice, bob) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        await AsCustomer(alice, HttpMethod.Put, $"/saved/{_aPublished.Id}");
+        await AsCustomer(bob, HttpMethod.Put, $"/saved/{_aPublished.Id}");
+
+        var unsigned = await _api.CreateClient().DeleteAsync($"/internal/customers/{alice}", Cancel);
+        var erased = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/customers/{alice}"));
+        await using var connection = new NpgsqlConnection(databases.OwnerConnectionString("catalog"));
+        await connection.OpenAsync(Cancel);
+        var left = (await Count(connection, $"SELECT count(*) FROM saved_programs WHERE customer_id = '{alice}'"),
+            await Count(connection, $"SELECT count(*) FROM saved_programs WHERE customer_id = '{bob}'"));
+
+        Assert.Equal((HttpStatusCode.Unauthorized, HttpStatusCode.NoContent), (unsigned.StatusCode, erased.StatusCode));
+        Assert.Equal((0L, 1L), left);
+    }
+
     private Task<HttpResponseMessage> AsCustomer(Guid customer, HttpMethod method, string path) =>
         _api.SendAsGateway(new HttpRequestMessage(method, $"/api/v1/me{path}"), customer);
 

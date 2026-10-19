@@ -3,9 +3,10 @@ import { desktopOnly, signIn, skipWithoutTestUser } from '../signIn'
 
 // A coach's studio from start to finish (design §3.4, §8), as the test customer: open a throwaway
 // workspace, create a program (the €10 minimum holds), add a workout, see publishing refused without
-// payouts (the test customer has no Stripe account), see themselves as the team's owner, and delete the
-// workspace, which has no sales, so nothing holds it. The workspace is deleted even when a step fails;
-// its address (e2e-…) stays taken, like every deleted workspace's.
+// payouts (the test customer has no Stripe account), see themselves as the team's owner, add and remove a
+// discount code, find no reviews yet, and delete the workspace, which has no sales, so nothing holds it.
+// The workspace is deleted even when a step fails; its address (e2e-…) stays taken, like every deleted
+// workspace's.
 skipWithoutTestUser()
 
 test('a coach opens a workspace, creates a program, and deletes the workspace', async ({ page }, testInfo) => {
@@ -46,6 +47,19 @@ test('a coach opens a workspace, creates a program, and deletes the workspace', 
     const team = page.getByRole('region', { name: 'Team' }).or(page.locator('section', { has: page.getByRole('heading', { name: 'Team' }) }))
     await expect(team.getByText('(you)')).toBeVisible()
     await expect(team.getByText('Owner', { exact: true })).toBeVisible()
+
+    // Discount codes (design §2.4): one is created for the workspace, listed, and deleted.
+    await page.goto(`/studio/${slug}/discounts`)
+    await page.getByLabel('Code', { exact: true }).fill('e2e-10')
+    await page.getByLabel('Percent off').fill('10')
+    await page.getByRole('button', { name: 'Create code' }).click()
+    await expect(page.getByText('E2E-10', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Delete the code E2E-10' }).click()
+    await expect(page.getByText('E2E-10', { exact: true })).toBeHidden()
+
+    // Reviews arrive once customers buy; a new workspace has none.
+    await page.goto(`/studio/${slug}/reviews`)
+    await expect(page.getByText('No reviews yet')).toBeVisible()
   } finally {
     await deleteWorkspace(page, slug)
   }

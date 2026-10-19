@@ -137,10 +137,11 @@ public sealed class ServiceCustomerErasure(IHttpClientFactory clients) : ICustom
 {
     public const string Ordering = "erase-customer-ordering";
     public const string Enrollment = "erase-customer-enrollment";
+    public const string Catalog = "erase-customer-catalog";
 
     public async Task EraseCustomerAsync(Guid customerId, CancellationToken cancellationToken)
     {
-        foreach (var service in (string[])[Ordering, Enrollment])
+        foreach (var service in (string[])[Ordering, Enrollment, Catalog])
         {
             using var response = await clients.CreateClient(service).DeleteAsync($"/internal/customers/{customerId}", cancellationToken);
             response.EnsureSuccessStatusCode();

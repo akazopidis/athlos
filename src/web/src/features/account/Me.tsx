@@ -1,4 +1,4 @@
-import { Dumbbell, Receipt, Settings, Store } from 'lucide-react'
+import { Dumbbell, Heart, Receipt, Settings, Store } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
 import { Notice, PageHeader } from '@/components/page'
 import { Button } from '@/components/ui/button'
@@ -6,10 +6,11 @@ import { useApp } from '@/lib/AppContext'
 import { cn } from '@/lib/utils'
 
 // The account pages (design §8, "/me"), one per subject, reached from the account menu or these tabs:
-// the programs you bought ("/me", where Stripe returns you), your orders, the workspaces you coach in,
+// the programs you bought ("/me", where Stripe returns you), the ones you saved, your orders, the workspaces you coach in,
 // and your account settings.
 const AccountPages = [
   { to: '/me', label: 'My programs', icon: Dumbbell },
+  { to: '/me/saved', label: 'Saved', icon: Heart },
   { to: '/me/orders', label: 'Orders', icon: Receipt },
   { to: '/me/workspaces', label: 'Workspaces', icon: Store },
   { to: '/me/account', label: 'Account settings', icon: Settings },

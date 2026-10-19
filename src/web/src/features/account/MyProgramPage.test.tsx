@@ -66,3 +66,50 @@ test('ticking a workout marks it done', async () => {
   const put = requests.find((r) => r.method === 'PUT')!
   expect(new URL(put.url).pathname).toBe(`/api/v1/me/programs/${programId}/workouts/w2/completion`)
 })
+
+test('a buyer posts a review with stars and a comment', async () => {
+  const requests: Request[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (request: Request) => {
+      requests.push(request.clone())
+      if (request.method === 'PUT') return Response.json({ rating: 4, comment: 'Clear plan.', authorName: 'Test U.', createdAt: '2026-10-19T10:00:00Z', updatedAt: '2026-10-19T10:00:00Z' })
+      return Response.json({
+        programId,
+        coachSlug: 'anna',
+        title: 'Strong start',
+        description: '',
+        category: 'Powerlifting',
+        durationWeeks: 8,
+        coverImageUrl: null,
+        enrolledAt: '2026-10-01T10:00:00Z',
+        workouts: [workout('w1', 1, null)],
+        review: null,
+      })
+    }),
+  )
+
+  const config = { entraClientId: 'client', entraAuthority: 'https://login.example', apiScope: 'api://athlos/access', version: 'test' }
+  render(
+    <AppContext.Provider value={{ config, msal: signedIn, api: createApi(signedIn, config.apiScope) }}>
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={[`/me/programs/${programId}`]}>
+          <Routes>
+            <Route path="/me/programs/:programId" element={<MyProgramPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </AppContext.Provider>,
+  )
+
+  const post = await screen.findByRole('button', { name: 'Post review' })
+  expect(post).toBeDisabled()
+  fireEvent.click(screen.getByRole('radio', { name: '4 stars' }))
+  fireEvent.change(screen.getByLabelText(/What did you think/), { target: { value: '  Clear plan.  ' } })
+  fireEvent.click(post)
+
+  await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true))
+  const put = requests.find((r) => r.method === 'PUT')!
+  expect(new URL(put.url).pathname).toBe(`/api/v1/me/programs/${programId}/review`)
+  expect(await put.json()).toEqual({ rating: 4, comment: 'Clear plan.' })
+})

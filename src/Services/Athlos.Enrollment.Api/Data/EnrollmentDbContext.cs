@@ -12,6 +12,8 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
 
     public DbSet<WorkoutProgress> WorkoutProgress => Set<WorkoutProgress>();
 
+    public DbSet<Review> Reviews => Set<Review>();
+
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -37,6 +39,25 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
             progress.HasOne<ProgramEnrollment>()
                 .WithMany()
                 .HasForeignKey(p => new { p.EnrollmentId, p.TenantId, p.CustomerId })
+                .HasPrincipalKey(e => new { e.Id, e.TenantId, e.CustomerId })
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Review>(review =>
+        {
+            review.HasIndex(r => r.EnrollmentId).IsUnique();
+            // The program page and the studio list a program's reviews, newest first.
+            review.HasIndex(r => new { r.TenantId, r.ProgramId, r.CreatedAt });
+            review.HasIndex(r => r.ProgramId);
+            review.HasIndex(r => r.CustomerId);
+            review.Property(r => r.Comment).HasMaxLength(Review.MaxCommentLength);
+            review.Property(r => r.Reply).HasMaxLength(Review.MaxCommentLength);
+            review.Property(r => r.AuthorName).HasMaxLength(60);
+            review.ToTable(t => t.HasCheckConstraint("ck_reviews_rating", "rating BETWEEN 1 AND 5"));
+            // Like progress: the database ties a review to its enrollment's tenant and customer.
+            review.HasOne<ProgramEnrollment>()
+                .WithMany()
+                .HasForeignKey(r => new { r.EnrollmentId, r.TenantId, r.CustomerId })
                 .HasPrincipalKey(e => new { e.Id, e.TenantId, e.CustomerId })
                 .OnDelete(DeleteBehavior.Cascade);
         });

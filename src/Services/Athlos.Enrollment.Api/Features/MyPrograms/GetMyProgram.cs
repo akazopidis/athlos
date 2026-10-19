@@ -1,11 +1,12 @@
 using Athlos.Enrollment.Api.Data;
+using Athlos.Enrollment.Api.Features.Reviews;
 using Athlos.Tenancy;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Athlos.Enrollment.Api.Features.MyPrograms;
 
 // GET /api/v1/me/programs/{programId}: a program the customer bought, with its workouts (the paid
-// content, from catalog-api) and which of them they completed. Not enrolled: 404, like any resource
+// content, from catalog-api), which of them they completed, and their review (design §2.4). Not enrolled: 404, like any resource
 // the caller cannot see.
 public static class GetMyProgram
 {
@@ -13,7 +14,7 @@ public static class GetMyProgram
 
     public sealed record Response(
         Guid ProgramId, string CoachSlug, string Title, string Description, string Category, int DurationWeeks, string? CoverImageUrl,
-        DateTimeOffset EnrolledAt, List<Workout> Workouts);
+        DateTimeOffset EnrolledAt, List<Workout> Workouts, MyReview.Response? Review);
 
     public static void MapGetMyProgram(this IEndpointRouteBuilder me) =>
         me.MapGet("/programs/{programId:guid}", Handle)
@@ -31,6 +32,7 @@ public static class GetMyProgram
         // Read and commit before calling catalog: no database connection is held during the call.
         ProgramEnrollment? enrollment;
         Dictionary<Guid, DateTimeOffset> completed;
+        Review? review;
         await using (var transaction = await db.Database.BeginTransactionAsync(cancellationToken))
         {
             enrollment = await MyEnrollments.FindAsync(db, customerId, programId, cancellationToken);
@@ -40,6 +42,7 @@ public static class GetMyProgram
             }
 
             completed = await MyEnrollments.CompletedWorkoutsAsync(db, enrollment, cancellationToken);
+            review = await MyEnrollments.ReviewAsync(db, enrollment, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
 
@@ -55,6 +58,7 @@ public static class GetMyProgram
             enrollment.EnrolledAt,
             content.Workouts
                 .Select(w => new Workout(w.Id, w.Week, w.Day, w.Title, w.Content, w.VideoUrl, completed.TryGetValue(w.Id, out var at) ? at : null))
-                .ToList()));
+                .ToList(),
+            review is null ? null : MyReview.ToResponse(review)));
     }
 }

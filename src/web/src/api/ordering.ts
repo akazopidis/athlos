@@ -20,6 +20,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/discount": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CheckDiscount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/orders": {
         parameters: {
             query?: never;
@@ -63,6 +79,38 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/studio/{tenantSlug}/discounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListDiscountCodes"];
+        put?: never;
+        post: operations["CreateDiscountCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/studio/{tenantSlug}/discounts/{discountId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["UpdateDiscountCode"];
+        post?: never;
+        delete: operations["DeleteDiscountCode"];
         options?: never;
         head?: never;
         patch?: never;
@@ -138,6 +186,33 @@ export interface components {
         AdminPayoutsRetryResult: {
             paid: boolean;
         };
+        CheckDiscountLine: {
+            /** Format: uuid */
+            programId: string;
+            /** Format: int32 */
+            percentOff: number | string;
+            /** Format: int64 */
+            discountAmount: number | string;
+        };
+        CheckDiscountRequest: {
+            code: string;
+            programIds: string[];
+        };
+        CheckDiscountResponse: {
+            code: string;
+            lines: components["schemas"]["CheckDiscountLine"][];
+        };
+        HttpValidationProblemDetails: {
+            type?: null | string;
+            title?: null | string;
+            /** Format: int32 */
+            status?: null | number | string;
+            detail?: null | string;
+            instance?: null | string;
+            errors?: {
+                [key: string]: string[];
+            };
+        };
         OrderListsMyOrder: {
             /** Format: uuid */
             id: string;
@@ -155,6 +230,9 @@ export interface components {
             paidAt: null | string;
             /** Format: uuid */
             checkoutId: null | string;
+            discountCode: null | string;
+            /** Format: int64 */
+            discountAmount: number | string;
         };
         OrderListsMyOrdersPage: {
             items: components["schemas"]["OrderListsMyOrder"][];
@@ -184,6 +262,7 @@ export interface components {
             refundedAt: null | string;
             /** Format: date-time */
             refundableUntil: string;
+            discountCode: null | string;
         };
         OrderListsSalesPage: {
             items: components["schemas"]["OrderListsSale"][];
@@ -214,11 +293,52 @@ export interface components {
         };
         StartCheckoutRequest: {
             programIds: string[];
+            discountCode?: null | string;
         };
         StartCheckoutResponse: {
             /** Format: uuid */
             checkoutId: string;
             checkoutUrl: string;
+        };
+        StudioDiscountsCreateRequest: {
+            code: string;
+            /** Format: int32 */
+            percentOff: number | string;
+            /** Format: uuid */
+            programId: null | string;
+            /** Format: date-time */
+            expiresAt: null | string;
+            /** Format: int32 */
+            maxRedemptions: null | number | string;
+        };
+        StudioDiscountsItem: {
+            /** Format: uuid */
+            id: string;
+            code: string;
+            /** Format: int32 */
+            percentOff: number | string;
+            /** Format: uuid */
+            programId: null | string;
+            /** Format: date-time */
+            expiresAt: null | string;
+            /** Format: int32 */
+            maxRedemptions: null | number | string;
+            isActive: boolean;
+            /** Format: int32 */
+            redemptions: number | string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        StudioDiscountsUpdateRequest: {
+            /** Format: int32 */
+            percentOff: number | string;
+            /** Format: uuid */
+            programId: null | string;
+            /** Format: date-time */
+            expiresAt: null | string;
+            /** Format: int32 */
+            maxRedemptions: null | number | string;
+            isActive: boolean;
         };
     };
     responses: never;
@@ -251,6 +371,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StartCheckoutResponse"];
+                };
+            };
+        };
+    };
+    CheckDiscount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckDiscountRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckDiscountResponse"];
                 };
             };
         };
@@ -322,6 +466,134 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SalesSummaryResponse"];
                 };
+            };
+        };
+    };
+    ListDiscountCodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioDiscountsItem"][];
+                };
+            };
+        };
+    };
+    CreateDiscountCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioDiscountsCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioDiscountsItem"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateDiscountCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+                discountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioDiscountsUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioDiscountsItem"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DeleteDiscountCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+                discountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

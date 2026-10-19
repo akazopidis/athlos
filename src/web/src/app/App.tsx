@@ -21,6 +21,7 @@ const CreateWorkspace = lazyPage(() => import('@/features/studio/CreateWorkspace
 const Me = lazyPage(() => import('@/features/account/Me'), 'Me')
 const MyPrograms = lazyPage(() => import('@/features/account/MyPrograms'), 'MyPrograms')
 const MyOrders = lazyPage(() => import('@/features/account/MyOrders'), 'MyOrders')
+const SavedPrograms = lazyPage(() => import('@/features/account/SavedPrograms'), 'SavedPrograms')
 const MyWorkspaces = lazyPage(() => import('@/features/account/MyWorkspaces'), 'MyWorkspaces')
 const AccountSettings = lazyPage(() => import('@/features/account/AccountSettings'), 'AccountSettings')
 const MyProgramPage = lazyPage(() => import('@/features/account/MyProgramPage'), 'MyProgramPage')
@@ -28,6 +29,8 @@ const Studio = lazyPage(() => import('@/features/studio/Studio'), 'Studio')
 const StudioOverview = lazyPage(() => import('@/features/studio/StudioOverview'), 'StudioOverview')
 const StudioProgramEditor = lazyPage(() => import('@/features/studio/StudioProgramEditor'), 'StudioProgramEditor')
 const StudioSales = lazyPage(() => import('@/features/studio/StudioSales'), 'StudioSales')
+const StudioReviews = lazyPage(() => import('@/features/studio/StudioReviews'), 'StudioReviews')
+const StudioDiscounts = lazyPage(() => import('@/features/studio/StudioDiscounts'), 'StudioDiscounts')
 const StudioSettings = lazyPage(() => import('@/features/studio/StudioSettings'), 'StudioSettings')
 
 // Four areas (design §8): marketplace (with the cart), coach storefront, coach studio, customer area.
@@ -57,12 +60,15 @@ export default function App() {
                 <Route index element={<StudioOverview />} />
                 <Route path="programs/:programId" element={<StudioProgramEditor />} />
                 <Route path="sales" element={<StudioSales />} />
+                <Route path="reviews" element={<StudioReviews />} />
+                <Route path="discounts" element={<StudioDiscounts />} />
                 <Route path="settings" element={<StudioSettings />} />
               </Route>
               <Route path="/cart" element={<Cart />} />
               <Route path="/coaches" element={<Coaches />} />
               <Route path="/me" element={<Me />}>
                 <Route index element={<MyPrograms />} />
+                <Route path="saved" element={<SavedPrograms />} />
                 <Route path="orders" element={<MyOrders />} />
                 <Route path="workspaces" element={<MyWorkspaces />} />
                 <Route path="account" element={<AccountSettings />} />

@@ -3,6 +3,7 @@ using Athlos.Messaging;
 using Athlos.Ordering.Api.Data;
 using Athlos.Ordering.Api.Features.Checkout;
 using Athlos.Ordering.Api.Features.Customers;
+using Athlos.Ordering.Api.Features.Discounts;
 using Athlos.Ordering.Api.Features.Orders;
 using Athlos.Ordering.Api.Features.Payouts;
 using Athlos.Ordering.Api.Features.Refunds;
@@ -40,10 +41,14 @@ builder.Services.AddSingleton<ISellerDirectory, SellerDirectory>();
 
 builder.Services.AddValidation();
 builder.Services.AddOpenApi(options =>
+{
     // Slices nest their Request/Response records; name schemas after the slice (StartCheckoutRequest).
     options.CreateSchemaReferenceId = type => type.Type.IsNested
         ? type.Type.DeclaringType!.Name + type.Type.Name
-        : OpenApiOptions.CreateDefaultSchemaReferenceId(type));
+        : OpenApiOptions.CreateDefaultSchemaReferenceId(type);
+    // The discount codes' handlers read the tenant from ITenantContext, not from {tenantSlug}.
+    options.AddOperationTransformer<Athlos.Ordering.Api.RouteParameterTransformer>();
+});
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
@@ -66,6 +71,8 @@ app.MapDefaultEndpoints();
 
 // Customer: buy (enters the coach's tenant itself) and list their own orders
 app.MapStartCheckout();
+// Customer: price the cart with a discount code (enters each coach's tenant itself)
+app.MapCheckDiscount();
 app.MapGroup("/api/v1/me")
     .RequireAuthorization()
     .WithTenantTransaction<OrderingDbContext>()
@@ -82,6 +89,12 @@ app.MapGroup("/api/v1/studio/{tenantSlug}")
     .RequireTenant()
     .WithTenantTransaction<OrderingDbContext>()
     .MapSalesSummary();
+// The workspace's discount codes (design §2.4)
+app.MapGroup("/api/v1/studio/{tenantSlug}")
+    .RequireAuthorization()
+    .RequireTenant()
+    .WithTenantTransaction<OrderingDbContext>()
+    .MapStudioDiscounts();
 
 // The coach refunds a sale: Stripe calls first, then short transactions inside the tenant (OrderRefunds)
 app.MapGroup("/api/v1/studio/{tenantSlug}")

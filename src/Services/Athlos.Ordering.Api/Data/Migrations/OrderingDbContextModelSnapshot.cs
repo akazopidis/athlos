@@ -115,6 +115,61 @@ namespace Athlos.Ordering.Api.Data.Migrations
                     b.ToTable("checkouts", (string)null);
                 });
 
+            modelBuilder.Entity("Athlos.Ordering.Api.Data.DiscountCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<int?>("MaxRedemptions")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_redemptions");
+
+                    b.Property<int>("PercentOff")
+                        .HasColumnType("integer")
+                        .HasColumnName("percent_off");
+
+                    b.Property<Guid?>("ProgramId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("program_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_discount_codes");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_discount_codes_tenant_id_code");
+
+                    b.ToTable("discount_codes", (string)null);
+                });
+
             modelBuilder.Entity("Athlos.Ordering.Api.Data.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -161,6 +216,15 @@ namespace Athlos.Ordering.Api.Data.Migrations
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid")
                         .HasColumnName("customer_id");
+
+                    b.Property<long>("DiscountAmount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("discount_amount");
+
+                    b.Property<string>("DiscountCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("discount_code");
 
                     b.Property<string>("IdempotencyKey")
                         .HasMaxLength(100)
@@ -245,6 +309,10 @@ namespace Athlos.Ordering.Api.Data.Migrations
 
                     b.HasIndex("TenantId", "CreatedAt")
                         .HasDatabaseName("ix_orders_tenant_id_created_at");
+
+                    b.HasIndex("TenantId", "DiscountCode")
+                        .HasDatabaseName("ix_orders_tenant_id_discount_code")
+                        .HasFilter("discount_code IS NOT NULL");
 
                     b.ToTable("orders", (string)null);
                 });

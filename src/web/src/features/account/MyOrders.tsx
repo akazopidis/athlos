@@ -33,6 +33,7 @@ export function MyOrders() {
                       {coach?.displayName ?? o.coachSlug}
                     </Link>{' '}
                     · {new Date(o.paidAt ?? o.createdAt).toLocaleDateString()}
+                    {o.discountCode && ` · code ${o.discountCode} saved ${formatMoney(o.discountAmount, o.currency)}`}
                     {contact && (
                       <>
                         {' · '}

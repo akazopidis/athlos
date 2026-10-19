@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Athlos.Enrollment.Api.Data;
 using Athlos.Enrollment.Api.Features.MyPrograms;
+using Athlos.Enrollment.Api.Features.Reviews;
 using Athlos.Messaging;
 using Athlos.Messaging.Contracts;
 using Microsoft.AspNetCore.Hosting;
@@ -21,6 +22,8 @@ public sealed class EnrollmentApiFactory(AthlosDatabases databases) : ServiceApi
 {
     public FakeProgramContent Programs { get; } = new();
 
+    public FakeProgramRatings Ratings { get; } = new();
+
     public CapturingMessageSender Messages { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -33,6 +36,7 @@ public sealed class EnrollmentApiFactory(AthlosDatabases databases) : ServiceApi
         {
             services.RemoveAll<IHostedService>();
             services.AddSingleton<IProgramContent>(Programs);
+            services.AddSingleton<IProgramRatings>(Ratings);
             services.AddSingleton<IMessageSender>(Messages);
         });
     }
@@ -97,6 +101,29 @@ public sealed class FakeProgramContent : IProgramContent
 
     public Task<ProgramContentResponse?> GetAsync(Guid tenantId, Guid programId, CancellationToken cancellationToken) =>
         Task.FromResult(_programs.GetValueOrDefault((tenantId, programId)));
+}
+
+// catalog-api's rating endpoint, as enrollment sees it: the last count and average sent per program.
+// Unreachable makes every call fail, like a catalog that cannot be reached.
+public sealed class FakeProgramRatings : IProgramRatings
+{
+    private readonly ConcurrentDictionary<(Guid TenantId, Guid ProgramId), (int Count, decimal Average)> _ratings = new();
+
+    public bool Unreachable { get; set; }
+
+    public (int Count, decimal Average)? For(Guid tenantId, Guid programId) =>
+        _ratings.TryGetValue((tenantId, programId), out var rating) ? rating : null;
+
+    public Task SetAsync(Guid tenantId, Guid programId, int count, decimal average, CancellationToken cancellationToken)
+    {
+        if (Unreachable)
+        {
+            throw new HttpRequestException("catalog-api is unreachable (test).");
+        }
+
+        _ratings[(tenantId, programId)] = (count, average);
+        return Task.CompletedTask;
+    }
 }
 
 public static class EnrollmentArrange

@@ -4,6 +4,7 @@ using Athlos.Catalog.Api.Data;
 using Athlos.Catalog.Api.Features.Internal;
 using Athlos.Catalog.Api.Features.Marketplace;
 using Athlos.Catalog.Api.Features.Programs;
+using Athlos.Catalog.Api.Features.Saved;
 using Athlos.Catalog.Api.Features.Workouts;
 using Athlos.Media;
 using Athlos.Tenancy;
@@ -72,6 +73,13 @@ var marketplace = app.MapGroup("/api/v1/marketplace")
 marketplace.MapSearchPrograms();
 marketplace.MapGetPublishedProgram();
 
+// Customer: their saved programs (design §2.4), their own rows plus published programs (a cross-tenant slice)
+app.MapGroup("/api/v1/me")
+    .RequireAuthorization()
+    .UsePublicReadScope()
+    .WithTenantTransaction<CatalogDbContext>()
+    .MapSavedPrograms();
+
 // Coach dashboard: tenant and role come from the gateway; owners and staff both manage programs
 var studio = app.MapGroup("/api/v1/studio/{tenantSlug}")
     .RequireAuthorization()
@@ -99,6 +107,12 @@ app.MapGroup("/internal")
 // Tenancy-api only (signed): hide or show a suspended workspace's programs (design §3.4)
 app.MapGroup("/internal")
     .MapSuspendTenant();
+// Enrollment-api only (signed): a program's rating, from its reviews (design §2.4); the handler enters that tenant
+app.MapGroup("/internal")
+    .MapSetProgramRating();
+// Tenancy-api only (signed): erase a deleted account's saved programs (design §5.2)
+app.MapGroup("/internal")
+    .MapEraseCustomer();
 studio.MapWorkouts();
 
 app.Run();

@@ -44,6 +44,36 @@
         }
       }
     },
+    "/api/v1/orders/discount": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "CheckDiscount",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckDiscountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckDiscountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/orders": {
       "get": {
         "tags": [
@@ -182,6 +212,182 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/studio/{tenantSlug}/discounts": {
+      "get": {
+        "tags": [
+          "Discounts"
+        ],
+        "operationId": "ListDiscountCodes",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StudioDiscountsItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Discounts"
+        ],
+        "operationId": "CreateDiscountCode",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioDiscountsCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioDiscountsItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/studio/{tenantSlug}/discounts/{discountId}": {
+      "put": {
+        "tags": [
+          "Discounts"
+        ],
+        "operationId": "UpdateDiscountCode",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "discountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioDiscountsUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioDiscountsItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Discounts"
+        ],
+        "operationId": "DeleteDiscountCode",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "discountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
           }
         }
       }
@@ -347,6 +553,123 @@
           }
         }
       },
+      "CheckDiscountLine": {
+        "required": [
+          "programId",
+          "percentOff",
+          "discountAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "programId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "percentOff": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "discountAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "CheckDiscountRequest": {
+        "required": [
+          "code",
+          "programIds"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "maxLength": 40,
+            "type": "string"
+          },
+          "programIds": {
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "CheckDiscountResponse": {
+        "required": [
+          "code",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckDiscountLine"
+            }
+          }
+        }
+      },
+      "HttpValidationProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
       "OrderListsMyOrder": {
         "required": [
           "id",
@@ -358,7 +681,9 @@
           "status",
           "createdAt",
           "paidAt",
-          "checkoutId"
+          "checkoutId",
+          "discountCode",
+          "discountAmount"
         ],
         "type": "object",
         "properties": {
@@ -407,6 +732,20 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "discountCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "discountAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -463,7 +802,8 @@
           "paidAt",
           "status",
           "refundedAt",
-          "refundableUntil"
+          "refundableUntil",
+          "discountCode"
         ],
         "type": "object",
         "properties": {
@@ -520,6 +860,12 @@
           "refundableUntil": {
             "type": "string",
             "format": "date-time"
+          },
+          "discountCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -658,6 +1004,13 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "discountCode": {
+            "maxLength": 40,
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -676,6 +1029,176 @@
             "type": "string"
           }
         }
+      },
+      "StudioDiscountsCreateRequest": {
+        "required": [
+          "code",
+          "percentOff",
+          "programId",
+          "expiresAt",
+          "maxRedemptions"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "pattern": "^[A-Za-z0-9-]{3,20}$",
+            "type": "string"
+          },
+          "percentOff": {
+            "maximum": 90,
+            "minimum": 5,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "programId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "maxRedemptions": {
+            "maximum": 100000,
+            "minimum": 1,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "StudioDiscountsItem": {
+        "required": [
+          "id",
+          "code",
+          "percentOff",
+          "programId",
+          "expiresAt",
+          "maxRedemptions",
+          "isActive",
+          "redemptions",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "percentOff": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "programId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "maxRedemptions": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "redemptions": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "StudioDiscountsUpdateRequest": {
+        "required": [
+          "percentOff",
+          "programId",
+          "expiresAt",
+          "maxRedemptions",
+          "isActive"
+        ],
+        "type": "object",
+        "properties": {
+          "percentOff": {
+            "maximum": 90,
+            "minimum": 5,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "programId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "maxRedemptions": {
+            "maximum": 100000,
+            "minimum": 1,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
       }
     }
   },
@@ -685,6 +1208,9 @@
     },
     {
       "name": "Sales"
+    },
+    {
+      "name": "Discounts"
     },
     {
       "name": "Admin"

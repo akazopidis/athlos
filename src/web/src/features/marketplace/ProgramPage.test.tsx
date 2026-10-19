@@ -17,6 +17,19 @@ afterEach(() => {
   localStorage.clear()
 })
 
+const reviews = {
+  average: 4.5,
+  count: 2,
+  stars: [0, 0, 0, 1, 1],
+  items: [
+    { id: 'r1', rating: 5, comment: 'Best squat cues I have had.', authorName: 'Maria K.', createdAt: '2026-10-01T10:00:00Z', updatedAt: '2026-10-01T10:00:00Z', reply: 'Thank you, Maria!', repliedAt: '2026-10-02T10:00:00Z' },
+    { id: 'r2', rating: 4, comment: null, authorName: 'Nikos P.', createdAt: '2026-09-30T10:00:00Z', updatedAt: '2026-09-30T10:00:00Z', reply: null, repliedAt: null },
+  ],
+  page: 1,
+  pageSize: 5,
+  totalCount: 2,
+}
+
 const program = {
   id: '0199a000-0000-7000-8000-000000000001',
   coachSlug: 'anna',
@@ -28,6 +41,8 @@ const program = {
   priceAmount: 4900,
   currency: 'EUR',
   coverImageUrl: null,
+  ratingAverage: 4.5,
+  ratingCount: 2,
   outline: [
     { week: 1, day: 1, title: 'Squat day', sample: true },
     { week: 1, day: 2, title: 'Bench day', sample: false },
@@ -44,6 +59,7 @@ const signedIn = {
 
 function renderPage(checkout: (request: Request) => Response, owned: string[] = [], workspaces: string[] = []) {
   const requests: Request[] = []
+  let saved: (typeof program)[] = []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (request: Request) => {
@@ -59,6 +75,12 @@ function renderPage(checkout: (request: Request) => Response, owned: string[] = 
         return Response.json({ items: [], page: 1, pageSize: 5, totalCount: 0, coaches: [] })
       }
       if (new URL(request.url).pathname === '/api/v1/marketplace/coaches') return Response.json([])
+      if (new URL(request.url).pathname === `/api/v1/marketplace/programs/${program.id}/reviews`) return Response.json(reviews)
+      if (new URL(request.url).pathname === '/api/v1/me/saved') return Response.json(saved)
+      if (request.method === 'PUT' || request.method === 'DELETE') {
+        saved = request.method === 'PUT' ? [program] : []
+        return new Response(null, { status: 204 })
+      }
       if (new URL(request.url).pathname === '/api/v1/me/memberships') {
         return Response.json(workspaces.map((slug) => ({ tenantId: 't', slug, displayName: slug, role: 'Owner', status: 'Active' })))
       }
@@ -143,4 +165,24 @@ test('the page shows the outline by week and the free preview in full', async ()
   expect(outline).toHaveTextContent('Week 2')
   expect(outline).toHaveTextContent('Deadlift day')
   expect(screen.getByRole('region', { name: 'Week 1, day 1: Squat day' })).toHaveTextContent('Five sets of five squats.')
+})
+
+test('Save keeps the program for later', async () => {
+  const requests = renderPage(() => Response.json({}))
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Save Strong start for later' }))
+
+  expect(await screen.findByRole('button', { name: 'Remove Strong start from saved' })).toHaveAttribute('aria-pressed', 'true')
+  expect(requests.some((r) => r.method === 'PUT' && new URL(r.url).pathname === `/api/v1/me/saved/${program.id}`)).toBe(true)
+})
+
+test('the page shows the rating and the reviews with the coach replies', async () => {
+  renderPage(() => Response.json({}))
+
+  expect(await screen.findByRole('link', { name: /4\.5 out of 5 stars.*2 reviews/ })).toHaveAttribute('href', '#reviews')
+  const section = await screen.findByRole('region', { name: 'Reviews' })
+  expect(section).toHaveTextContent('Best squat cues I have had.')
+  expect(section).toHaveTextContent('Anna Coaching replied')
+  expect(section).toHaveTextContent('Thank you, Maria!')
+  expect(screen.getAllByRole('img', { name: '5.0 out of 5 stars' }).length).toBeGreaterThan(0)
 })

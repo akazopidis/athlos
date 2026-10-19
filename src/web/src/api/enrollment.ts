@@ -52,6 +52,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/programs/{programId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["WriteMyReview"];
+        post?: never;
+        delete: operations["DeleteMyReview"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/marketplace/programs/{programId}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListProgramReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/studio/{tenantSlug}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListStudioReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/studio/{tenantSlug}/reviews/{reviewId}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["ReplyToReview"];
+        post?: never;
+        delete: operations["RemoveReviewReply"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -69,6 +133,7 @@ export interface components {
             /** Format: date-time */
             enrolledAt: string;
             workouts: components["schemas"]["GetMyProgramWorkout"][];
+            review: null | components["schemas"]["MyReviewResponse"];
         };
         GetMyProgramWorkout: {
             /** Format: uuid */
@@ -82,6 +147,17 @@ export interface components {
             videoUrl: null | string;
             /** Format: date-time */
             completedAt: null | string;
+        };
+        HttpValidationProblemDetails: {
+            type?: null | string;
+            title?: null | string;
+            /** Format: int32 */
+            status?: null | number | string;
+            detail?: null | string;
+            instance?: null | string;
+            errors?: {
+                [key: string]: string[];
+            };
         };
         MyEnrollmentsMyProgram: {
             /** Format: uuid */
@@ -101,6 +177,83 @@ export interface components {
             pageSize: number | string;
             /** Format: int32 */
             totalCount: number | string;
+        };
+        MyReviewRequest: {
+            /** Format: int32 */
+            rating: number | string;
+            comment: null | string;
+        };
+        MyReviewResponse: {
+            /** Format: int32 */
+            rating: number | string;
+            comment: null | string;
+            authorName: string;
+            reply: null | string;
+            /** Format: date-time */
+            repliedAt: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ProgramReviewsItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int32 */
+            rating: number | string;
+            comment: null | string;
+            authorName: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            reply: null | string;
+            /** Format: date-time */
+            repliedAt: null | string;
+        };
+        ProgramReviewsResponse: {
+            /** Format: double */
+            average: number | string;
+            /** Format: int32 */
+            count: number | string;
+            stars: (number | string)[];
+            items: components["schemas"]["ProgramReviewsItem"][];
+            /** Format: int32 */
+            page: number | string;
+            /** Format: int32 */
+            pageSize: number | string;
+            /** Format: int32 */
+            totalCount: number | string;
+        };
+        StudioReviewsItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            programId: string;
+            programTitle: string;
+            /** Format: int32 */
+            rating: number | string;
+            comment: null | string;
+            authorName: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            reply: null | string;
+            /** Format: date-time */
+            repliedAt: null | string;
+        };
+        StudioReviewsPage: {
+            items: components["schemas"]["StudioReviewsItem"][];
+            /** Format: int32 */
+            pageNumber: number | string;
+            /** Format: int32 */
+            pageSize: number | string;
+            /** Format: int32 */
+            totalCount: number | string;
+        };
+        StudioReviewsReplyRequest: {
+            text: string;
         };
     };
     responses: never;
@@ -198,6 +351,186 @@ export interface operations {
             path: {
                 programId: string;
                 workoutId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WriteMyReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                programId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReviewResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DeleteMyReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                programId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListProgramReviews: {
+        parameters: {
+            query?: {
+                Page?: number | string;
+                PageSize?: number | string;
+            };
+            header?: never;
+            path: {
+                programId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramReviewsResponse"];
+                };
+            };
+        };
+    };
+    ListStudioReviews: {
+        parameters: {
+            query?: {
+                ProgramId?: string;
+                Page?: number | string;
+                PageSize?: number | string;
+            };
+            header?: never;
+            path: {
+                tenantSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioReviewsPage"];
+                };
+            };
+        };
+    };
+    ReplyToReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+                reviewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioReviewsReplyRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RemoveReviewReply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+                reviewId: string;
             };
             cookie?: never;
         };

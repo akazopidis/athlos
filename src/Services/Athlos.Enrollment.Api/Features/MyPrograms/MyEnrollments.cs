@@ -9,7 +9,7 @@ namespace Athlos.Enrollment.Api.Features.MyPrograms;
 
 // CROSS-TENANT SLICE (design §3.2, "a customer's own enrollments"): the customer is not a member of
 // the coaches' tenants, so these reads ignore the tenant filter and rely on the customer filter
-// below and on RLS, which reads enrollments and progress where customer_id = app.user_id.
+// below and on RLS, which reads enrollments, progress and reviews where customer_id = app.user_id.
 // Every customer read of enrollments goes through this file; writes enter the enrollment's tenant.
 public static class MyEnrollments
 {
@@ -51,6 +51,12 @@ public static class MyEnrollments
             .IgnoreQueryFilters([TenantDbContext.TenantFilter])
             .Where(p => p.EnrollmentId == enrollment.Id && p.CustomerId == enrollment.CustomerId)
             .ToDictionaryAsync(p => p.WorkoutId, p => p.CompletedAt, cancellationToken);
+
+    // The customer's review of one of their enrollments, or null (design §2.4).
+    public static Task<Review?> ReviewAsync(EnrollmentDbContext db, ProgramEnrollment enrollment, CancellationToken cancellationToken) =>
+        db.Reviews.AsNoTracking()
+            .IgnoreQueryFilters([TenantDbContext.TenantFilter])
+            .SingleOrDefaultAsync(r => r.EnrollmentId == enrollment.Id && r.CustomerId == enrollment.CustomerId, cancellationToken);
 
     private static IQueryable<ProgramEnrollment> Own(EnrollmentDbContext db, Guid? customerId) =>
         db.Enrollments.AsNoTracking()

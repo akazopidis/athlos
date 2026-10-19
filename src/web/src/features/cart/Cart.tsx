@@ -1,11 +1,12 @@
-import { useMutation, useQueries } from '@tanstack/react-query'
-import { Info, Lock, ShoppingBag, Trash2 } from 'lucide-react'
+import { useMutation, useQueries, useQuery } from '@tanstack/react-query'
+import { Info, Lock, ShoppingBag, Tag, Trash2, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Notice, PageHeader } from '@/components/page'
 import { ProgramCover } from '@/components/program-cover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useApp } from '@/lib/AppContext'
 import { cartTotals, MaxCartItems, useCart, type CartItem } from '@/lib/cart'
 import { formatMoney } from '@/lib/money'
@@ -19,7 +20,8 @@ import { useTitle } from '@/lib/useTitle'
 // The cart (design §2.2, §8): programs from any coaches, paid in one Stripe checkout. ordering-api
 // checks every program again; what it refuses comes back as programIds, which this page removes
 // (gone, already owned) or marks (the coach cannot take payments now). Prices are read again when the
-// cart opens, so the total is what Stripe will charge, and a changed price is pointed out.
+// cart opens, so the total is what Stripe will charge, and a changed price is pointed out. A coach's
+// discount code (design §2.4) is priced by ordering-api, which applies it the same way at checkout.
 export function Cart() {
   useTitle('Cart')
   const { api, msal, config } = useApp()
@@ -52,25 +54,51 @@ export function Cart() {
   // One Idempotency-Key per cart content: a double click or a retry reuses the same checkout page,
   // a changed cart starts a new one (design §7.1).
   const attempt = useRef<{ ids: string; key: string } | null>(null)
-  const keyFor = (ids: string[]) => {
-    const joined = [...ids].sort().join(',')
+  const keyFor = (ids: string[], code: string | null) => {
+    const joined = `${[...ids].sort().join(',')}|${code ?? ''}`
     if (attempt.current?.ids !== joined) attempt.current = { ids: joined, key: crypto.randomUUID() }
     return attempt.current.key
   }
 
   const ownedInCart = priced.filter((i) => owned.has(i.programId))
   const toBuy = priced.filter((i) => !owned.has(i.programId))
-  const totals = cartTotals(toBuy)
+
+  // The code is priced again whenever the cart changes; it applies only to its own coach's programs.
+  const [codeInput, setCodeInput] = useState('')
+  const [code, setCode] = useState<string | null>(null)
+  const toBuyIds = toBuy.map((i) => i.programId)
+  const discount = useQuery({
+    queryKey: ['cart-discount', code, [...toBuyIds].sort().join(',')],
+    queryFn: async () => {
+      const { data, error, response } = await api.POST('/api/v1/orders/discount', { body: { code: code!, programIds: toBuyIds } })
+      if (data) return data
+      if (response.status === 429) throw new Error('Too many tries. Wait a minute and try again.')
+      throw new Error(problemTitle(error) ?? 'This code does not apply to the programs in your cart.')
+    },
+    enabled: Boolean(code) && signedIn && toBuyIds.length > 0,
+    retry: false,
+    staleTime: 60_000,
+  })
+  const discounts = new Map((discount.data?.lines ?? []).map((l) => [l.programId, l]))
+  const savings = toBuy.reduce((sum, i) => sum + Number(discounts.get(i.programId)?.discountAmount ?? 0), 0)
+  const totals = cartTotals(toBuy.map((i) => ({ ...i, priceAmount: i.priceAmount - Number(discounts.get(i.programId)?.discountAmount ?? 0) })))
+  const appliedCode = discount.data ? discount.data.code : null
 
   const checkout = useMutation({
     mutationFn: async (programIds: string[]) => {
       setNotice(null)
       const { data, error, response } = await api.POST('/api/v1/orders/checkout', {
-        body: { programIds },
-        params: { header: { 'Idempotency-Key': keyFor(programIds) } },
+        body: appliedCode ? { programIds, discountCode: appliedCode } : { programIds },
+        params: { header: { 'Idempotency-Key': keyFor(programIds, appliedCode) } },
       })
       if (data) return data
       const { reason, programIds: refused } = refusal(error)
+      if (reason === 'discountCode') {
+        // Used up or switched off since it was priced: the cart is shown again at full price.
+        setCode(null)
+        setNotice(`${problemTitle(error) ?? 'The discount code no longer applies.'} Your cart is shown at full price.`)
+        return null
+      }
       if (reason === 'notForSale' || reason === 'owned' || reason === 'ownWorkspace') {
         // Gone, already owned, or the buyer's own workspace's: out of the cart, and the customer is told which.
         const titles = cart.items.filter((i) => refused.includes(i.programId)).map((i) => i.title)
@@ -157,6 +185,7 @@ export function Cart() {
                   <CartLine
                     key={item.programId}
                     item={item}
+                    discount={discounts.get(item.programId)}
                     owned={owned.has(item.programId)}
                     blocked={blocked.includes(item.programId)}
                     onRemove={() => cart.remove(item.programId)}
@@ -183,6 +212,12 @@ export function Cart() {
                 <dd className="tabular-nums">{ownedInCart.length}</dd>
               </div>
             )}
+            {savings > 0 && appliedCode && (
+              <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                <dt>Discount ({appliedCode})</dt>
+                <dd className="tabular-nums">−{formatMoney(savings, toBuy[0]?.currency ?? 'EUR')}</dd>
+              </div>
+            )}
             <div className="flex items-baseline justify-between border-t pt-3">
               <dt className="font-semibold">Total</dt>
               <dd className="font-heading text-2xl font-black tabular-nums">
@@ -191,6 +226,41 @@ export function Cart() {
             </div>
           </dl>
           {totals.length > 1 && <p className="text-sm text-muted-foreground">Programs in different currencies are paid in separate checkouts.</p>}
+          {signedIn && toBuy.length > 0 && (
+            appliedCode ? (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-dashed px-3 py-2 text-sm">
+                <span className="flex items-center gap-2 font-semibold">
+                  <Tag className="size-4" aria-hidden /> {appliedCode}
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => setCode(null)} aria-label={`Remove the code ${appliedCode}`}>
+                  <X aria-hidden /> Remove
+                </Button>
+              </div>
+            ) : (
+              <form
+                className="space-y-2"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (codeInput.trim()) setCode(codeInput.trim().toUpperCase())
+                }}
+              >
+                <label htmlFor="discount-code" className="text-sm font-medium">
+                  Discount code
+                </label>
+                <div className="flex gap-2">
+                  <Input id="discount-code" value={codeInput} maxLength={20} autoComplete="off" className="uppercase" onChange={(e) => setCodeInput(e.target.value)} />
+                  <Button type="submit" variant="outline" disabled={!codeInput.trim() || discount.isFetching}>
+                    {discount.isFetching ? 'Checking…' : 'Apply'}
+                  </Button>
+                </div>
+                {discount.error && code && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {discount.error.message}
+                  </p>
+                )}
+              </form>
+            )
+          )}
           {checkout.error && (
             <Alert variant="destructive" role="alert">
               <AlertDescription>{checkout.error.message}</AlertDescription>
@@ -222,7 +292,9 @@ export function Cart() {
   )
 }
 
-function CartLine({ item, owned, blocked, onRemove }: { item: CartItem; owned: boolean; blocked: boolean; onRemove: () => void }) {
+type DiscountLine = { percentOff: number | string; discountAmount: number | string }
+
+function CartLine({ item, discount, owned, blocked, onRemove }: { item: CartItem; discount?: DiscountLine; owned: boolean; blocked: boolean; onRemove: () => void }) {
   return (
     <li className="flex gap-4 p-4 sm:p-5">
       <Link to={`/c/${item.coachSlug}/programs/${item.slug}`} className="w-24 shrink-0 overflow-hidden rounded-xl sm:w-32" tabIndex={-1} aria-hidden>
@@ -235,9 +307,17 @@ function CartLine({ item, owned, blocked, onRemove }: { item: CartItem; owned: b
         {owned && <p className="text-sm text-muted-foreground">You already own this program; it is not charged.</p>}
         {blocked && <p className="text-sm text-destructive">This coach cannot take payments right now. Remove it to check out the rest.</p>}
         <div className="mt-auto flex items-center justify-between gap-3 pt-2">
-          <span className={owned ? 'text-muted-foreground line-through' : 'font-heading text-lg font-extrabold tabular-nums'}>
-            {formatMoney(item.priceAmount, item.currency)}
-          </span>
+          {discount && !owned ? (
+            <span className="flex flex-wrap items-baseline gap-x-2">
+              <span className="font-heading text-lg font-extrabold tabular-nums">{formatMoney(item.priceAmount - Number(discount.discountAmount), item.currency)}</span>
+              <span className="text-sm text-muted-foreground line-through tabular-nums">{formatMoney(item.priceAmount, item.currency)}</span>
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">−{Number(discount.percentOff)}%</span>
+            </span>
+          ) : (
+            <span className={owned ? 'text-muted-foreground line-through' : 'font-heading text-lg font-extrabold tabular-nums'}>
+              {formatMoney(item.priceAmount, item.currency)}
+            </span>
+          )}
           <Button variant="ghost" size="sm" onClick={onRemove} aria-label={`Remove ${item.title}`}>
             <Trash2 aria-hidden /> Remove
           </Button>

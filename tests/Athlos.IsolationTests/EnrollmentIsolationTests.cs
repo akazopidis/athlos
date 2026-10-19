@@ -38,6 +38,11 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         { "GET", $"/api/v1/me/programs/{Guid.Empty}" },
         { "PUT", $"/api/v1/me/programs/{Guid.Empty}/workouts/{Guid.Empty}/completion" },
         { "DELETE", $"/api/v1/me/programs/{Guid.Empty}/workouts/{Guid.Empty}/completion" },
+        { "PUT", $"/api/v1/me/programs/{Guid.Empty}/review" },
+        { "DELETE", $"/api/v1/me/programs/{Guid.Empty}/review" },
+        { "GET", "/api/v1/studio/any/reviews" },
+        { "PUT", $"/api/v1/studio/any/reviews/{Guid.Empty}/reply" },
+        { "DELETE", $"/api/v1/studio/any/reviews/{Guid.Empty}/reply" },
     };
 
     [Theory]
@@ -202,6 +207,65 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, error.SqlState);
     }
 
+    // Reviews (design §2.4): only the buyer reviews their program; another customer's attempt is 404.
+    [Fact]
+    public async Task Bob_cannot_review_or_remove_Alices_review()
+    {
+        await Review(_alice, _alicesProgram.ProgramId, 5);
+
+        var written = await Review(_bob, _alicesProgram.ProgramId, 1);
+        var deleted = await _api.AsCustomer(_bob, HttpMethod.Delete, $"/programs/{_alicesProgram.ProgramId}/review");
+        var reviews = await Scalar<long>(_a.TenantId, null, $"SELECT count(*) FROM reviews WHERE program_id = '{_alicesProgram.ProgramId}'");
+
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound), (written.StatusCode, deleted.StatusCode));
+        Assert.Equal(1L, reviews);
+    }
+
+    // Coach B sees none of A's reviews and cannot reply to one, even naming A's address in the route.
+    [Fact]
+    public async Task Coach_B_cannot_list_or_reply_to_As_reviews()
+    {
+        await Review(_alice, _alicesProgram.ProgramId, 5);
+        var review = await Scalar<Guid>(_a.TenantId, null, $"SELECT id FROM reviews WHERE program_id = '{_alicesProgram.ProgramId}'");
+
+        var listed = await (await AsCoach(_b, _b.Slug, HttpMethod.Get, "/reviews")).Content.ReadAsStringAsync(Cancel);
+        var listedUnderA = await (await AsCoach(_b, _a.Slug, HttpMethod.Get, "/reviews")).Content.ReadAsStringAsync(Cancel);
+        var replied = await AsCoach(_b, _b.Slug, HttpMethod.Put, $"/reviews/{review}/reply", new { text = "Not yours" });
+        var removed = await AsCoach(_b, _a.Slug, HttpMethod.Delete, $"/reviews/{review}/reply");
+
+        Assert.DoesNotContain(review.ToString(), listed, StringComparison.Ordinal);
+        Assert.DoesNotContain(review.ToString(), listedUnderA, StringComparison.Ordinal);
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound), (replied.StatusCode, removed.StatusCode));
+        Assert.Null(await Scalar<object>(_a.TenantId, null, $"SELECT reply FROM reviews WHERE id = '{review}'") as string);
+    }
+
+    // Layer 4 alone: the public-read scope reads every review, never enrollments or progress, and cannot change a review.
+    [Fact]
+    public async Task RLS_public_read_shows_reviews_only_and_cannot_change_them()
+    {
+        await Review(_alice, _alicesProgram.ProgramId, 5);
+
+        var reviews = await Scalar<long>(_b.TenantId, null, $"SELECT count(*) FROM reviews WHERE tenant_id = '{_a.TenantId}'", "public-read");
+        var enrollments = await Scalar<long>(_b.TenantId, null, $"SELECT count(*) FROM enrollments WHERE tenant_id = '{_a.TenantId}'", "public-read");
+        var progress = await Scalar<long>(_b.TenantId, null, $"SELECT count(*) FROM workout_progress WHERE tenant_id = '{_a.TenantId}'", "public-read");
+        var updated = await Execute(_b.TenantId, null, $"UPDATE reviews SET rating = 1 WHERE tenant_id = '{_a.TenantId}'", "public-read");
+        var deleted = await Execute(_b.TenantId, null, $"DELETE FROM reviews WHERE tenant_id = '{_a.TenantId}'", "public-read");
+        var outsideTheScope = await Scalar<long>(_b.TenantId, null, $"SELECT count(*) FROM reviews WHERE tenant_id = '{_a.TenantId}'");
+
+        Assert.Equal((1L, 0L, 0L), (reviews, enrollments, progress));
+        Assert.Equal((0, 0, 0L), (updated, deleted, outsideTheScope));
+    }
+
+    private Task<HttpResponseMessage> Review(Guid customerId, Guid programId, int rating) =>
+        _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/me/programs/{programId}/review") { Content = System.Net.Http.Json.JsonContent.Create(new { rating }) },
+            customerId);
+
+    private Task<HttpResponseMessage> AsCoach(Coach coach, string slug, HttpMethod method, string path, object? body = null) =>
+        _api.SendAsGateway(
+            new HttpRequestMessage(method, $"/api/v1/studio/{slug}{path}") { Content = body is null ? null : System.Net.Http.Json.JsonContent.Create(body) },
+            coach.OwnerId, coach.TenantId, TenantRole.Owner);
+
     // Alice's enrollment in tenant A, with the given tenant and customer on the progress row.
     private string InsertProgress(Guid tenantId, Guid customerId) => $"""
         INSERT INTO workout_progress (id, tenant_id, enrollment_id, customer_id, workout_id, completed_at, created_at, updated_at)
@@ -209,27 +273,27 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         FROM enrollments WHERE customer_id = '{_alice}' AND program_id = '{_alicesProgram.ProgramId}'
         """;
 
-    private async Task<T> Scalar<T>(Guid? tenantId, Guid? userId, string sql)
+    private async Task<T> Scalar<T>(Guid? tenantId, Guid? userId, string sql, string scope = "")
     {
-        await using var connection = await Open(tenantId, userId);
+        await using var connection = await Open(tenantId, userId, scope);
         await using var command = new NpgsqlCommand(sql, connection);
         return (T)(await command.ExecuteScalarAsync(Cancel))!;
     }
 
-    private async Task<int> Execute(Guid? tenantId, Guid? userId, string sql)
+    private async Task<int> Execute(Guid? tenantId, Guid? userId, string sql, string scope = "")
     {
-        await using var connection = await Open(tenantId, userId);
+        await using var connection = await Open(tenantId, userId, scope);
         await using var command = new NpgsqlCommand(sql, connection);
         return await command.ExecuteNonQueryAsync(Cancel);
     }
 
     // A connection inside a transaction with the given settings (never committed).
-    private async Task<NpgsqlConnection> Open(Guid? tenantId, Guid? userId)
+    private async Task<NpgsqlConnection> Open(Guid? tenantId, Guid? userId, string scope = "")
     {
         var connection = new NpgsqlConnection(databases.AppConnectionString("enrollment"));
         await connection.OpenAsync(Cancel);
         await using (var begin = new NpgsqlCommand(
-            $"BEGIN; SELECT set_config('app.tenant_id', '{tenantId}', true), set_config('app.user_id', '{userId}', true)", connection))
+            $"BEGIN; SELECT set_config('app.tenant_id', '{tenantId}', true), set_config('app.user_id', '{userId}', true), set_config('app.scope', '{scope}', true)", connection))
         {
             await begin.ExecuteNonQueryAsync(Cancel);
         }

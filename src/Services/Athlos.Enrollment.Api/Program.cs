@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Athlos.Enrollment.Api.Data;
 using Athlos.Enrollment.Api.Features.Enrollments;
 using Athlos.Enrollment.Api.Features.MyPrograms;
+using Athlos.Enrollment.Api.Features.Reviews;
 using Athlos.Messaging;
 using Athlos.Messaging.Contracts;
 using Athlos.Tenancy;
@@ -31,6 +32,9 @@ builder.AddOutbox<EnrollmentDbContext>();
 
 // The paid content stays in catalog-api; enrollment asks for it with a signed call.
 builder.Services.AddHttpClient<IProgramContent, CatalogProgramContent>(http => http.BaseAddress = new Uri("https+http://catalog-api"))
+    .AddSignedRequests();
+// ... and keeps each program's rating there in step with its reviews (design §2.4).
+builder.Services.AddHttpClient<IProgramRatings, CatalogProgramRatings>(http => http.BaseAddress = new Uri("https+http://catalog-api"))
     .AddSignedRequests();
 
 builder.Services.AddValidation();
@@ -67,6 +71,20 @@ me.MapGroup("")
     .MapListMyPrograms();
 me.MapGetMyProgram();
 me.MapWorkoutCompletion();
+me.MapMyReview();
+
+// Public: a program's reviews on its page (a cross-tenant slice, design §3.2)
+app.MapGroup("/api/v1/marketplace")
+    .UsePublicReadScope()
+    .WithTenantTransaction<EnrollmentDbContext>()
+    .MapProgramReviews();
+
+// Coach dashboard: the workspace's reviews and the coach's replies; tenant and role come from the gateway
+app.MapGroup("/api/v1/studio/{tenantSlug}")
+    .RequireAuthorization()
+    .RequireTenant()
+    .WithTenantTransaction<EnrollmentDbContext>()
+    .MapStudioReviews();
 
 // Tenancy-api only (signed): erase one deleted workspace's enrollments (design §3.4)
 app.MapEraseTenant();

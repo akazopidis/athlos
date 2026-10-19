@@ -11,6 +11,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options,
 
     public DbSet<Workout> Workouts => Set<Workout>();
 
+    public DbSet<SavedProgram> SavedPrograms => Set<SavedProgram>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<TrainingProgram>(program =>
@@ -27,6 +29,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options,
             program.Property(p => p.Category).HasConversion<string>().HasMaxLength(20);
             program.Property(p => p.Currency).HasMaxLength(3).IsFixedLength();
             program.Property(p => p.CoverImagePath).HasMaxLength(300);
+            program.Property(p => p.RatingAverage).HasPrecision(3, 2);
             program.OwnsMany(p => p.Outline, outline => outline.ToJson());
             program.OwnsOne(p => p.Sample, sample => sample.ToJson());
         });
@@ -38,6 +41,13 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options,
             workout.Property(w => w.Content).HasMaxLength(20000);
             workout.Property(w => w.VideoUrl).HasMaxLength(500);
             workout.HasOne<TrainingProgram>().WithMany().HasForeignKey(w => w.ProgramId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SavedProgram>(saved =>
+        {
+            saved.ToTable("saved_programs");
+            saved.HasIndex(s => new { s.CustomerId, s.ProgramId }).IsUnique();
+            saved.HasOne<TrainingProgram>().WithMany().HasForeignKey(s => s.ProgramId).OnDelete(DeleteBehavior.Cascade);
         });
 
         base.OnModelCreating(modelBuilder);

@@ -7,10 +7,13 @@ import { Loading, Notice, Section } from '@/components/page'
 import type { components } from '@/api/catalog'
 import { CoachAvatar, CoachLinks } from '@/components/coach-profile'
 import { ProgramCover } from '@/components/program-cover'
+import { SaveButton } from '@/components/save-button'
+import { Stars } from '@/components/stars'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useApp } from '@/lib/AppContext'
+import { formatRating } from '@/lib/rating'
 import { MaxCartItems, useCart } from '@/lib/cart'
 import { categoryLabel } from '@/lib/categories'
 import { formatMoney } from '@/lib/money'
@@ -21,11 +24,12 @@ import { useMyWorkspaces } from '@/lib/useMyWorkspaces'
 import { useOwnedPrograms } from '@/lib/useOwnedPrograms'
 import { useSlow } from '@/lib/useSlow'
 import { useTitle } from '@/lib/useTitle'
-import { ProductCard } from './ProductCard.tsx'
+import { ProductCard } from '@/components/product-card'
+import { ProgramReviews } from './ProgramReviews.tsx'
 import { useStorefront } from './useStorefront.ts'
 
 // A published program's product page, in the coach's colors: breadcrumbs, the buy box ("Add to cart",
-// or "Buy now", a checkout of this program alone), what is included, and more from the same coach.
+// or "Buy now", a checkout of this program alone), what is included, reviews, and more from the same coach.
 // Checkout sends the customer to Stripe; Stripe returns them to /me (paid) or to /cart (cancelled).
 export function ProgramPage() {
   const { slug = '', programSlug = '' } = useParams()
@@ -139,12 +143,13 @@ export function ProgramPage() {
           <div className="min-w-0 space-y-8">
             <ProgramCover url={p.coverImageUrl} title={p.title} category={p.category} className="aspect-video rounded-3xl" />
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">{categoryLabel(p.category)}</Badge>
                 <Badge variant="outline">
                   {weeks} {weeks === 1 ? 'week' : 'weeks'}
                 </Badge>
                 {ownsIt && <Badge>Owned</Badge>}
+                {!ownsIt && !mine && <SaveButton programId={p.id} title={p.title} className="ml-auto" />}
               </div>
               <h1 className="text-4xl leading-tight font-black tracking-tight sm:text-5xl">{p.title}</h1>
               <p className="text-muted-foreground">
@@ -153,6 +158,15 @@ export function ProgramPage() {
                   {coachName}
                 </Link>
               </p>
+              {Number(p.ratingCount ?? 0) > 0 && (
+                <a href="#reviews" className="inline-flex items-center gap-2 text-sm underline-offset-4 hover:underline">
+                  <Stars value={Number(p.ratingAverage)} />
+                  <span className="font-semibold">{formatRating(Number(p.ratingAverage))}</span>
+                  <span className="text-muted-foreground">
+                    {Number(p.ratingCount)} {Number(p.ratingCount) === 1 ? 'review' : 'reviews'}
+                  </span>
+                </a>
+              )}
               {p.description && <p className="max-w-prose text-lg whitespace-pre-line text-muted-foreground">{p.description}</p>}
             </div>
             <ProgramOutline outline={p.outline} weeks={weeks} />
@@ -170,6 +184,7 @@ export function ProgramPage() {
                 ))}
               </ul>
             </section>
+            <ProgramReviews programId={p.id} coachName={coachName} />
             {coach.data && (
               <section aria-labelledby="coach-heading" className="flex flex-col gap-5 rounded-3xl border bg-card p-6 sm:flex-row sm:p-8">
                 <CoachAvatar name={coachName} profile={coach.data.branding} className="size-16 text-2xl" />

@@ -17,7 +17,8 @@ namespace Athlos.Gateway;
 //   limited per client IP instead.
 // - Starting a checkout opens a Stripe payment page and writes pending orders, so it is limited per
 //   signed-in customer (per client IP without a sign-in, which checkout then refuses anyway):
-//   CheckoutsPerMinute, 10 by default. Other signed-in customer routes stay unlimited.
+//   CheckoutsPerMinute, 10 by default. Checking a discount code shares the same bucket, so codes
+//   cannot be guessed quickly (design §2.4). Other signed-in customer routes stay unlimited.
 // - Over the limit: 429 with Retry-After, and athlos.ratelimit.rejected counts it per coach.
 //
 // The buckets live in this replica's memory: with N gateway replicas a coach effectively gets N
@@ -42,6 +43,7 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
     private static readonly PathString CoachesPrefix = "/api/v1/marketplace/coaches";
     private static readonly PathString ProgramsPrefix = "/api/v1/marketplace/programs";
     private static readonly PathString CheckoutPath = "/api/v1/orders/checkout";
+    private static readonly PathString DiscountPath = "/api/v1/orders/discount";
 
     private static readonly Meter Meter = new("Athlos.Gateway");
     private static readonly Counter<long> Rejected = Meter.CreateCounter<long>(
@@ -81,7 +83,8 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
     public static async Task Apply(HttpContext context, Func<Task> next)
     {
         var options = context.RequestServices.GetRequiredService<IOptionsMonitor<Options>>().CurrentValue;
-        if (options.Enabled && HttpMethods.IsPost(context.Request.Method) && context.Request.Path.Equals(CheckoutPath, StringComparison.OrdinalIgnoreCase))
+        if (options.Enabled && HttpMethods.IsPost(context.Request.Method)
+            && (context.Request.Path.Equals(CheckoutPath, StringComparison.OrdinalIgnoreCase) || context.Request.Path.Equals(DiscountPath, StringComparison.OrdinalIgnoreCase)))
         {
             var customer = Athlos.Tenancy.TenantContextMiddleware.UserIdOf(context.User)?.ToString()
                 ?? $"client:{context.Connection.RemoteIpAddress}";

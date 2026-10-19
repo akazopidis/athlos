@@ -2,6 +2,8 @@ import { Check, ShoppingBag } from 'lucide-react'
 import { Link } from 'react-router'
 import type { components } from '@/api/catalog'
 import { ProgramCover } from '@/components/program-cover'
+import { SaveButton } from '@/components/save-button'
+import { RatingBadge } from '@/components/stars'
 import { Button } from '@/components/ui/button'
 import { MaxCartItems, useCart } from '@/lib/cart'
 import { categoryLabel } from '@/lib/categories'
@@ -11,8 +13,8 @@ import { formatMoney } from '@/lib/money'
 
 type Program = components['schemas']['SearchProgramsItem']
 
-// A program as a shop product: cover, category and length, the coach, the price, and a quick
-// "Add to cart".
+// A program as a shop product: cover, category and length, the coach, its rating, the price, a quick
+// "Add to cart", and a heart to save it for later.
 // mine: a program of a workspace the visitor coaches in; it is theirs in the studio, not for sale to them.
 export function ProductCard({ program: p, coach, owned, mine = false }: { program: Program; coach?: Coach; owned: boolean; mine?: boolean }) {
   const weeks = Number(p.durationWeeks)
@@ -37,6 +39,8 @@ export function ProductCard({ program: p, coach, owned, mine = false }: { progra
           )}
         </div>
       </Link>
+      {/* Outside the cover's link and above the card's stretched link, so it gets its own clicks. */}
+      {!owned && !mine && <SaveButton programId={p.id} title={p.title} compact className="absolute top-2 right-2 z-10" />}
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <CoachMark coach={coach} name={coachName} />
@@ -49,6 +53,7 @@ export function ProductCard({ program: p, coach, owned, mine = false }: { progra
             {p.title}
           </Link>
         </h3>
+        <RatingBadge average={Number(p.ratingAverage ?? 0)} count={Number(p.ratingCount ?? 0)} />
         <div className="mt-auto flex items-center justify-between gap-3">
           <span className="font-heading text-xl font-black tabular-nums">{formatMoney(p.priceAmount, p.currency)}</span>
           {/* Above the card's stretched link, so it gets its own clicks. */}

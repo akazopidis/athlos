@@ -121,7 +121,10 @@ public sealed class StripeCheckoutSessions(IStripeClient stripe) : ICheckoutSess
                 {
                     Currency = request.Currency.ToLowerInvariant(),
                     UnitAmount = order.Amount,
-                    ProductData = new SessionLineItemPriceDataProductDataOptions { Name = order.ProgramTitle },
+                    ProductData = new SessionLineItemPriceDataProductDataOptions
+                    {
+                        Name = order.DiscountCode is null ? order.ProgramTitle : $"{order.ProgramTitle} (code {order.DiscountCode})",
+                    },
                 },
             }).ToList(),
             PaymentIntentData = new SessionPaymentIntentDataOptions

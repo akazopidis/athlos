@@ -12,10 +12,11 @@ const tabs = [
   { to: '', label: 'Overview', end: true },
   { to: 'sales', label: 'Sales' },
   { to: 'reviews', label: 'Reviews' },
+  { to: 'discounts', label: 'Discounts' },
   { to: 'settings', label: 'Settings' },
 ]
 
-// The coach dashboard (design §8, "/studio/{slug}": programs, sales, reviews, settings, Stripe onboarding).
+// The coach dashboard (design §8, "/studio/{slug}": programs, sales, reviews, discount codes, settings, Stripe onboarding).
 // A layout: the workspace header and tabs; the pages render in the outlet.
 export function Studio() {
   const { slug, workspace } = useStudio()

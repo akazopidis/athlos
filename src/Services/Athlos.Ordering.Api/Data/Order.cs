@@ -29,6 +29,12 @@ public sealed class Order : ITenantOwned, IHasTimestamps
 
     public required long PlatformFee { get; init; }
 
+    // The coach's discount code this order used, and what it took off the price (design §2.4); Amount
+    // is what the customer paid, after it. Null and 0 without a code.
+    public string? DiscountCode { get; init; }
+
+    public long DiscountAmount { get; init; }
+
     public OrderStatus Status { get; set; } = OrderStatus.Pending;
 
     // The customer's Idempotency-Key header, unique per customer (design §7.1). Set only on orders

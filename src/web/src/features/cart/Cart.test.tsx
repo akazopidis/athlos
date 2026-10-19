@@ -37,14 +37,14 @@ const signedIn = {
 } as unknown as PublicClientApplication
 
 // prices: the current price of a program by slug (its public page); unlisted programs answer 404.
-function renderCart(checkout: () => Response, prices: Record<string, number> = {}) {
+function renderCart(checkout: (path: string) => Response, prices: Record<string, number> = {}) {
   const requests: Request[] = []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (request: Request) => {
       requests.push(request.clone())
       const path = new URL(request.url).pathname
-      if (request.method === 'POST') return checkout()
+      if (request.method === 'POST') return checkout(path)
       if (path === '/api/v1/me/programs') return Response.json({ items: [], page: 1, pageSize: 20, totalCount: 0 })
       const program = /^\/api\/v1\/marketplace\/coaches\/[^/]+\/programs\/([^/]+)$/.exec(path)
       if (program) {
@@ -123,4 +123,27 @@ test('a coach who cannot take payments is marked, and the cart stays', async () 
   expect(await screen.findByText(/This coach cannot take payments right now/)).toBeInTheDocument()
   expect(await screen.findByRole('status')).toHaveTextContent('Ben Runs cannot take payments right now. Remove that program to check out the rest.')
   expect(JSON.parse(localStorage.getItem('athlos.cart')!)).toHaveLength(2)
+})
+
+test('a discount code lowers the programs of its coach and goes with the checkout', async () => {
+  const requests = renderCart((path) =>
+    path === '/api/v1/orders/discount'
+      ? Response.json({ code: 'ANNA20', lines: [{ programId: annaProgram.programId, percentOff: 20, discountAmount: 980 }] })
+      : Response.json({ checkoutId: 'checkout', checkoutUrl: 'https://checkout.stripe.test/cart' }),
+  )
+
+  fireEvent.change(await screen.findByLabelText('Discount code'), { target: { value: 'anna20' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+  expect(await screen.findByText('Discount (ANNA20)')).toBeInTheDocument()
+  expect(screen.getByText('−€9.80')).toBeInTheDocument()
+  expect(screen.getByText('€59.20')).toBeInTheDocument()
+  expect(screen.getByText('−20%')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Check out' }))
+
+  await waitFor(() => expect(leaveTo).toHaveBeenCalled())
+  const check = requests.find((r) => new URL(r.url).pathname === '/api/v1/orders/discount')!
+  expect(await check.json()).toEqual({ code: 'ANNA20', programIds: [annaProgram.programId, benProgram.programId] })
+  const post = requests.find((r) => new URL(r.url).pathname === '/api/v1/orders/checkout')!
+  expect(await post.json()).toEqual({ programIds: [annaProgram.programId, benProgram.programId], discountCode: 'ANNA20' })
 })

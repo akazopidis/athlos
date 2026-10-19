@@ -16,14 +16,17 @@ public static class OrderLists
 
     // CheckoutId: the cart checkout it was bought in (null before the cart), so the page Stripe returns
     // to can find the orders of that payment.
-    public sealed record MyOrder(Guid Id, Guid ProgramId, string ProgramTitle, string CoachSlug, long Amount, string Currency, OrderStatus Status, DateTimeOffset CreatedAt, DateTimeOffset? PaidAt, Guid? CheckoutId);
+    // DiscountCode and DiscountAmount: a coach's code and what it took off (design §2.4); Amount is what was paid.
+    public sealed record MyOrder(
+        Guid Id, Guid ProgramId, string ProgramTitle, string CoachSlug, long Amount, string Currency, OrderStatus Status, DateTimeOffset CreatedAt, DateTimeOffset? PaidAt,
+        Guid? CheckoutId, string? DiscountCode, long DiscountAmount);
 
     // Status: Paid or Refunded (a refunded sale stays in the list, marked, and earns nothing).
     // RefundableUntil: the end of the coach's refund window (Payments:RefundWindowDays after payment).
     // CustomerEmail: null once the customer deleted their account (design §5.2).
     public sealed record Sale(
         Guid Id, Guid ProgramId, string ProgramTitle, string? CustomerEmail, long Amount, long PlatformFee, string Currency, DateTimeOffset PaidAt,
-        OrderStatus Status, DateTimeOffset? RefundedAt, DateTimeOffset RefundableUntil);
+        OrderStatus Status, DateTimeOffset? RefundedAt, DateTimeOffset RefundableUntil, string? DiscountCode);
 
     public sealed record Paging([property: Range(1, 10_000)] int Page = 1, [property: Range(1, MaxPageSize)] int PageSize = 20);
 
@@ -46,7 +49,7 @@ public static class OrderLists
                 return TypedResults.Ok(new MyOrdersPage(
                     await orders.OrderByDescending(o => o.CreatedAt)
                         .Skip((paging.Page - 1) * paging.PageSize).Take(paging.PageSize)
-                        .Select(o => new MyOrder(o.Id, o.ProgramId, o.ProgramTitle, o.CoachSlug, o.Amount, o.Currency, o.Status, o.CreatedAt, o.PaidAt, o.CheckoutId))
+                        .Select(o => new MyOrder(o.Id, o.ProgramId, o.ProgramTitle, o.CoachSlug, o.Amount, o.Currency, o.Status, o.CreatedAt, o.PaidAt, o.CheckoutId, o.DiscountCode, o.DiscountAmount))
                         .ToListAsync(cancellationToken),
                     paging.Page, paging.PageSize, await orders.CountAsync(cancellationToken)));
             })
@@ -67,7 +70,7 @@ public static class OrderLists
                     await sales.OrderByDescending(o => o.PaidAt)
                         .Skip((paging.Page - 1) * paging.PageSize).Take(paging.PageSize)
                         .Select(o => new Sale(o.Id, o.ProgramId, o.ProgramTitle, o.CustomerEmail == Customers.EraseCustomer.ErasedEmail ? null : o.CustomerEmail, o.Amount, o.PlatformFee, o.Currency, o.PaidAt!.Value, o.Status, o.RefundedAt,
-                            o.PaidAt!.Value + window))
+                            o.PaidAt!.Value + window, o.DiscountCode))
                         .ToListAsync(cancellationToken),
                     paging.Page, paging.PageSize, await sales.CountAsync(cancellationToken)));
             })

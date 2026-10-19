@@ -163,6 +163,7 @@ function SaleRow({
       <TableCell className="max-w-48">
         <span className="block truncate">{s.programTitle}</span>
         {refunded && <Badge variant="secondary">Refunded</Badge>}
+        {s.discountCode && <span className="block text-xs text-muted-foreground">Code {s.discountCode}</span>}
       </TableCell>
       <TableCell className="hidden text-muted-foreground md:table-cell">{s.customerEmail ?? <span className="italic">Deleted account</span>}</TableCell>
       <TableCell className="hidden text-right tabular-nums sm:table-cell">{formatMoney(s.amount, s.currency)}</TableCell>

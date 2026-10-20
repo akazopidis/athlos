@@ -91,6 +91,12 @@ public sealed class Checkout : IHasTimestamps
 
     public required string CheckoutUrl { get; init; }
 
+    // The version of the Terms the customer accepted for this purchase (design §5.4), and when.
+    // Null on checkouts from before v1.12.0.
+    public string? TermsVersion { get; init; }
+
+    public DateTimeOffset? TermsAcceptedAt { get; init; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

@@ -16,6 +16,7 @@ import { useApp } from '@/lib/AppContext'
 import { formatRating } from '@/lib/rating'
 import { MaxCartItems, useCart } from '@/lib/cart'
 import { categoryLabel } from '@/lib/categories'
+import { TermsVersion } from '@/lib/legal'
 import { formatMoney } from '@/lib/money'
 import { leaveTo } from '@/lib/navigation'
 import { problemTitle } from '@/lib/problem'
@@ -61,7 +62,7 @@ export function ProgramPage() {
   const buy = useMutation({
     mutationFn: async (programId: string) => {
       const { data, error, response } = await api.POST('/api/v1/orders/checkout', {
-        body: { programIds: [programId] },
+        body: { programIds: [programId], termsVersion: TermsVersion },
         params: { header: { 'Idempotency-Key': idempotencyKey } },
       })
       if (data) return data
@@ -249,6 +250,19 @@ export function ProgramPage() {
                 </div>
               )}
             </div>
+            {signedIn && !mine && !ownsIt && (
+              <p className="mt-3 text-center text-xs text-muted-foreground">
+                By buying you accept the{' '}
+                <Link to="/legal/terms" className="underline underline-offset-4">
+                  Terms
+                </Link>{' '}
+                and the{' '}
+                <Link to="/legal/refunds" className="underline underline-offset-4">
+                  Refund policy
+                </Link>
+                .
+              </p>
+            )}
             {slow && <div className="mt-3"><p className="text-center text-xs text-muted-foreground" role="status">Waking up the payment service. This can take up to a minute the first time.</p></div>}
             {buy.error && (
               <Alert variant="destructive" role="alert" className="mt-3">

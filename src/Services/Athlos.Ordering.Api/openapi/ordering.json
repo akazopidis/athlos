@@ -1011,6 +1011,13 @@
               "null",
               "string"
             ]
+          },
+          "termsVersion": {
+            "maxLength": 20,
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

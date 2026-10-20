@@ -14,7 +14,7 @@ public static class StudioReviews
 {
     public sealed record Item(
         Guid Id, Guid ProgramId, string ProgramTitle, int Rating, string? Comment, string AuthorName, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
-        string? Reply, DateTimeOffset? RepliedAt);
+        string? Reply, DateTimeOffset? RepliedAt, DateTimeOffset? HiddenAt);
 
     public sealed record Page(List<Item> Items, int PageNumber, int PageSize, int TotalCount);
 
@@ -41,7 +41,7 @@ public static class StudioReviews
             await reviews.OrderByDescending(r => r.Review.CreatedAt).ThenBy(r => r.Review.Id)
                 .Skip((query.Page - 1) * query.PageSize).Take(query.PageSize)
                 .Select(r => new Item(r.Review.Id, r.Review.ProgramId, r.ProgramTitle, r.Review.Rating, r.Review.Comment, r.Review.AuthorName,
-                    r.Review.CreatedAt, r.Review.UpdatedAt, r.Review.Reply, r.Review.RepliedAt))
+                    r.Review.CreatedAt, r.Review.UpdatedAt, r.Review.Reply, r.Review.RepliedAt, r.Review.HiddenAt))
                 .ToListAsync(cancellationToken),
             query.Page, query.PageSize, await reviews.CountAsync(cancellationToken)));
     }

@@ -86,6 +86,11 @@ export function MyReview({ programId, review }: { programId: string; review: Rev
         review && (
           <div className="space-y-3">
             <Stars value={Number(review.rating)} />
+            {review.hiddenAt && (
+              <p className="text-sm text-muted-foreground">
+                Athlos hid this review after a report, so it no longer shows on the program's page. You can edit it or delete it.
+              </p>
+            )}
             {review.comment && <p className="text-sm whitespace-pre-line">{review.comment}</p>}
             {review.reply && (
               <div className="space-y-1 rounded-2xl bg-muted/60 p-4 text-sm">

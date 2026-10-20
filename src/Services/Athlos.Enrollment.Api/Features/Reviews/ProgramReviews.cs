@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Enrollment.Api.Data;
+using Athlos.Enrollment.Api.Features.MyPrograms;
 using Athlos.Tenancy.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,8 @@ namespace Athlos.Enrollment.Api.Features.Reviews;
 // so the read ignores the tenant filter and runs in the public-read scope, where RLS shows every
 // review (and nothing else of the tenant's: enrollments and progress stay hidden). Reviewers are shown
 // by the name they reviewed under; no customer id leaves.
+// Reviews are public only while their program is on sale (catalog's offer, asked before the database is
+// read, so no connection waits on the call), and reviews the platform admin hid are left out.
 public static class ProgramReviews
 {
     public const int MaxPageSize = 50;
@@ -28,11 +31,18 @@ public static class ProgramReviews
             .WithName("ListProgramReviews")
             .WithTags("Reviews");
 
-    private static async Task<Ok<Response>> Handle(Guid programId, [AsParameters] Paging paging, EnrollmentDbContext db, CancellationToken cancellationToken)
+    private static async Task<Results<Ok<Response>, NotFound>> Handle(
+        Guid programId, [AsParameters] Paging paging, EnrollmentDbContext db, IProgramContent programs, CancellationToken cancellationToken)
     {
+        if (await programs.GetOnSaleAsync(programId, cancellationToken) is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var reviews = db.Reviews.AsNoTracking()
             .IgnoreQueryFilters([TenantDbContext.TenantFilter])
-            .Where(r => r.ProgramId == programId);
+            .Where(r => r.ProgramId == programId && r.HiddenAt == null);
 
         var counts = await reviews.GroupBy(r => r.Rating).Select(g => new { Rating = g.Key, Count = g.Count() }).ToListAsync(cancellationToken);
         var stars = Enumerable.Range(1, 5).Select(n => counts.SingleOrDefault(c => c.Rating == n)?.Count ?? 0).ToList();

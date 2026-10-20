@@ -34,6 +34,10 @@ public sealed class Review : ITenantOwned, IHasTimestamps
 
     public DateTimeOffset? RepliedAt { get; set; }
 
+    // Set when the platform admin hides the review after a report (design §2.4): it leaves the
+    // program's page and its rating; its author and the coach still see it, marked.
+    public DateTimeOffset? HiddenAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

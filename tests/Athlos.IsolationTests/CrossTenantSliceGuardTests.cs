@@ -19,6 +19,8 @@ public sealed class CrossTenantSliceGuardTests
         "src/Services/Athlos.Enrollment.Api/Features/MyPrograms/MyEnrollments.cs",
         // The public reviews of a program, every tenant's (public-read scope, design §2.4).
         "src/Services/Athlos.Enrollment.Api/Features/Reviews/ProgramReviews.cs",
+        // Reporting a public review reads it like the public list (design §2.4).
+        "src/Services/Athlos.Enrollment.Api/Features/Reviews/ReviewModeration.cs",
         // A user's own memberships across workspaces.
         "src/Services/Athlos.Tenancy.Api/Features/Account/ListMyMemberships.cs",
         // Deleting an account: the user's own memberships, orders and enrollments, found across

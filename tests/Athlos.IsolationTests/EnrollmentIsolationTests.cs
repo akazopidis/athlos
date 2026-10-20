@@ -43,6 +43,10 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         { "GET", "/api/v1/studio/any/reviews" },
         { "PUT", $"/api/v1/studio/any/reviews/{Guid.Empty}/reply" },
         { "DELETE", $"/api/v1/studio/any/reviews/{Guid.Empty}/reply" },
+        { "POST", $"/api/v1/marketplace/programs/{Guid.Empty}/reviews/{Guid.Empty}/report" },
+        { "GET", "/api/v1/admin/reviews/reports" },
+        { "POST", $"/api/v1/admin/reviews/{Guid.Empty}/hide" },
+        { "POST", $"/api/v1/admin/reviews/{Guid.Empty}/keep" },
     };
 
     [Theory]
@@ -254,6 +258,25 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         Assert.DoesNotContain(review.ToString(), listedUnderA, StringComparison.Ordinal);
         Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound), (replied.StatusCode, removed.StatusCode));
         Assert.Null(await Scalar<object>(_a.TenantId, null, $"SELECT reply FROM reviews WHERE id = '{review}'") as string);
+    }
+
+    // Moderation (design §2.4): a report must name the review's own program (another program's id finds
+    // nothing), and only the platform admin hides; a coach or customer gets 403 whatever the review.
+    [Fact]
+    public async Task Reports_name_the_reviews_own_program_and_only_the_admin_hides()
+    {
+        await Review(_alice, _alicesProgram.ProgramId, 1);
+        var review = await Scalar<Guid>(_a.TenantId, null, $"SELECT id FROM reviews WHERE program_id = '{_alicesProgram.ProgramId}'");
+
+        var wrongProgram = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/api/v1/marketplace/programs/{_bobsProgram.ProgramId}/reviews/{review}/report")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new { reason = "Spam" }),
+        }, _bob);
+        var coachHides = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/reviews/{review}/hide"), _b.OwnerId, _b.TenantId, TenantRole.Owner);
+        var hidden = await Scalar<object>(_a.TenantId, null, $"SELECT hidden_at FROM reviews WHERE id = '{review}'");
+
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.Forbidden), (wrongProgram.StatusCode, coachHides.StatusCode));
+        Assert.True(hidden is DBNull or null);
     }
 
     // Layer 4 alone: the public-read scope reads every review, never enrollments or progress, and cannot change a review.

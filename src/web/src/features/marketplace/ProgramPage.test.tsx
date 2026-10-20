@@ -1,6 +1,6 @@
 import type { PublicClientApplication } from '@azure/msal-browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApi } from '@/api/client'
@@ -186,4 +186,18 @@ test('the page shows the rating and the reviews with the coach replies', async (
   expect(section).toHaveTextContent('Anna Coaching replied')
   expect(section).toHaveTextContent('Thank you, Maria!')
   expect(screen.getAllByRole('img', { name: '5.0 out of 5 stars' }).length).toBeGreaterThan(0)
+})
+
+test('a signed-in visitor reports a review to the Athlos team', async () => {
+  const requests = renderPage(() => new Response(null, { status: 204 }))
+
+  const section = await screen.findByRole('region', { name: 'Reviews' })
+  fireEvent.click(within(section).getAllByRole('button', { name: 'Report' })[0]!)
+  fireEvent.change(screen.getByLabelText('Why?'), { target: { value: 'OffTopic' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Send report' }))
+
+  expect(await screen.findByText('Thanks, the Athlos team will take a look.')).toBeInTheDocument()
+  const post = requests.find((r) => r.method === 'POST')!
+  expect(new URL(post.url).pathname).toBe(`/api/v1/marketplace/programs/${program.id}/reviews/r1/report`)
+  expect(await post.json()).toEqual({ reason: 'OffTopic', note: null })
 })

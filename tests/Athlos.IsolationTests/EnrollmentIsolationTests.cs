@@ -207,6 +207,23 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, error.SqlState);
     }
 
+    // A data export (design §5.4) holds the customer's own programs and reviews, and nobody else's.
+    [Fact]
+    public async Task Alices_export_holds_her_programs_only()
+    {
+        await Review(_bob, _bobsProgram.ProgramId, 2);
+
+        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/customers/{_alice}/export"));
+        var export = await response.Content.ReadAsStringAsync(Cancel);
+        var unsigned = await _api.CreateClient().GetAsync($"/internal/customers/{_alice}/export", Cancel);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(_alicesProgram.ProgramId.ToString(), export, StringComparison.Ordinal);
+        Assert.Contains(_alicesProgram.Workouts[0].Id.ToString(), export, StringComparison.Ordinal);
+        Assert.DoesNotContain(_bobsProgram.ProgramId.ToString(), export, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Unauthorized, unsigned.StatusCode);
+    }
+
     // Reviews (design §2.4): only the buyer reviews their program; another customer's attempt is 404.
     [Fact]
     public async Task Bob_cannot_review_or_remove_Alices_review()

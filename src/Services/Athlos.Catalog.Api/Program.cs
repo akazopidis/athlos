@@ -113,6 +113,9 @@ app.MapGroup("/internal")
 // Tenancy-api only (signed): erase a deleted account's saved programs (design §5.2)
 app.MapGroup("/internal")
     .MapEraseCustomer();
+// Tenancy-api only (signed): a customer's saved programs for their data export (design §5.4)
+app.MapGroup("/internal")
+    .MapExportCustomer();
 studio.MapWorkouts();
 
 app.Run();

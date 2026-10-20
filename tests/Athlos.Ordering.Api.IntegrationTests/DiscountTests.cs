@@ -39,6 +39,32 @@ public sealed class DiscountTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal(("SUMMER-20", 980L, 3920L), (mine.DiscountCode, mine.DiscountAmount, mine.Amount));
     }
 
+    // The receipt (design §5.4): one per checkout, across coaches, with each line's price, discount and
+    // amount paid; a refunded line stays, marked. Not paid yet: 404.
+    [Fact]
+    public async Task The_receipt_lists_prices_discounts_and_refunds()
+    {
+        var mine = _api.Sellers.Sell(_coach.TenantId, _coach.Slug, price: 2000);
+        var theirs = _api.Sellers.Sell(_other.TenantId, _other.Slug, price: 3000);
+        await CreateCode(_coach, new { code = "HALF", percentOff = 50 });
+        var checkout = await Checkout(_customer, "HALF", mine.ProgramId, theirs.ProgramId);
+        var unpaid = await Receipt(checkout.CheckoutId);
+        await _api.Pay(checkout);
+        var theirOrder = _api.OrdersOf(checkout).Single(o => o.ProgramId == theirs.ProgramId);
+        await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/api/v1/studio/{_other.Slug}/sales/{theirOrder.Id}/refund"), _other.OwnerId, _other.TenantId, TenantRole.Owner);
+
+        var receipt = await Read<ReceiptRow>(await Receipt(checkout.CheckoutId));
+
+        Assert.Equal(HttpStatusCode.NotFound, unpaid.StatusCode);
+        Assert.Equal((5000L, 1000L, 4000L, 3000L), (receipt.Subtotal, receipt.Discount, receipt.Total, receipt.Refunded));
+        var half = receipt.Lines.Single(l => l.DiscountCode == "HALF");
+        Assert.Equal((2000L, 1000L, 1000L), (half.Price, half.DiscountAmount, half.Amount));
+        Assert.Equal("Refunded", receipt.Lines.Single(l => l.DiscountCode is null).Status);
+    }
+
+    private Task<HttpResponseMessage> Receipt(Guid checkoutId) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/me/orders/receipts/{checkoutId}"), _customer);
+
     // A code is looked up inside each coach's tenant: another coach's programs in the same cart keep
     // their price, and a code no coach in the cart has is refused, by the check and by checkout.
     [Fact]
@@ -146,4 +172,8 @@ public sealed class DiscountTests(AthlosDatabases databases) : IAsyncLifetime
     private sealed record MyOrderRow(long Amount, string? DiscountCode, long DiscountAmount);
 
     private sealed record MyOrdersPage(List<MyOrderRow> Items);
+
+    private sealed record ReceiptLineRow(long Price, string? DiscountCode, long DiscountAmount, long Amount, string Status);
+
+    private sealed record ReceiptRow(long Subtotal, long Discount, long Total, long Refunded, List<ReceiptLineRow> Lines);
 }

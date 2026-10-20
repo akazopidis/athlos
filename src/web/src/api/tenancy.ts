@@ -132,6 +132,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ExportMyData"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/studio/{tenantSlug}/workspace": {
         parameters: {
             query?: never;
@@ -373,6 +389,28 @@ export interface components {
         DeleteWorkspaceRequest: {
             confirmSlug: string;
         };
+        ExportMyDataProfile: {
+            /** Format: uuid */
+            userId: string;
+            email: null | string;
+            displayName: null | string;
+        };
+        ExportMyDataResponse: {
+            /** Format: date-time */
+            exportedAt: string;
+            account: components["schemas"]["ExportMyDataProfile"];
+            workspaces: components["schemas"]["ExportMyDataWorkspace"][];
+            orders: components["schemas"]["JsonElement"];
+            programs: components["schemas"]["JsonElement"];
+            saved: components["schemas"]["JsonElement"];
+        };
+        ExportMyDataWorkspace: {
+            slug: string;
+            displayName: string;
+            role: components["schemas"]["TenantRole"];
+            /** Format: date-time */
+            since: string;
+        };
         GetPlatformMetricsResponse: {
             /** Format: int32 */
             workspaces: number | string;
@@ -418,6 +456,7 @@ export interface components {
         };
         /** Format: binary */
         IFormFile: string;
+        JsonElement: unknown;
         ListMyMembershipsItem: {
             /** Format: uuid */
             tenantId: string;
@@ -705,6 +744,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UpsertMyProfileResponse"];
+                };
+            };
+        };
+    };
+    ExportMyData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportMyDataResponse"];
                 };
             };
         };

@@ -14,8 +14,8 @@ The limitations fall into three kinds:
 | # | Limitation | Kind | Area |
 |---|---|---|---|
 | 1 | No VAT or invoices | Scope | Legal, payments |
-| 2 | No legal pages (terms, privacy, cookies) | Scope | Legal |
-| 3 | No personal data export | Scope | Legal, GDPR |
+| 2 | Legal pages are drafts; coaches accept no terms | Scope | Legal |
+| 3 | The data export is one synchronous JSON file | Trade-off | Legal, GDPR |
 | 4 | Customers lose bought programs when a coach deletes their workspace | Trade-off | Tenant lifecycle |
 | 5 | No program versioning | Scope | Product |
 | 6 | Stripe in test mode only | Scope | Payments |
@@ -44,17 +44,19 @@ The limitations fall into three kinds:
 - **Impact:** with separate charges and transfers (§2.2), the platform is the merchant of record. Under EU rules for marketplaces selling digital services, it would owe VAT at the customer's country rate and report it through the OSS (One-Stop Shop) scheme. Selling without this is not legal in the EU.
 - **Solution:** Stripe Tax on Checkout (automatic tax calculation, plus customer address collection) and Stripe invoices or receipts. Stripe Tax costs about 0.5% per transaction. Prices would need to be stored as VAT-inclusive or exclusive, and each order's tax amount recorded in ordering-api.
 
-### 2. No legal pages
-- **Missing:** terms of service for customers and coaches, a privacy policy, a cookie notice and an imprint.
-- **Why:** these are legal texts, not engineering.
-- **Impact:** required before any public launch (GDPR transparency, EU consumer law, the platform's terms with coaches). Athlos sets no tracking cookies. The sign-in library keeps tokens in browser storage and the cart lives in local storage, both strictly necessary, but the privacy policy must say so.
-- **Solution:** static pages served by the SPA and linked from the footer and from sign-up. Coaches would accept the platform terms when they open a workspace, with the accepted version recorded in tenancy-api.
+### 2. Legal pages are drafts; coaches accept no terms
+- **Built (v1.12.0, design §5.4):** Terms, Privacy and Refund policy pages linked from the footer; customers accept the Terms at checkout, and each checkout keeps the accepted version.
+- **Missing:** a lawyer's review of the texts, an imprint naming the operator, and terms for coaches: a coach opens a workspace without accepting platform terms.
+- **Why:** these are legal texts, not engineering; the pages describe what the platform does, as a starting point.
+- **Impact:** required before any public launch with real payments (GDPR transparency, EU consumer law, the platform's terms with coaches).
+- **Solution:** a reviewed text, and the same version check for coaches when they open a workspace, with the accepted version recorded in tenancy-api.
 
-### 3. No personal data export
-- **Missing:** a "download my data" option. Account deletion exists (§5.2): the right to erasure is implemented, but the rights of access and portability (GDPR articles 15 and 20) are not.
-- **Why:** deletion was the harder, more interesting problem across tenants; export follows the same path.
-- **Impact:** requests would have to be answered by hand from four databases.
-- **Solution:** `GET /api/v1/me/export` on tenancy-api, fanning out to each service's internal route for the user's own rows (the same cross-tenant slices account deletion already uses), assembled into one JSON file. Without an async job, the export is bounded by the slowest service.
+### 3. The data export is one synchronous JSON file
+- **Built (v1.12.0, design §5.4):** "Download my data" (`GET /api/v1/me/export` on tenancy-api) gathers the user's own rows from every service through signed internal routes and hands back one JSON file: the rights of access and portability (GDPR articles 15 and 20) next to erasure (§5.2).
+- **Missing:** an asynchronous export for large accounts, and a coach's export of their workspace (programs, sales).
+- **Why:** a customer's data is small; one request is enough.
+- **Impact:** the export waits for the slowest service, and a cold start can make the first try time out (it answers 502 and the user tries again).
+- **Solution:** a queued export job writing the file to Blob Storage and emailing a short-lived link.
 
 ### 4. Customers lose bought programs when a coach deletes their workspace
 - **Missing:** a way for customers to keep paid content after the coach erases their workspace (§3.4). Since v1.7.0 a workspace cannot be deleted while any sale can still be refunded, and its open payment pages are closed first, so the loss only reaches purchases older than the refund window.

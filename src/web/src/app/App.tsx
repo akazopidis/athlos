@@ -28,6 +28,7 @@ const SavedPrograms = lazyPage(() => import('@/features/account/SavedPrograms'),
 const MyWorkspaces = lazyPage(() => import('@/features/account/MyWorkspaces'), 'MyWorkspaces')
 const AccountSettings = lazyPage(() => import('@/features/account/AccountSettings'), 'AccountSettings')
 const MyProgramPage = lazyPage(() => import('@/features/account/MyProgramPage'), 'MyProgramPage')
+const Receipt = lazyPage(() => import('@/features/account/Receipt'), 'Receipt')
 const Studio = lazyPage(() => import('@/features/studio/Studio'), 'Studio')
 const StudioOverview = lazyPage(() => import('@/features/studio/StudioOverview'), 'StudioOverview')
 const StudioProgramEditor = lazyPage(() => import('@/features/studio/StudioProgramEditor'), 'StudioProgramEditor')
@@ -80,6 +81,7 @@ export default function App() {
                 <Route path="account" element={<AccountSettings />} />
               </Route>
               <Route path="/me/programs/:programId" element={<MyProgramPage />} />
+              <Route path="/me/orders/:checkoutId/receipt" element={<Receipt />} />
               <Route path="/admin" element={<Admin />} />
               <Route
                 path="*"

@@ -225,6 +225,26 @@
         }
       }
     },
+    "/api/v1/me/export": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "ExportMyData",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportMyDataResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/studio/{tenantSlug}/workspace": {
       "get": {
         "tags": [
@@ -992,6 +1012,91 @@
           }
         }
       },
+      "ExportMyDataProfile": {
+        "required": [
+          "userId",
+          "email",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ExportMyDataResponse": {
+        "required": [
+          "exportedAt",
+          "account",
+          "workspaces",
+          "orders",
+          "programs",
+          "saved"
+        ],
+        "type": "object",
+        "properties": {
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "account": {
+            "$ref": "#/components/schemas/ExportMyDataProfile"
+          },
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportMyDataWorkspace"
+            }
+          },
+          "orders": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "programs": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "saved": {
+            "$ref": "#/components/schemas/JsonElement"
+          }
+        }
+      },
+      "ExportMyDataWorkspace": {
+        "required": [
+          "slug",
+          "displayName",
+          "role",
+          "since"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TenantRole"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "GetPlatformMetricsResponse": {
         "required": [
           "workspaces",
@@ -1193,6 +1298,7 @@
         "type": "string",
         "format": "binary"
       },
+      "JsonElement": { },
       "ListMyMembershipsItem": {
         "required": [
           "tenantId",

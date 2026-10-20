@@ -41,7 +41,20 @@ export function Footer() {
         </nav>
       </div>
       <div className="border-t">
-        <p className="container-page py-4 text-xs text-muted-foreground">Athlos {version ?? ''}</p>
+        <div className="container-page flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-4 text-xs text-muted-foreground">
+          <p>Athlos {version ?? ''}</p>
+          <nav aria-label="Legal" className="flex gap-4">
+            <Link to="/legal/terms" className="hover:text-foreground">
+              Terms
+            </Link>
+            <Link to="/legal/privacy" className="hover:text-foreground">
+              Privacy
+            </Link>
+            <Link to="/legal/refunds" className="hover:text-foreground">
+              Refunds
+            </Link>
+          </nav>
+        </div>
       </div>
     </footer>
   )

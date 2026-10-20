@@ -4,6 +4,8 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17, built; v1.11.0 in production (2026-10-19)
 
+**Changes in v17.1 (v1.12.0):** legal pages and accepting the Terms at checkout (§5.4).
+
 **Changes in v17 (v1.11.0):** saved programs, reviews and ratings, and discount codes (§2.4); new tables in §2.3; the `review-received` email (§5.3); the saved-programs list is a listed cross-tenant slice (§3.2).
 
 **Changes in v16.1 (v1.10.0):** coach profiles (bio, links, uploaded logo, §3.2, §8), the coach directory, program pages with an outline and a free preview, category covers, the "Sell on Athlos" page, studio numbers and link previews (§8, §8.1).
@@ -498,6 +500,12 @@ Built in phase 5:
   - **Accepting** (`POST /api/v1/invites/{slug}/accept`): the invitee is not a member, so the gateway resolves no tenant; the slice enters the workspace named by the slug, like `CreateTenant`, and looks the invite up there by the token's hash under RLS. The token decides, not the slug: another workspace's slug finds nothing. Only the signed-in user whose verified email equals the invited address can accept (a forwarded link is useless to anyone else), once; anything else is `404`. The user becomes `Staff`.
   - `staff_invites` has the standard tenant isolation policy (no widened reads).
 - **The team** (v1.7.0): `GET /api/v1/studio/{slug}/members` lists the members to every member, with addresses for the owner only (profiles are readable inside the tenant, `tenant_members_read`). `DELETE .../members/{userId}` removes a staff member (owner) or leaves (staff, naming themselves). The owner cannot leave (`409`): `POST .../members/{userId}/ownership` hands ownership to a staff member, swapping the two roles in one transaction, so a workspace always has exactly one owner. The same transaction disconnects the workspace's Stripe account (`stripe_account_id`, onboarding flag): it belongs to the person who set it up and pays out to their bank, so the new owner's sales must not reach it. Sales pause (checkout finds no payout account) until the new owner sets up payouts with their own account. Earlier orders name the account they pay (`seller_account_id`), so their pending payouts and refunds stay with the previous owner. Everything runs inside the tenant, so another tenant's member is `404` (isolation suite). The gateway caches memberships for up to 60 seconds, so a removed member or a former owner keeps their old access for at most a minute.
+
+### 5.4 Terms, receipts and personal data (v1.12.0)
+
+What a shop taking real money from EU customers needs besides the payment itself.
+- *Legal pages.* `/legal/terms`, `/legal/privacy` and `/legal/refunds`, linked from the footer, say what the platform does: who sells (the coach), who is paid (the platform, which passes each coach their share), the refund window, what data goes to Microsoft and Stripe, and what deleting an account erases. They are SPA pages; a lawyer would review them before live payments (`limitations.md`).
+- *Accepting the Terms.* The cart asks the customer to tick "I accept the Terms and the Refund policy"; "Buy now" says that buying accepts them. Each checkout sends the version shown (`termsVersion`, the SPA's `lib/legal.ts`), and ordering-api refuses any version but `Legal:TermsVersion` (`409`, reason `terms`), so nobody pays under terms they were not shown. The `checkouts` row keeps `terms_version` and `terms_accepted_at` as evidence.
 
 ---
 

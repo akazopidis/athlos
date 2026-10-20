@@ -294,6 +294,7 @@ export interface components {
         StartCheckoutRequest: {
             programIds: string[];
             discountCode?: null | string;
+            termsVersion?: null | string;
         };
         StartCheckoutResponse: {
             /** Format: uuid */

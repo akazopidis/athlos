@@ -59,6 +59,7 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
             checkout.Property(c => c.IdempotencyKey).HasMaxLength(100);
             checkout.Property(c => c.StripeCheckoutSessionId).HasMaxLength(255);
             checkout.Property(c => c.CheckoutUrl).HasMaxLength(2000);
+            checkout.Property(c => c.TermsVersion).HasMaxLength(20);
         });
 
         modelBuilder.Entity<PayoutRetry>(retry =>

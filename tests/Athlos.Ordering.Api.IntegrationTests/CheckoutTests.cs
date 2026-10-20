@@ -4,6 +4,8 @@ using System.Text.Json;
 using Athlos.Messaging.Contracts;
 using Athlos.Ordering.Api.Data;
 using Athlos.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using static Athlos.Testing.OrderingArrange;
 
 namespace Athlos.Ordering.Api.IntegrationTests;
@@ -28,6 +30,38 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal((4900, 490, "EUR"), (order.Amount, order.PlatformFee, order.Currency));
         Assert.Equal((coach.TenantId, checkout.CheckoutId), (order.TenantId, order.CheckoutId));
         Assert.Equal(OrderStatus.Pending, (await MyOrders(customer)).Single().Status);
+    }
+
+    // The Terms (design §5.4): a checkout must name the current version; none or an old one creates
+    // nothing, and the accepted version is kept on the checkout.
+    [Fact]
+    public async Task A_checkout_needs_the_current_terms_and_keeps_the_accepted_version()
+    {
+        var coach = NewCoach();
+        var offer = _api.Sellers.Sell(coach.TenantId, coach.Slug);
+        var customer = Guid.CreateVersion7();
+
+        var none = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout")
+        {
+            Content = JsonContent.Create(new { programIds = new[] { offer.ProgramId } }),
+        }, customer);
+        var old = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout")
+        {
+            Content = JsonContent.Create(new { programIds = new[] { offer.ProgramId }, termsVersion = "2020-01-01" }),
+        }, customer);
+        var before = _api.CheckoutSessions.Sessions.Count;
+        var checkout = await _api.Checkout(customer, offer.ProgramId);
+
+        Assert.Equal((HttpStatusCode.Conflict, HttpStatusCode.Conflict), (none.StatusCode, old.StatusCode));
+        Assert.Contains("\"terms\"", await old.Content.ReadAsStringAsync(Cancel), StringComparison.Ordinal);
+        await using var scope = _api.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+        await using var transaction = await db.Database.BeginTransactionAsync(Cancel);
+        await db.Database.ExecuteSqlAsync($"SELECT set_config('app.user_id', {customer.ToString()}, true)", Cancel);
+        var row = await db.Checkouts.AsNoTracking().SingleAsync(c => c.Id == checkout.CheckoutId, Cancel);
+        Assert.Equal(TermsVersion, row.TermsVersion);
+        Assert.NotNull(row.TermsAcceptedAt);
+        Assert.Equal(before + 1, _api.CheckoutSessions.Sessions.Count);
     }
 
     // The cart (design §2.2): one payment for programs of several coaches. Each order lands in its

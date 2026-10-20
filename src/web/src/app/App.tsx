@@ -16,6 +16,9 @@ const Admin = lazyPage(() => import('@/features/admin/Admin'), 'Admin')
 const Cart = lazyPage(() => import('@/features/cart/Cart'), 'Cart')
 const Coaches = lazyPage(() => import('@/features/marketplace/Coaches'), 'Coaches')
 const Sell = lazyPage(() => import('@/features/marketplace/Sell'), 'Sell')
+const Terms = lazyPage(() => import('@/features/legal/Legal'), 'Terms')
+const Privacy = lazyPage(() => import('@/features/legal/Legal'), 'Privacy')
+const Refunds = lazyPage(() => import('@/features/legal/Legal'), 'Refunds')
 const AcceptInvite = lazyPage(() => import('@/features/studio/AcceptInvite'), 'AcceptInvite')
 const CreateWorkspace = lazyPage(() => import('@/features/studio/CreateWorkspace'), 'CreateWorkspace')
 const Me = lazyPage(() => import('@/features/account/Me'), 'Me')
@@ -54,6 +57,9 @@ export default function App() {
             <Route path="/sell" element={<Sell />} />
             <Route element={<Contained />}>
               <Route path="/c/:slug/programs/:programSlug" element={<ProgramPage />} />
+              <Route path="/legal/terms" element={<Terms />} />
+              <Route path="/legal/privacy" element={<Privacy />} />
+              <Route path="/legal/refunds" element={<Refunds />} />
               <Route path="/invites/:slug" element={<AcceptInvite />} />
               <Route path="/studio/new" element={<CreateWorkspace />} />
               <Route path="/studio/:slug" element={<Studio />}>

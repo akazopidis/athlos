@@ -13,6 +13,7 @@ const pages = [
   { name: 'cart', path: '/cart' },
   { name: 'sell page', path: '/sell' },
   { name: 'coach directory', path: '/coaches' },
+  { name: 'terms', path: '/legal/terms' },
 ]
 
 for (const { name, path } of pages) {

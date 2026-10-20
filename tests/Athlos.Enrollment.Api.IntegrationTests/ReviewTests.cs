@@ -155,6 +155,24 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Null(after.Reply);
     }
 
+    // Many buyers review one program at the same moment: the advisory lock orders the rating updates, so
+    // the copy in catalog ends with every review counted (design §2.4).
+    [Fact]
+    public async Task Concurrent_reviews_leave_an_exact_rating()
+    {
+        var program = _api.Programs.Add(_coach.TenantId, _coach.Slug);
+        var buyers = Enumerable.Range(0, 20).Select(_ => Guid.CreateVersion7()).ToList();
+        foreach (var buyer in buyers)
+        {
+            await _api.Deliver(Paid(buyer, _coach.TenantId, _coach.Slug, program));
+        }
+
+        var responses = await Task.WhenAll(buyers.Select((buyer, i) => WriteReview(buyer, program.ProgramId, i % 5 + 1, null)));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        Assert.Equal((20, 3m), _api.Ratings.For(_coach.TenantId, program.ProgramId));
+    }
+
     // Reviews are public only while the program is on sale (design §2.4).
     [Fact]
     public async Task Reviews_of_a_program_off_sale_are_not_public()

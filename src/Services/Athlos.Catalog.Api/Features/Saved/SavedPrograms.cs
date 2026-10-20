@@ -5,7 +5,6 @@ using Athlos.Tenancy;
 using Athlos.Tenancy.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 
 namespace Athlos.Catalog.Api.Features.Saved;
 
@@ -71,18 +70,13 @@ public static class SavedPrograms
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: $"You can save up to {MaxSaved} programs. Remove one to save another.");
         }
 
-        db.SavedPrograms.Add(new SavedProgram { CustomerId = customerId, ProgramId = programId, SavedAt = time.GetUtcNow() });
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            // Saved by a request a moment earlier: the outcome is the same. The transaction is aborted,
-            // so answer with a status that does not commit it.
-            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This program was just saved.");
-        }
-
+        // ON CONFLICT DO NOTHING: two saves at the same moment (a double tap) both succeed, and one row
+        // is kept. RLS checks the insert like any other (customer_id = app.user_id).
+        await db.Database.ExecuteSqlAsync($"""
+            INSERT INTO saved_programs (id, customer_id, program_id, saved_at)
+            VALUES ({Guid.CreateVersion7()}, {customerId}, {programId}, {time.GetUtcNow()})
+            ON CONFLICT (customer_id, program_id) DO NOTHING
+            """, cancellationToken);
         return TypedResults.NoContent();
     }
 

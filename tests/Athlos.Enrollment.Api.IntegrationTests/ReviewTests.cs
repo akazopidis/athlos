@@ -155,6 +155,69 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Null(after.Reply);
     }
 
+    // Reviews are public only while the program is on sale (design §2.4).
+    [Fact]
+    public async Task Reviews_of_a_program_off_sale_are_not_public()
+    {
+        var program = await _api.Enroll(_customer, _coach);
+        await WriteReview(_customer, program.ProgramId, 4, "Good");
+
+        _api.Programs.TakeOffSale(program.ProgramId);
+        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs/{program.ProgramId}/reviews"));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // Moderation (design §2.4): reports collect per review (one per reporter); the admin hides the review,
+    // which leaves the page and the rating, stays visible to its author and the coach, marked, and closes
+    // the reports; "keep" shows it again.
+    [Fact]
+    public async Task Reported_reviews_are_hidden_or_kept_by_the_platform_admin()
+    {
+        var program = _api.Programs.Add(_coach.TenantId, _coach.Slug);
+        var other = Guid.CreateVersion7();
+        await _api.Deliver(Paid(_customer, _coach.TenantId, _coach.Slug, program));
+        await _api.Deliver(Paid(other, _coach.TenantId, _coach.Slug, program));
+        await WriteReview(_customer, program.ProgramId, 1, "Rude words");
+        await WriteReview(other, program.ProgramId, 5, "Great");
+        var reviewId = (await Read<PublicReviews>(await PublicList(program.ProgramId))).Items.Single(r => r.Rating == 1).Id;
+
+        var first = await ReportReview(other, program.ProgramId, reviewId, "Abusive");
+        await ReportReview(other, program.ProgramId, reviewId, "Spam");
+        await ReportReview(_coach.OwnerId, program.ProgramId, reviewId, "OffTopic");
+        var notAdmin = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/admin/reviews/reports"), other);
+        var reports = await Read<List<OpenReportRow>>(await AsAdmin(HttpMethod.Get, "/api/v1/admin/reviews/reports"));
+        var hidden = await AsAdmin(HttpMethod.Post, $"/api/v1/admin/reviews/{reviewId}/hide");
+        var page = await Read<PublicReviews>(await PublicList(program.ProgramId));
+        var mine = await Read<MyProgramWithReview>(await _api.AsCustomer(_customer, HttpMethod.Get, $"/programs/{program.ProgramId}"));
+        var afterHide = await Read<List<OpenReportRow>>(await AsAdmin(HttpMethod.Get, "/api/v1/admin/reviews/reports"));
+        var ratingHidden = _api.Ratings.For(_coach.TenantId, program.ProgramId);
+        await ReportReview(other, program.ProgramId, Guid.CreateVersion7(), "Spam");
+        await AsAdmin(HttpMethod.Post, $"/api/v1/admin/reviews/{reviewId}/keep");
+
+        Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, notAdmin.StatusCode);
+        var open = Assert.Single(reports);
+        Assert.Equal((reviewId, 2, "Rude words", program.Title), (open.ReviewId, open.Reports, open.Comment, open.ProgramTitle));
+        Assert.Equal(HttpStatusCode.NoContent, hidden.StatusCode);
+        Assert.Equal(["Great"], page.Items.Select(r => r.Comment));
+        Assert.Equal((1, 5m), ratingHidden);
+        Assert.NotNull(mine.Review!.HiddenAt);
+        Assert.Empty(afterHide);
+        Assert.Equal((2, 3m), _api.Ratings.For(_coach.TenantId, program.ProgramId));
+    }
+
+    private Task<HttpResponseMessage> PublicList(Guid programId) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs/{programId}/reviews"));
+
+    private Task<HttpResponseMessage> ReportReview(Guid reporter, Guid programId, Guid reviewId, string reason) =>
+        _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/v1/marketplace/programs/{programId}/reviews/{reviewId}/report") { Content = JsonContent.Create(new { reason }) },
+            reporter);
+
+    private Task<HttpResponseMessage> AsAdmin(HttpMethod method, string path) =>
+        _api.SendAsGateway(new HttpRequestMessage(method, path), Guid.CreateVersion7(), appRoles: ["Platform.Admin"]);
+
     private Task<HttpResponseMessage> WriteReview(Guid customerId, Guid programId, int rating, string? comment) =>
         _api.SendAsGateway(
             new HttpRequestMessage(HttpMethod.Put, $"/api/v1/me/programs/{programId}/review") { Content = JsonContent.Create(new { rating, comment }) },
@@ -180,7 +243,9 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
 
     public ValueTask DisposeAsync() => _api.DisposeAsync();
 
-    private sealed record ReviewRow(int Rating, string? Comment, string AuthorName, string? Reply);
+    private sealed record ReviewRow(Guid Id, int Rating, string? Comment, string AuthorName, string? Reply, DateTimeOffset? HiddenAt);
+
+    private sealed record OpenReportRow(Guid ReviewId, string ProgramTitle, string? Comment, int Reports);
 
     private sealed record MyProgramWithReview(Guid ProgramId, ReviewRow? Review);
 

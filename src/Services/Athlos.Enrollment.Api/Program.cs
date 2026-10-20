@@ -16,6 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.Services.AddGatewaySignature(builder.Configuration);
 builder.Services.AddAthlosAuthentication(builder.Configuration);
+builder.Services.AddPlatformAdmin();
 builder.Services.AddTenantContext();
 builder.Services.AddTenantDbContext<EnrollmentDbContext>(options => options
     .UseNpgsql(
@@ -73,11 +74,15 @@ me.MapGetMyProgram();
 me.MapWorkoutCompletion();
 me.MapMyReview();
 
-// Public: a program's reviews on its page (a cross-tenant slice, design §3.2)
-app.MapGroup("/api/v1/marketplace")
-    .UsePublicReadScope()
-    .WithTenantTransaction<EnrollmentDbContext>()
-    .MapProgramReviews();
+// Public: a program's reviews on its page, and reporting one (cross-tenant slices, design §3.2); both ask
+// catalog whether the program is on sale first, then open their own transaction
+var marketplace = app.MapGroup("/api/v1/marketplace")
+    .UsePublicReadScope();
+marketplace.MapProgramReviews();
+marketplace.MapReportReview();
+
+// Platform admin (Entra app role Platform.Admin): reported reviews, hidden or kept (design §2.4)
+app.MapAdminReviews();
 
 // Coach dashboard: the workspace's reviews and the coach's replies; tenant and role come from the gateway
 app.MapGroup("/api/v1/studio/{tenantSlug}")

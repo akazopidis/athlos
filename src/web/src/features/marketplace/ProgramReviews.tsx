@@ -1,5 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { MessageSquareReply } from 'lucide-react'
+import { ReportReview } from '@/components/report-review'
 import { Stars } from '@/components/stars'
 import { Button } from '@/components/ui/button'
 import { useApp } from '@/lib/AppContext'
@@ -75,6 +76,9 @@ export function ProgramReviews({ programId, coachName }: { programId: string; co
                   <Stars value={Number(r.rating)} className="size-3.5" />
                   <span className="text-sm font-semibold">{r.authorName}</span>
                   <span className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()}</span>
+                  <span className="ml-auto">
+                    <ReportReview programId={programId} reviewId={r.id} />
+                  </span>
                 </div>
                 {r.comment && <p className="text-sm whitespace-pre-line">{r.comment}</p>}
                 {r.reply && (

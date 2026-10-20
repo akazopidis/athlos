@@ -43,6 +43,7 @@ export function Admin() {
       <PageHeader eyebrow="Platform admin" title="Workspaces" description="Every coach on Athlos. Suspend a workspace to take it off the marketplace; its customers keep what they bought." />
       <Metrics />
       <Payouts />
+      <ReportedReviews />
       <Workspaces />
     </div>
   )
@@ -83,6 +84,66 @@ function Metrics() {
 // Coach shares whose transfer failed after payment (ordering-api's payout retries, design §2.2): they
 // are retried with backoff; the admin can retry one now, for example once the coach fixed their
 // Stripe account. Hidden while there are none.
+// Reviews someone reported (design §2.4), one entry per review: hide it (it leaves the program's page
+// and rating) or keep it. Either closes its reports.
+function ReportedReviews() {
+  const { api } = useApp()
+  const queryClient = useQueryClient()
+  const reports = useQuery({
+    queryKey: ['admin', 'review-reports'],
+    queryFn: async () => (await api.GET('/api/v1/admin/reviews/reports')).data ?? [],
+  })
+  const decide = useMutation({
+    mutationFn: async ({ reviewId, hide }: { reviewId: string; hide: boolean }) => {
+      const params = { params: { path: { reviewId } } }
+      const { error, response } = hide
+        ? await api.POST('/api/v1/admin/reviews/{reviewId}/hide', params)
+        : await api.POST('/api/v1/admin/reviews/{reviewId}/keep', params)
+      if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not save the decision.')
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin', 'review-reports'] }),
+  })
+
+  if (!reports.data?.length) return null
+  return (
+    <Section title="Reported reviews">
+      {decide.error && (
+        <Alert variant="destructive">
+          <AlertDescription>{decide.error.message}</AlertDescription>
+        </Alert>
+      )}
+      <ul className="space-y-3">
+        {reports.data.map((r) => (
+          <li key={r.reviewId} className="space-y-2 rounded-2xl border bg-card p-4">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="font-semibold">{r.authorName}</span>
+              <span className="text-muted-foreground">
+                {Number(r.rating)}/5 on {r.programTitle} (/c/{r.coachSlug})
+              </span>
+              <Badge variant="destructive" className="ml-auto">
+                {Number(r.reports)} {Number(r.reports) === 1 ? 'report' : 'reports'}
+              </Badge>
+            </div>
+            <p className="text-sm whitespace-pre-line">{r.comment ?? <span className="text-muted-foreground italic">No comment</span>}</p>
+            <p className="text-xs text-muted-foreground">
+              Reasons: {r.reasons.join(', ')}
+              {r.notes.length > 0 && ` · Notes: ${r.notes.join(' / ')}`}
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="destructive" disabled={decide.isPending} onClick={() => decide.mutate({ reviewId: r.reviewId, hide: true })}>
+                Hide review
+              </Button>
+              <Button size="sm" variant="outline" disabled={decide.isPending} onClick={() => decide.mutate({ reviewId: r.reviewId, hide: false })}>
+                Keep it
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Section>
+  )
+}
+
 function Payouts() {
   const { api } = useApp()
   const queryClient = useQueryClient()

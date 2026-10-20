@@ -260,6 +260,20 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         Assert.Null(await Scalar<object>(_a.TenantId, null, $"SELECT reply FROM reviews WHERE id = '{review}'") as string);
     }
 
+    // "A program got a new workout" (design §5.3) enters the tenant it names: naming B for A's program
+    // emails none of A's customers, and like every internal endpoint it needs the signature.
+    [Fact]
+    public async Task A_program_update_under_Bs_tenant_emails_none_of_As_customers()
+    {
+        var path = $"/internal/tenants/{_b.TenantId}/programs/{_alicesProgram.ProgramId}/updated";
+        var wrong = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, path) { Content = System.Net.Http.Json.JsonContent.Create(new { workoutTitle = "Planted" }) });
+        var unsigned = await _api.CreateClient().PostAsync(path, System.Net.Http.Json.JsonContent.Create(new { workoutTitle = "Planted" }), Cancel);
+        var stamped = await Scalar<long>(_a.TenantId, null, $"SELECT count(*) FROM enrollments WHERE program_id = '{_alicesProgram.ProgramId}' AND update_emailed_at IS NOT NULL");
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.Unauthorized), (wrong.StatusCode, unsigned.StatusCode));
+        Assert.Equal(0L, stamped);
+    }
+
     // Moderation (design §2.4): a report must name the review's own program (another program's id finds
     // nothing), and only the platform admin hides; a coach or customer gets 403 whatever the review.
     [Fact]

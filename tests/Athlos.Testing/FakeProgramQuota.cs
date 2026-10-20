@@ -13,3 +13,15 @@ public sealed class FakeProgramQuota : IProgramQuota
     public Task<int?> MaxProgramsAsync(string tenantSlug, Guid tenantId, CancellationToken cancellationToken) =>
         Task.FromResult<int?>(_limits.GetValueOrDefault(tenantId, 100));
 }
+
+// catalog's call to enrollment-api after a workout is added to a program that has been on sale.
+public sealed class FakeProgramUpdates : Athlos.Catalog.Api.Features.Workouts.IProgramUpdates
+{
+    public System.Collections.Concurrent.ConcurrentQueue<(Guid TenantId, Guid ProgramId, string WorkoutTitle)> Told { get; } = new();
+
+    public Task WorkoutAddedAsync(Guid tenantId, Guid programId, string workoutTitle, CancellationToken cancellationToken)
+    {
+        Told.Enqueue((tenantId, programId, workoutTitle));
+        return Task.CompletedTask;
+    }
+}

@@ -4,7 +4,7 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17, built; v1.11.0 in production (2026-10-19)
 
-**Changes in v17.1 (v1.12.0):** legal pages and accepting the Terms at checkout, receipts, and "Download my data" (§5.4); reporting reviews and the admin's moderation, reviews public only while their program is on sale (§2.4); a per-customer limit on writes (§4); an error boundary in the SPA (§8).
+**Changes in v17.1 (v1.12.0):** legal pages and accepting the Terms at checkout, receipts, and "Download my data" (§5.4); reporting reviews and the admin's moderation, reviews public only while their program is on sale (§2.4); a per-customer limit on writes (§4); an error boundary in the SPA (§8); emails to customers about review replies and new workouts (§5.3).
 
 **Changes in v17 (v1.11.0):** saved programs, reviews and ratings, and discount codes (§2.4); new tables in §2.3; the `review-received` email (§5.3); the saved-programs list is a listed cross-tenant slice (§3.2).
 
@@ -188,9 +188,10 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 | ordering | `checkouts` | `customer_id`, `idempotency_key` (unique per customer), `stripe_checkout_session_id`, `checkout_url`. The customer's, not a tenant's: RLS `customer_id = app.user_id` |
 | ordering | `processed_stripe_events` | `stripe_event_id` (primary key, for webhook idempotency) |
 | ordering | `outbox_messages` | `type`, `payload` (jsonb), `occurred_at`, `sent_at` |
-| enrollment | `enrollments` **T** | `customer_id`, `program_id`, `order_id` (unique, for idempotency) |
+| enrollment | `enrollments` **T** | `customer_id`, `program_id`, `order_id` (unique, for idempotency), `customer_email` and `update_emailed_at` (v1.12.0, §5.3) |
 | enrollment | `workout_progress` **T** | `enrollment_id`, `workout_id`, `completed_at` |
-| enrollment | `reviews` **T** | `enrollment_id` (unique), `customer_id`, `program_id`, `rating` (1 to 5), `comment`, `author_name`, `reply`, `replied_at` (§2.4) |
+| enrollment | `reviews` **T** | `enrollment_id` (unique), `customer_id`, `program_id`, `rating` (1 to 5), `comment`, `author_name`, `reply`, `replied_at`, `hidden_at` (§2.4) |
+| enrollment | `review_reports` | `review_id`, `reporter_id` (unique together), `reason`, copies for the admin, `resolved_at`. A work queue of the service (allow-all policy, like `payout_retries`, §2.4) |
 | catalog | `saved_programs` | `customer_id`, `program_id` (unique together). The customer's: RLS `customer_id = app.user_id` (§2.4) |
 | ordering | `discount_codes` **T** | `code` (unique per tenant), `percent_off`, `program_id`, `expires_at`, `max_redemptions`, `is_active` (§2.4) |
 
@@ -492,7 +493,8 @@ Built in phase 5:
   - *Customer:* `purchase-confirmation`, one per checkout, queued by ordering-api after the checkout's orders are Paid, listing each program, the total and the refund window (a crash between the orders and the email loses the email, never an order or its access); `refund-confirmation`; `account-deleted`, the last one, queued with the profile's deletion.
   - *Coach's owners* (`toOwnersOfTenant`): `review-received` (enrollment-api, v1.11.0), `sale-made`, `sale-refunded`, `sale-disputed`, `dispute-won`, `payout-failed` (ordering-api); `workspace-welcome`, `payouts-ready` (the first time Stripe confirms the account, from the studio's status read or the Connect webhook), `invite-accepted`, `member-left`, `ownership-received` (sent when the worker sends it, so to the new owner), `workspace-suspended`, `workspace-reactivated`, `plan-changed` (tenancy-api).
   - *Others:* `staff-invite` to the invitee, `member-removed` to the removed member's profile address.
-  - Catalog-api sends none (it has no outbox): a published program's link is offered in the studio instead.
+  - *Customers again* (v1.12.0, enrollment-api, which keeps the buyer's address on the enrollment from `OrderPaid`; enrollments from before have none and get nothing): `review-replied` when the coach first replies to their review; `program-updated` when the coach adds a workout to a program that has been on sale, at most once a day per customer (`update_emailed_at`). Catalog-api has no outbox, so after the new workout commits it calls enrollment-api's signed `POST /internal/tenants/{tenantId}/programs/{programId}/updated` (best effort: a failure is logged and the workout stays saved).
+  - Catalog-api sends no email itself (it has no outbox): a published program's link is offered in the studio instead.
 - **Coach recipients** (this was not decided before phase 5): the sale email names the tenant (`toOwnersOfTenant`), not addresses. The worker asks tenancy-api `GET /internal/tenants/{id}/owner-emails` (signed) when it sends, so ordering never handles coaches' addresses and the email reaches whoever owns the workspace at that moment. Tenancy enters that tenant to answer; a SELECT-only policy `tenant_members_read` on `user_profiles` lets a tenant session read the profiles of that tenant's members (writes still need `own_profile`). The customer's address is not in the sale email.
 - **Worker**: renders `Templates/{name}.txt` (first line `Subject: ...`) and `{name}.html` with `{{key}}` placeholders (HTML-encoded in the HTML part; a missing key fails the message, which retries and dead-letters), and sends one email per recipient so owners never see each other's addresses. `Email:Mode` is `Acs` in Azure and `Sink` locally (files in `src/AppHost/.emails`).
 - **Azure**: `acs-athlos-{env}` and `ecs-athlos-{env}` (Communication Services and Email Communication Services) are global resources with data in Europe; the region policy exempts `global` (§10). The worker's container app has no ingress and scales from zero on the `notifications` queue (KEDA `azure-servicebus`, its own identity).

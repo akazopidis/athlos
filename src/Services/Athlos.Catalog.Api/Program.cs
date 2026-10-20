@@ -35,6 +35,9 @@ builder.Services.AddHttpClient<IPayoutReadiness, TenancyPayoutReadiness>(http =>
 // ... and how many programs its plan allows (quota, design §4).
 builder.Services.AddHttpClient<IProgramQuota, TenancyProgramQuota>(http => http.BaseAddress = new Uri("https+http://tenancy-api"))
     .AddSignedRequests();
+// A program on sale got a new workout: enrollment-api emails its customers (design §5.3).
+builder.Services.AddHttpClient<IProgramUpdates, EnrollmentProgramUpdates>(http => http.BaseAddress = new Uri("https+http://enrollment-api"))
+    .AddSignedRequests();
 builder.Services.AddValidation();
 builder.Services.AddOpenApi(options =>
 {

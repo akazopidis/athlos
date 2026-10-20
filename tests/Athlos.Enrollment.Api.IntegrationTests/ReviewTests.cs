@@ -207,6 +207,52 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal((2, 3m), _api.Ratings.For(_coach.TenantId, program.ProgramId));
     }
 
+    // The coach's first reply emails the customer (design §5.3); changing the reply sends nothing more.
+    [Fact]
+    public async Task The_first_reply_emails_the_customer()
+    {
+        var program = await _api.Enroll(_customer, _coach);
+        await WriteReview(_customer, program.ProgramId, 4, "Nice");
+        var review = Assert.Single((await Read<StudioPage>(await AsCoach(_coach, HttpMethod.Get, "/reviews"))).Items);
+
+        await AsCoach(_coach, HttpMethod.Put, $"/reviews/{review.Id}/reply", new { text = "Thanks <3" });
+        await AsCoach(_coach, HttpMethod.Put, $"/reviews/{review.Id}/reply", new { text = "Thanks again" });
+        await _api.PublishOutbox();
+
+        var email = Assert.Single(Emails(), e => e.Template == EmailTemplates.ReviewReplied && e.Data["programTitle"] == program.Title);
+        Assert.Equal([$"{_customer}@test.local"], email.To);
+        var rendered = new EmailRenderer().Render(email.Template, email.Data);
+        Assert.Contains("Thanks &lt;3", rendered.Html, StringComparison.Ordinal);
+        Assert.Contains($"/me/programs/{program.ProgramId}", rendered.PlainText, StringComparison.Ordinal);
+    }
+
+    // A new workout in a program on sale emails each of its customers, at most once a day (design §5.3).
+    [Fact]
+    public async Task New_workouts_email_the_programs_customers_once_a_day()
+    {
+        var program = await _api.Enroll(_customer, _coach);
+        var other = Guid.CreateVersion7();
+        await _api.Deliver(Paid(other, _coach.TenantId, _coach.Slug, program));
+
+        var first = await Updated(_coach.TenantId, program.ProgramId, "Week 5, day 1");
+        await Updated(_coach.TenantId, program.ProgramId, "Week 5, day 2");
+        var wrongTenant = await Updated(Guid.CreateVersion7(), program.ProgramId, "Planted");
+        await _api.PublishOutbox();
+
+        var emails = Emails().Where(e => e.Template == EmailTemplates.ProgramUpdated && e.Data["programTitle"] == program.Title).ToList();
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (first.StatusCode, wrongTenant.StatusCode));
+        Assert.Equal(2, emails.Count);
+        Assert.All(emails, e => Assert.Equal("Week 5, day 1", e.Data["workoutTitle"]));
+        Assert.Equal([$"{_customer}@test.local", $"{other}@test.local"], emails.SelectMany(e => e.To).Order());
+        Assert.Contains("New in", new EmailRenderer().Render(emails[0].Template, emails[0].Data).Subject, StringComparison.Ordinal);
+    }
+
+    private Task<HttpResponseMessage> Updated(Guid tenantId, Guid programId, string workoutTitle) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/internal/tenants/{tenantId}/programs/{programId}/updated")
+        {
+            Content = JsonContent.Create(new { workoutTitle }),
+        });
+
     private Task<HttpResponseMessage> PublicList(Guid programId) =>
         _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs/{programId}/reviews"));
 

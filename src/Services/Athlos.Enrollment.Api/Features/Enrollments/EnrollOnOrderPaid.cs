@@ -28,6 +28,7 @@ public sealed partial class EnrollOnOrderPaid(TenantContext tenant, EnrollmentDb
             ProgramTitle = message.ProgramTitle,
             CoachSlug = message.CoachSlug,
             EnrolledAt = message.PaidAt,
+            CustomerEmail = message.CustomerEmail,
         });
 
         try

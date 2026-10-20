@@ -97,5 +97,7 @@ app.MapEraseTenant();
 app.MapEraseCustomer();
 // Tenancy-api only (signed): a customer's programs, progress and reviews for their data export (design §5.4)
 app.MapExportCustomer();
+// Catalog-api only (signed): a program on sale got a new workout; its customers are emailed (design §5.3)
+app.MapProgramUpdated();
 
 app.Run();

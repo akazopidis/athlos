@@ -30,6 +30,7 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
             enrollment.HasAlternateKey(e => new { e.Id, e.TenantId, e.CustomerId });
             enrollment.Property(e => e.ProgramTitle).HasMaxLength(120);
             enrollment.Property(e => e.CoachSlug).HasMaxLength(40);
+            enrollment.Property(e => e.CustomerEmail).HasMaxLength(320);
         });
 
         modelBuilder.Entity<WorkoutProgress>(progress =>

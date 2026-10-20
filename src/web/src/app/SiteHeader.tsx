@@ -7,7 +7,7 @@ import { useCart } from '@/lib/cart'
 import { Categories } from '@/lib/categories'
 import { cn } from '@/lib/utils'
 import { AccountMenu } from './AccountMenu.tsx'
-import { Logo } from './Logo.tsx'
+import { Logo } from '@/components/logo'
 import { useDisclosure } from './useDisclosure.ts'
 
 // The shop's categories (design §8), as filters of the catalog on "/".
@@ -25,7 +25,7 @@ export function SiteHeader() {
   const activeCategory = onHome ? params.get('category') : undefined
 
   return (
-    <header ref={header} className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur-lg">
+    <header ref={header} className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur-lg print:hidden">
       <div className="container-page flex h-16 items-center gap-3 sm:gap-6">
         <Link to="/" aria-label="Athlos home" className="shrink-0">
           <Logo />

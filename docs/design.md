@@ -4,7 +4,7 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17, built; v1.11.0 in production (2026-10-19)
 
-**Changes in v17.1 (v1.12.0):** legal pages and accepting the Terms at checkout (§5.4).
+**Changes in v17.1 (v1.12.0):** legal pages and accepting the Terms at checkout, receipts (§5.4).
 
 **Changes in v17 (v1.11.0):** saved programs, reviews and ratings, and discount codes (§2.4); new tables in §2.3; the `review-received` email (§5.3); the saved-programs list is a listed cross-tenant slice (§3.2).
 
@@ -506,6 +506,7 @@ Built in phase 5:
 What a shop taking real money from EU customers needs besides the payment itself.
 - *Legal pages.* `/legal/terms`, `/legal/privacy` and `/legal/refunds`, linked from the footer, say what the platform does: who sells (the coach), who is paid (the platform, which passes each coach their share), the refund window, what data goes to Microsoft and Stripe, and what deleting an account erases. They are SPA pages; a lawyer would review them before live payments (`limitations.md`).
 - *Accepting the Terms.* The cart asks the customer to tick "I accept the Terms and the Refund policy"; "Buy now" says that buying accepts them. Each checkout sends the version shown (`termsVersion`, the SPA's `lib/legal.ts`), and ordering-api refuses any version but `Legal:TermsVersion` (`409`, reason `terms`), so nobody pays under terms they were not shown. The `checkouts` row keeps `terms_version` and `terms_accepted_at` as evidence.
+- *Receipts.* `GET /api/v1/me/orders/receipts/{checkoutId}` (ordering-api, in the "customer's own orders" slice) gives one checkout's receipt across coaches: each program's price, discount and amount paid, the total, and anything refunded; another customer's checkout or an unpaid one is `404`. The SPA shows it at `/me/orders/{checkoutId}/receipt`, printable to PDF from the browser (the site's header and footer are not printed), and the purchase email links to it. It is a receipt, not a tax invoice (VAT is out of scope, `limitations.md`).
 
 ---
 

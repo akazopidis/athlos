@@ -72,6 +72,7 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         { "GET", "/api/v1/admin/payouts" },
         { "POST", $"/api/v1/admin/payouts/{Guid.Empty}/retry" },
         { "POST", "/api/v1/orders/discount" },
+        { "GET", $"/api/v1/me/orders/receipts/{Guid.Empty}" },
         { "GET", "/api/v1/studio/some-coach/discounts" },
         { "POST", "/api/v1/studio/some-coach/discounts" },
         { "PUT", $"/api/v1/studio/some-coach/discounts/{Guid.Empty}" },
@@ -252,6 +253,20 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         Assert.DoesNotContain("A-ONLY", list, StringComparison.Ordinal);
         Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound, HttpStatusCode.NotFound), (updated.StatusCode, deleted.StatusCode, used.StatusCode));
         Assert.Equal(50, percent);
+    }
+
+    // A receipt is the customer's own: Bob gets 404 for Alice's checkout (design §5.4).
+    [Fact]
+    public async Task Bob_gets_404_for_Alices_receipt()
+    {
+        var offer = _api.Sellers.Sell(_a.TenantId, _a.Slug);
+        var checkout = await _api.Checkout(_alice, offer.ProgramId);
+        await _api.Pay(checkout);
+
+        var alices = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/me/orders/receipts/{checkout.CheckoutId}"), _alice);
+        var bobs = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/me/orders/receipts/{checkout.CheckoutId}"), _bob);
+
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.NotFound), (alices.StatusCode, bobs.StatusCode));
     }
 
     // Layer 4 alone: tenant B reads none of A's codes and cannot plant one in A's name.

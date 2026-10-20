@@ -77,6 +77,10 @@ app.MapGroup("/api/v1/me")
     .RequireAuthorization()
     .WithTenantTransaction<OrderingDbContext>()
     .MapListMyOrders();
+app.MapGroup("/api/v1/me")
+    .RequireAuthorization()
+    .WithTenantTransaction<OrderingDbContext>()
+    .MapGetMyReceipt();
 
 // Coach dashboard: tenant and role come from the gateway
 app.MapGroup("/api/v1/studio/{tenantSlug}")

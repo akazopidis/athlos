@@ -1,0 +1,63 @@
+{
+  "label": "stress-v1.11.0",
+  "coach": "demo-forge",
+  "stepSeconds": 60,
+  "finishedAt": "2026-10-20T17:14:21.921Z",
+  "steps": [
+    {
+      "rate": 25,
+      "requests": 1501,
+      "limitedRate": 0,
+      "failedRate": 0,
+      "served": {
+        "p50Ms": 65.6261,
+        "p95Ms": 200.4577,
+        "p99Ms": 239.2284
+      }
+    },
+    {
+      "rate": 50,
+      "requests": 3000,
+      "limitedRate": 0,
+      "failedRate": 0,
+      "served": {
+        "p50Ms": 62.9362,
+        "p95Ms": 82.056175,
+        "p99Ms": 200.13050099999992
+      }
+    },
+    {
+      "rate": 100,
+      "requests": 5133,
+      "limitedRate": 0,
+      "failedRate": 0,
+      "served": {
+        "p50Ms": 1368.4151,
+        "p95Ms": 11138.264299999993,
+        "p99Ms": 16460.325824000007
+      }
+    },
+    {
+      "rate": 150,
+      "requests": 8403,
+      "limitedRate": 0,
+      "failedRate": 0.09246697607997144,
+      "served": {
+        "p50Ms": 64.77170000000001,
+        "p95Ms": 14814.7579,
+        "p99Ms": 15776.933799999999
+      }
+    },
+    {
+      "rate": 200,
+      "requests": 12101,
+      "limitedRate": 0,
+      "failedRate": 0,
+      "served": {
+        "p50Ms": 63.3261,
+        "p95Ms": 1071.354,
+        "p99Ms": 1324.9031
+      }
+    }
+  ]
+}

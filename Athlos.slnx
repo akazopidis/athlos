@@ -23,6 +23,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Athlos.Catalog.Api.IntegrationTests/Athlos.Catalog.Api.IntegrationTests.csproj" />
+    <Project Path="tests/Athlos.ContractTests/Athlos.ContractTests.csproj" />
     <Project Path="tests/Athlos.DbMigrator.Tests/Athlos.DbMigrator.Tests.csproj" />
     <Project Path="tests/Athlos.Enrollment.Api.IntegrationTests/Athlos.Enrollment.Api.IntegrationTests.csproj" />
     <Project Path="tests/Athlos.Gateway.Tests/Athlos.Gateway.Tests.csproj" />

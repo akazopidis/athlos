@@ -11,6 +11,7 @@ Measured 8 October 2026, at v0.7.0; isolation and deploy times refreshed 11 Octo
 | Time from `git push` on `dev` to running in dev | < 15 min | median 14.3 min, p90 18.2 min (55 runs) | Mostly: 44 of 55 runs; the slowest step is now skipped when `infra/` is unchanged (below) |
 | Time from release tag to running in prod | < 10 min, no rebuild | median 8.1 min, p90 11.0 min (10 runs), images reused | Mostly: 7 of 10 runs |
 | Monthly Azure cost | < €5 | €0.38 in September (from the 27th), €0.82 for 1–8 October, about €3.2 projected for October | Yes |
+| Stress: one coach's storefront stepped to 200 req/s | measured and reported | p95 under 210 ms up to 50 req/s; catalog-api's single replica saturates at about 85–100 req/s (p95 11–15 s, 9% timeouts at 150 req/s) until it scales out; 200 req/s then served with p50 63 ms; no 5xx ([stress.md](stress.md)) | Reported |
 | Cold start from zero replicas | measured and reported | median 87 s (70–97 s, 4 samples); warm 0.2–0.3 s | Reported |
 
 ## Tenant isolation

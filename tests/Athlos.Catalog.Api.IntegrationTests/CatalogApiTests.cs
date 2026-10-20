@@ -435,6 +435,21 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.DoesNotContain(_api.Updates.Told, t => t.ProgramId == draft.Id);
     }
 
+    // A double tap saves twice at the same moment: every request succeeds and one row is kept.
+    [Fact]
+    public async Task Saving_the_same_program_at_once_keeps_one_row_and_never_fails()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach, publish: true);
+        var customer = Guid.CreateVersion7();
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => AsCustomer(customer, HttpMethod.Put, $"/saved/{program.Id}")));
+        var saved = await Read<List<SearchItem>>(await AsCustomer(customer, HttpMethod.Get, "/saved"));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.NoContent, r.StatusCode));
+        Assert.Single(saved);
+    }
+
     // Ratings come from enrollment-api (design §2.4): cards carry them and "Top rated" sorts by the
     // average, then the number of reviews; programs without reviews come last.
     [Fact]

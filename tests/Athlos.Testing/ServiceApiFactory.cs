@@ -116,6 +116,9 @@ public sealed class CatalogApiFactory(AthlosDatabases databases, AthlosStorage s
 
     public FakeProgramQuota Quota { get; } = new();
 
+    // Workouts added to programs that have been on sale, as enrollment-api would hear of them (design §5.3).
+    public FakeProgramUpdates Updates { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -123,6 +126,7 @@ public sealed class CatalogApiFactory(AthlosDatabases databases, AthlosStorage s
         {
             services.AddSingleton<Athlos.Catalog.Api.Features.Programs.IPayoutReadiness>(Payouts);
             services.AddSingleton<Athlos.Catalog.Api.Features.Programs.IProgramQuota>(Quota);
+            services.AddSingleton<Athlos.Catalog.Api.Features.Workouts.IProgramUpdates>(Updates);
         });
     }
 }

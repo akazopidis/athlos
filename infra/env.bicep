@@ -326,6 +326,9 @@ module catalogApi 'modules/container-app.bicep' = if (deployApps) {
       // A blob endpoint, no key: the client signs in with AZURE_CLIENT_ID's managed identity.
       { name: 'ConnectionStrings__media', value: storage.outputs.blobEndpoint }
       { name: 'services__tenancy-api__https__0', value: 'https://${tenancyApi!.outputs.fqdn}' }
+      // A program on sale got a new workout: enrollment emails its customers (design §5.3). Built from the
+      // environment's domain, not a module output: enrollment-api already depends on catalog-api.
+      { name: 'services__enrollment-api__https__0', value: 'https://ca-athlos-enrollment-api-${environmentName}.internal.${acaEnvironment.properties.defaultDomain}' }
       { name: 'ConnectionStrings__catalog-db', value: 'Host=${postgresHost};Database=${catalogDatabase};Username=${catalogAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
     ])
   }

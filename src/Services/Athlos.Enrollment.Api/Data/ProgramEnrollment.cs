@@ -26,6 +26,14 @@ public sealed class ProgramEnrollment : ITenantOwned, IHasTimestamps
 
     public required DateTimeOffset EnrolledAt { get; init; }
 
+    // The buyer's address, from OrderPaid (design §5.3), for the emails about this program: a coach's
+    // reply to their review, new workouts. Null on enrollments from before v1.12.0 (they get none).
+    // Personal data: never logged; erased with the enrollment when the account is deleted.
+    public string? CustomerEmail { get; init; }
+
+    // When the customer was last emailed that the program has new workouts: at most once a day.
+    public DateTimeOffset? UpdateEmailedAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

@@ -62,6 +62,13 @@ public static class EmailTemplates
     // To the coach's owners, queued by enrollment-api when a customer first reviews a program (design §2.4).
     public const string ReviewReceived = "review-received";
 
+    // To the customer, queued by enrollment-api when the coach first replies to their review (design §5.3).
+    public const string ReviewReplied = "review-replied";
+
+    // To the program's customers, queued by enrollment-api when the coach adds a workout to a program
+    // that has been on sale, at most once a day per customer (design §5.3).
+    public const string ProgramUpdated = "program-updated";
+
     // To the invitee, queued by tenancy-api with the invite (design §5.2).
     public const string StaffInvite = "staff-invite";
 }

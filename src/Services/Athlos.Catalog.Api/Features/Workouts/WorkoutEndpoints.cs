@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Catalog.Api.Data;
+using Athlos.Tenancy;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -46,17 +47,21 @@ public static class WorkoutEndpoints
     }
 
     private static async Task<Results<Created<WorkoutDetails>, NotFound, ProblemHttpResult>> Add(
-        string tenantSlug, Guid programId, Request request, CatalogDbContext db, CancellationToken cancellationToken)
+        string tenantSlug, Guid programId, Request request, CatalogDbContext db, ITenantContext tenant, IProgramUpdates updates, HttpContext http,
+        CancellationToken cancellationToken)
     {
-        var weeks = await db.Programs.Where(p => p.Id == programId).Select(p => (int?)p.DurationWeeks).SingleOrDefaultAsync(cancellationToken);
-        if (weeks is null)
+        var program = await db.Programs.Where(p => p.Id == programId)
+            .Select(p => new { p.DurationWeeks, Sold = p.FirstPublishedAt != null })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (program is null)
         {
             return TypedResults.NotFound();
         }
 
+        var weeks = program.DurationWeeks;
         if (request.Week > weeks)
         {
-            return OutsideTheProgram(weeks.Value);
+            return OutsideTheProgram(weeks);
         }
 
         var workout = new Workout { ProgramId = programId, Title = request.Title.Trim() };
@@ -65,6 +70,14 @@ public static class WorkoutEndpoints
         await KeepOneSampleAsync(db, workout, cancellationToken);
         await ProgramOutline.RefreshAsync(db, programId, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
+
+        // A program that has been on sale may have customers: tell them once the workout is committed
+        // (after the response; the tenant transaction commits before it is written).
+        if (program.Sold && tenant.TenantId is { } tenantId)
+        {
+            var title = workout.Title;
+            http.Response.OnCompleted(() => updates.WorkoutAddedAsync(tenantId, programId, title, CancellationToken.None));
+        }
 
         return TypedResults.Created(
             $"/api/v1/studio/{tenantSlug}/programs/{programId}/workouts/{workout.Id}", WorkoutDetails.From(workout));

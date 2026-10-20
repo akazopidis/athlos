@@ -18,7 +18,10 @@ namespace Athlos.Gateway;
 // - Starting a checkout opens a Stripe payment page and writes pending orders, so it is limited per
 //   signed-in customer (per client IP without a sign-in, which checkout then refuses anyway):
 //   CheckoutsPerMinute, 10 by default. Checking a discount code shares the same bucket, so codes
-//   cannot be guessed quickly (design §2.4). Other signed-in customer routes stay unlimited.
+//   cannot be guessed quickly (design §2.4).
+// - A signed-in customer's other writes (reviews, saved programs, progress, reports: anything but GET
+//   under /api/v1/me, and reporting a review) share a per-customer bucket, CustomerWritesPerMinute, 60
+//   by default, so one account cannot flood the services with writes. Reads stay unlimited.
 // - Over the limit: 429 with Retry-After, and athlos.ratelimit.rejected counts it per coach.
 //
 // The buckets live in this replica's memory: with N gateway replicas a coach effectively gets N
@@ -35,6 +38,8 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
         public int ConcurrentHeavyRequests { get; set; } = 4;
 
         public int CheckoutsPerMinute { get; set; } = 10;
+
+        public int CustomerWritesPerMinute { get; set; } = 60;
     }
 
     private sealed record Partition(string Key, int RequestsPerSecond, string Scope, string? Tenant, string? Plan, string? Slug = null);
@@ -44,6 +49,7 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
     private static readonly PathString ProgramsPrefix = "/api/v1/marketplace/programs";
     private static readonly PathString CheckoutPath = "/api/v1/orders/checkout";
     private static readonly PathString DiscountPath = "/api/v1/orders/discount";
+    private static readonly PathString MePrefix = "/api/v1/me";
 
     private static readonly Meter Meter = new("Athlos.Gateway");
     private static readonly Counter<long> Rejected = Meter.CreateCounter<long>(
@@ -61,7 +67,7 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
             AutoReplenishment = true,
         }));
 
-    // Per customer, a minute's worth of checkouts at once, refilled over the minute.
+    // Per customer, a minute's worth of checkouts (or of other writes) at once, refilled over the minute.
     private readonly PartitionedRateLimiter<Partition> _checkouts = PartitionedRateLimiter.Create<Partition, string>(p =>
         RateLimitPartition.GetTokenBucketLimiter(p.Key, _ => new TokenBucketRateLimiterOptions
         {
@@ -100,6 +106,17 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
             return;
         }
 
+        if (options.Enabled && IsCustomerWrite(context.Request) && Athlos.Tenancy.TenantContextMiddleware.UserIdOf(context.User) is { } writer)
+        {
+            var writes = new Partition($"writes:{writer}:{options.CustomerWritesPerMinute}", options.CustomerWritesPerMinute, "writes", Tenant: null, Plan: null);
+            using var allowed = context.RequestServices.GetRequiredService<RateLimits>()._checkouts.AttemptAcquire(writes);
+            if (!allowed.IsAcquired)
+            {
+                await Reject(context, writes, allowed, reason: "writes");
+                return;
+            }
+        }
+
         var partition = options.Enabled ? await AttributeAsync(context, options) : null;
         if (partition is null)
         {
@@ -130,6 +147,12 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
 
         await next();
     }
+
+    // A customer's write: anything but a read under /api/v1/me, or reporting a review.
+    private static bool IsCustomerWrite(HttpRequest request) =>
+        !HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method)
+        && (request.Path.StartsWithSegments(MePrefix)
+            || (request.Path.StartsWithSegments(ProgramsPrefix) && request.Path.Value!.EndsWith("/report", StringComparison.OrdinalIgnoreCase)));
 
     // Whose budget a request spends: the coach in the path (studio, storefront) or in ?coach= (a
     // storefront's program list), otherwise the client.

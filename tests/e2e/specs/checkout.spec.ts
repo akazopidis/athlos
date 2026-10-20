@@ -20,9 +20,12 @@ test('a signed-in customer checks out a cart and reaches Stripe', async ({ page 
 
   await page.goto(programPath!)
   const price = (await page.locator('aside p.font-heading').first().innerText()).trim()
+  // The buy box waits for the customer's workspaces and programs before it offers anything.
   const addToCart = page.getByRole('button', { name: /Add to cart/ })
+  const inCart = page.getByRole('link', { name: /In cart/ })
+  await expect(addToCart.or(inCart)).toBeVisible()
   if (await addToCart.isVisible()) await addToCart.click()
-  await expect(page.getByRole('link', { name: /In cart/ })).toBeVisible()
+  await expect(inCart).toBeVisible()
 
   await page.goto('/cart')
   await page.getByRole('checkbox', { name: /I accept the Terms/ }).check()

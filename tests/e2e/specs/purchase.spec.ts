@@ -22,6 +22,7 @@ test('a customer buys a program with a test card, then reviews it', async ({ pag
   await page.goto(programPath!)
   const title = (await page.getByRole('heading', { level: 1 }).innerText()).trim()
   const open = page.getByRole('link', { name: 'Open program' })
+  // The buy box waits for the customer's programs before it offers "Open" or "Buy now".
   await expect(open.or(page.getByRole('button', { name: 'Buy now' }))).toBeVisible()
   if (!(await open.isVisible())) await pay(page)
 

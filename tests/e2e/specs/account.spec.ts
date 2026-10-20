@@ -46,11 +46,14 @@ test('a customer saves a program for later and removes it', async ({ page }, tes
   const unsave = page.getByRole('button', { name: `Remove ${title} from saved` })
   const save = page.getByRole('button', { name: `Save ${title} for later` })
   await expect(unsave.or(save)).toBeVisible()
+  // The heart turns at once; wait for the request itself, so leaving the page does not cancel it.
+  const savedRequest = (method: string) =>
+    page.waitForResponse((r) => r.url().includes('/api/v1/me/saved/') && r.request().method() === method && r.ok())
   if (await unsave.isVisible()) {
-    await unsave.click()
+    await Promise.all([savedRequest('DELETE'), unsave.click()])
     await expect(save).toBeVisible()
   }
-  await save.click()
+  await Promise.all([savedRequest('PUT'), save.click()])
   await expect(unsave).toBeVisible()
 
   await page.goto('/me/saved')

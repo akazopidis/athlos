@@ -4,7 +4,7 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17, built; v1.11.0 in production (2026-10-19)
 
-**Changes in v17.1 (v1.12.0):** legal pages and accepting the Terms at checkout, receipts (§5.4).
+**Changes in v17.1 (v1.12.0):** legal pages and accepting the Terms at checkout, receipts, and "Download my data" (§5.4).
 
 **Changes in v17 (v1.11.0):** saved programs, reviews and ratings, and discount codes (§2.4); new tables in §2.3; the `review-received` email (§5.3); the saved-programs list is a listed cross-tenant slice (§3.2).
 
@@ -290,7 +290,7 @@ Pool is what a marketplace with many small coaches would use in practice, and it
    - Every tenant-owned entity implements `ITenantOwned { Guid TenantId }`.
    - A global query filter `e => e.TenantId == tenantContext.TenantId` is applied to all of them.
    - An override of `SaveChanges` sets `TenantId` on insert and throws if an update or delete targets another tenant's row.
-   - `IgnoreQueryFilters()` is allowed only in explicitly named "cross-tenant" slices (public marketplace search, a customer's own orders, a customer's own enrollments and progress, a user's own memberships in `GET /api/v1/me/memberships`, a customer's saved programs in `GET /api/v1/me/saved`, the public reviews of a program, and account deletion's search for a user's own memberships, orders and enrollments, which then changes them one tenant at a time) and is caught by a test that greps for it (`CrossTenantSliceGuardTests`).
+   - `IgnoreQueryFilters()` is allowed only in explicitly named "cross-tenant" slices (public marketplace search, a customer's own orders and receipts, a customer's own enrollments and progress, a user's own memberships in `GET /api/v1/me/memberships`, a customer's saved programs in `GET /api/v1/me/saved`, the public reviews of a program, account deletion's search for a user's own memberships, orders and enrollments, which then changes them one tenant at a time, and a user's data export, which reads the same rows in each service) and is caught by a test that greps for it (`CrossTenantSliceGuardTests`).
    - Every tenant-scoped endpoint runs inside one database transaction (`WithTenantTransaction`), because the RLS settings below live only as long as a transaction. An endpoint that forgets it sees no rows at all: the failure is closed, not open.
 4. **PostgreSQL Row-Level Security.** The last line, which protects even against a bug in layer 3.
    - An EF Core interceptor sets the tenant for the current transaction with `SELECT set_config('app.tenant_id', @t, true)` (and `app.user_id`, `app.scope`). The `true` makes the setting **transaction-local**, so a pooled connection can never carry one tenant's context into another request.
@@ -507,6 +507,7 @@ What a shop taking real money from EU customers needs besides the payment itself
 - *Legal pages.* `/legal/terms`, `/legal/privacy` and `/legal/refunds`, linked from the footer, say what the platform does: who sells (the coach), who is paid (the platform, which passes each coach their share), the refund window, what data goes to Microsoft and Stripe, and what deleting an account erases. They are SPA pages; a lawyer would review them before live payments (`limitations.md`).
 - *Accepting the Terms.* The cart asks the customer to tick "I accept the Terms and the Refund policy"; "Buy now" says that buying accepts them. Each checkout sends the version shown (`termsVersion`, the SPA's `lib/legal.ts`), and ordering-api refuses any version but `Legal:TermsVersion` (`409`, reason `terms`), so nobody pays under terms they were not shown. The `checkouts` row keeps `terms_version` and `terms_accepted_at` as evidence.
 - *Receipts.* `GET /api/v1/me/orders/receipts/{checkoutId}` (ordering-api, in the "customer's own orders" slice) gives one checkout's receipt across coaches: each program's price, discount and amount paid, the total, and anything refunded; another customer's checkout or an unpaid one is `404`. The SPA shows it at `/me/orders/{checkoutId}/receipt`, printable to PDF from the browser (the site's header and footer are not printed), and the purchase email links to it. It is a receipt, not a tax invoice (VAT is out of scope, `limitations.md`).
+- *Download my data* (the GDPR's right of access, next to erasure in §5.2). `GET /api/v1/me/export` on tenancy-api returns one JSON file: the profile and workspaces from tenancy, and each service's part from a signed `GET /internal/customers/{id}/export` that acts for the user and reads their own rows only (orders and checkouts with the accepted Terms; programs, completed workouts and reviews; saved programs). Each is a listed cross-tenant slice, read only. If a service cannot answer, nothing partial is handed out (`502`). The button is in `/me/account`.
 
 ---
 

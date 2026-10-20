@@ -26,6 +26,11 @@ public sealed class CrossTenantSliceGuardTests
         "src/Services/Athlos.Tenancy.Api/Features/Account/DeleteMyAccount.cs",
         "src/Services/Athlos.Ordering.Api/Features/Customers/EraseCustomer.cs",
         "src/Services/Athlos.Enrollment.Api/Features/Enrollments/EraseCustomer.cs",
+        // A user's data export: their own rows in each service, read only (design §5.4).
+        "src/Services/Athlos.Tenancy.Api/Features/Account/ExportMyData.cs",
+        "src/Services/Athlos.Ordering.Api/Features/Customers/ExportCustomer.cs",
+        "src/Services/Athlos.Enrollment.Api/Features/Enrollments/ExportCustomer.cs",
+        "src/Services/Athlos.Catalog.Api/Features/Internal/ExportCustomer.cs",
     ];
 
     [Fact]

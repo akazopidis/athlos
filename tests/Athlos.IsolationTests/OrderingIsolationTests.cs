@@ -255,6 +255,20 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         Assert.Equal(50, percent);
     }
 
+    // A data export (design §5.4) holds the customer's own orders, with every coach, and nobody else's;
+    // like every internal endpoint it needs the gateway signature.
+    [Fact]
+    public async Task Alices_export_holds_her_orders_only()
+    {
+        var export = await Body(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/customers/{_alice}/export")));
+        var unsigned = await _api.CreateClient().GetAsync($"/internal/customers/{_alice}/export", Cancel);
+
+        Assert.Contains(_aliceBuysFromA.ToString(), export, StringComparison.Ordinal);
+        Assert.Contains(_aliceBuysFromB.ToString(), export, StringComparison.Ordinal);
+        Assert.DoesNotContain(_bobBuysFromA.ToString(), export, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Unauthorized, unsigned.StatusCode);
+    }
+
     // A receipt is the customer's own: Bob gets 404 for Alice's checkout (design §5.4).
     [Fact]
     public async Task Bob_gets_404_for_Alices_receipt()

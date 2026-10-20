@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button'
 import { useApp } from '@/lib/AppContext'
 import { useTitle } from '@/lib/useTitle'
 import { DeleteAccount } from './DeleteAccount.tsx'
+import { DownloadMyData } from './DownloadMyData.tsx'
 
-// "/me/account": signing out, and deleting the account (design §5.2). Sign-in details (password,
+// "/me/account": signing out, downloading your data (design §5.4), and deleting the account (§5.2). Sign-in details (password,
 // email) belong to Entra External ID, not to Athlos.
 export function AccountSettings() {
   const { msal } = useApp()
@@ -24,6 +25,7 @@ export function AccountSettings() {
             <LogOut aria-hidden /> Sign out
           </Button>
         </div>
+        <DownloadMyData />
       </Section>
       <DeleteAccount />
     </div>

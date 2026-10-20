@@ -913,7 +913,8 @@
           "createdAt",
           "updatedAt",
           "reply",
-          "repliedAt"
+          "repliedAt",
+          "mine"
         ],
         "type": "object",
         "properties": {
@@ -958,6 +959,9 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "mine": {
+            "type": "boolean"
           }
         }
       },

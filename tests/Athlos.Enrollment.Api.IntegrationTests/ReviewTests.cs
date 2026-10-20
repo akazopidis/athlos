@@ -6,6 +6,8 @@ using Athlos.Messaging.Contracts;
 using Athlos.Notifications.Worker;
 using Athlos.Tenancy;
 using Athlos.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using static Athlos.Testing.EnrollmentArrange;
 using static Athlos.Testing.OrderingArrange;
 
@@ -173,6 +175,25 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal((20, 3m), _api.Ratings.For(_coach.TenantId, program.ProgramId));
     }
 
+    // The public list tells a signed-in reviewer which review is theirs (no "Report" on it); nobody else.
+    [Fact]
+    public async Task The_public_list_marks_the_callers_own_review()
+    {
+        var program = await _api.Enroll(_customer, _coach);
+        await WriteReview(_customer, program.ProgramId, 5, "Mine");
+        var path = $"/api/v1/marketplace/programs/{program.ProgramId}/reviews";
+
+        var asAuthor = await Read<MineList>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, path), _customer));
+        var asOther = await Read<MineList>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, path), Guid.CreateVersion7()));
+        var anonymous = await Read<MineList>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, path)));
+
+        Assert.Equal((true, false, false), (Assert.Single(asAuthor.Items).Mine, Assert.Single(asOther.Items).Mine, Assert.Single(anonymous.Items).Mine));
+    }
+
+    private sealed record MineRow(bool Mine);
+
+    private sealed record MineList(List<MineRow> Items);
+
     // Reviews are public only while the program is on sale (design §2.4).
     [Fact]
     public async Task Reviews_of_a_program_off_sale_are_not_public()
@@ -292,10 +313,18 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
             new HttpRequestMessage(method, $"/api/v1/studio/{coach.Slug}{path}") { Content = body is null ? null : JsonContent.Create(body) },
             coach.OwnerId, coach.TenantId, role);
 
-    private IEnumerable<EmailNotification> Emails() =>
-        _api.Messages.Sent
+    // Every email queued in the outbox, sent or not. Read from the table: test apps share it and each runs
+    // a publisher, so which app's sender sends a row is a race, but the row is there.
+    private List<EmailNotification> Emails()
+    {
+        using var scope = _api.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<Athlos.Enrollment.Api.Data.EnrollmentDbContext>();
+        return db.OutboxMessages.AsNoTracking()
             .Where(m => m.Queue == EmailNotification.Queue)
-            .Select(m => JsonSerializer.Deserialize<EmailNotification>(m.Message.Payload, JsonSerializerOptions.Web)!);
+            .AsEnumerable()
+            .Select(m => JsonSerializer.Deserialize<EmailNotification>(m.Payload, JsonSerializerOptions.Web)!)
+            .ToList();
+    }
 
     private static async Task<T> Read<T>(HttpResponseMessage response)
     {

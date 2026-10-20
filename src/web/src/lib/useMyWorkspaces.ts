@@ -14,3 +14,16 @@ export function useMyWorkspaces(): Set<string> {
   })
   return new Set((memberships.data ?? []).map((m) => m.slug))
 }
+
+// True while a signed-in user's workspaces are still loading: a page that offers different actions to
+// a coach (their own program) waits, instead of first offering to buy it.
+export function useMyWorkspacesPending(): boolean {
+  const { api, msal } = useApp()
+  const signedIn = Boolean(msal?.getActiveAccount())
+  const memberships = useQuery({
+    queryKey: ['memberships'],
+    queryFn: async () => (await api.GET('/api/v1/me/memberships')).data ?? [],
+    enabled: signedIn,
+  })
+  return signedIn && memberships.isPending
+}

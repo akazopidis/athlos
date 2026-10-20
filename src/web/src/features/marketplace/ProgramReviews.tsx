@@ -77,7 +77,7 @@ export function ProgramReviews({ programId, coachName }: { programId: string; co
                   <span className="text-sm font-semibold">{r.authorName}</span>
                   <span className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()}</span>
                   <span className="ml-auto">
-                    <ReportReview programId={programId} reviewId={r.id} />
+                    {!r.mine && <ReportReview programId={programId} reviewId={r.id} />}
                   </span>
                 </div>
                 {r.comment && <p className="text-sm whitespace-pre-line">{r.comment}</p>}

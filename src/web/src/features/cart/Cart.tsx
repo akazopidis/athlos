@@ -318,7 +318,7 @@ function CartLine({ item, discount, owned, blocked, onRemove }: { item: CartItem
   return (
     <li className="flex gap-4 p-4 sm:p-5">
       <Link to={`/c/${item.coachSlug}/programs/${item.slug}`} className="w-24 shrink-0 overflow-hidden rounded-xl sm:w-32" tabIndex={-1} aria-hidden>
-        <ProgramCover url={item.coverImageUrl} title={item.title} />
+        <ProgramCover url={item.coverImageUrl} title={item.title} category={item.category} />
       </Link>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <Link to={`/c/${item.coachSlug}/programs/${item.slug}`} className="line-clamp-2 font-semibold underline-offset-4 hover:underline">

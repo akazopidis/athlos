@@ -13,3 +13,15 @@ export function useOwnedPrograms(): Set<string> {
   })
   return new Set(owned.data?.items.map((p) => p.programId) ?? [])
 }
+
+// True while a signed-in customer's programs are still loading (see useMyWorkspacesPending).
+export function useOwnedProgramsPending(): boolean {
+  const { api, msal } = useApp()
+  const signedIn = Boolean(msal?.getActiveAccount())
+  const owned = useQuery({
+    queryKey: ['my-programs'],
+    queryFn: async () => (await api.GET('/api/v1/me/programs')).data ?? null,
+    enabled: signedIn,
+  })
+  return signedIn && owned.isPending
+}

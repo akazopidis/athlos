@@ -11,6 +11,8 @@ export interface CartItem {
   priceAmount: number
   currency: string
   coverImageUrl?: string | null
+  // For the generated cover of a program without an image; items added before v1.12.0 have none.
+  category?: string
 }
 
 // The same limit as ordering-api's checkout.

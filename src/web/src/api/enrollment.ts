@@ -276,6 +276,7 @@ export interface components {
             reply: null | string;
             /** Format: date-time */
             repliedAt: null | string;
+            mine: boolean;
         };
         ProgramReviewsResponse: {
             /** Format: double */

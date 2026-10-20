@@ -401,6 +401,23 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Contains("\"ratingCount\":2", page, StringComparison.Ordinal);
     }
 
+    // A data export (design §5.4) lists the customer's own saved programs, with titles of programs on sale.
+    [Fact]
+    public async Task A_customers_export_holds_their_saved_programs_only()
+    {
+        var (alice, bob) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        await AsCustomer(alice, HttpMethod.Put, $"/saved/{_aPublished.Id}");
+
+        var alices = await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/customers/{alice}/export"))).Content.ReadAsStringAsync(Cancel);
+        var bobs = await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/customers/{bob}/export"))).Content.ReadAsStringAsync(Cancel);
+        var unsigned = await _api.CreateClient().GetAsync($"/internal/customers/{alice}/export", Cancel);
+
+        Assert.Contains(_aPublished.Id.ToString(), alices, StringComparison.Ordinal);
+        Assert.Contains(_aPublished.Title, alices, StringComparison.Ordinal);
+        Assert.Equal("{\"saved\":[]}", bobs);
+        Assert.Equal(HttpStatusCode.Unauthorized, unsigned.StatusCode);
+    }
+
     // Deleting an account (design §5.2) erases that customer's saved programs and nobody else's; the
     // endpoint, like every internal one, needs the gateway signature.
     [Fact]

@@ -71,6 +71,9 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
     // What deleting an account asks the other services and Microsoft Graph to do (design §5.2).
     public FakeCustomerErasure CustomerErasure { get; } = new();
 
+    // The other services' parts of a data export (design §5.4).
+    public FakeCustomerExport CustomerExport { get; } = new();
+
     public FakeEntraUsers EntraUsers { get; } = new();
 
     // What suspending a workspace asks catalog-api to do (design §3.4).
@@ -93,6 +96,7 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
             services.AddSingleton<IMessageSender>(Messages);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Workspace.ITenantErasure>(Erasure);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Account.ICustomerErasure>(CustomerErasure);
+            services.AddSingleton<Athlos.Tenancy.Api.Features.Account.ICustomerExport>(CustomerExport);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Account.IEntraUsers>(EntraUsers);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Admin.ITenantSuspension>(Suspension);
         });
@@ -112,6 +116,9 @@ public sealed class CatalogApiFactory(AthlosDatabases databases, AthlosStorage s
 
     public FakeProgramQuota Quota { get; } = new();
 
+    // Workouts added to programs that have been on sale, as enrollment-api would hear of them (design §5.3).
+    public FakeProgramUpdates Updates { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -119,6 +126,7 @@ public sealed class CatalogApiFactory(AthlosDatabases databases, AthlosStorage s
         {
             services.AddSingleton<Athlos.Catalog.Api.Features.Programs.IPayoutReadiness>(Payouts);
             services.AddSingleton<Athlos.Catalog.Api.Features.Programs.IProgramQuota>(Quota);
+            services.AddSingleton<Athlos.Catalog.Api.Features.Workouts.IProgramUpdates>(Updates);
         });
     }
 }

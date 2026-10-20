@@ -19,9 +19,11 @@ public static class MyReview
 {
     public sealed record Request([property: Range(1, 5)] int Rating, [property: MaxLength(Review.MaxCommentLength)] string? Comment);
 
-    public sealed record Response(int Rating, string? Comment, string AuthorName, string? Reply, DateTimeOffset? RepliedAt, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+    // HiddenAt: the platform admin hid it after a report; it no longer shows on the program's page.
+    public sealed record Response(
+        int Rating, string? Comment, string AuthorName, string? Reply, DateTimeOffset? RepliedAt, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, DateTimeOffset? HiddenAt);
 
-    public static Response ToResponse(Review r) => new(r.Rating, r.Comment, r.AuthorName, r.Reply, r.RepliedAt, r.CreatedAt, r.UpdatedAt);
+    public static Response ToResponse(Review r) => new(r.Rating, r.Comment, r.AuthorName, r.Reply, r.RepliedAt, r.CreatedAt, r.UpdatedAt, r.HiddenAt);
 
     public static void MapMyReview(this IEndpointRouteBuilder me)
     {

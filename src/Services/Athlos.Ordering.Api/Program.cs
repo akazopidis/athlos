@@ -77,6 +77,10 @@ app.MapGroup("/api/v1/me")
     .RequireAuthorization()
     .WithTenantTransaction<OrderingDbContext>()
     .MapListMyOrders();
+app.MapGroup("/api/v1/me")
+    .RequireAuthorization()
+    .WithTenantTransaction<OrderingDbContext>()
+    .MapGetMyReceipt();
 
 // Coach dashboard: tenant and role come from the gateway
 app.MapGroup("/api/v1/studio/{tenantSlug}")
@@ -110,6 +114,8 @@ app.MapStripeWebhook();
 
 // Tenancy-api only (signed): anonymize a deleted account's orders (design §5.2)
 app.MapEraseCustomer();
+// Tenancy-api only (signed): a customer's orders for their data export (design §5.4)
+app.MapExportCustomer();
 // Tenancy-api only (signed): before a workspace is erased, no refundable sales or open checkouts (design §3.4)
 app.MapPrepareTenantDeletion();
 

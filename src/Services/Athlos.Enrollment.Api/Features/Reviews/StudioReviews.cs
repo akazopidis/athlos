@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Enrollment.Api.Data;
+using Athlos.Messaging;
+using Athlos.Messaging.Contracts;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,12 +11,13 @@ namespace Athlos.Enrollment.Api.Features.Reviews;
 // program), and one public reply per review, written, changed or removed by owners and staff. The
 // coach cannot delete a customer's review. Tenant-scoped: the tenant filter and RLS show this tenant's
 // reviews only, and the route's slug must match the enrollment's coach, as for sales, so another
-// workspace's review is 404.
+// workspace's review is 404. The first reply emails the customer (review-replied), if their enrollment
+// has an address.
 public static class StudioReviews
 {
     public sealed record Item(
         Guid Id, Guid ProgramId, string ProgramTitle, int Rating, string? Comment, string AuthorName, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
-        string? Reply, DateTimeOffset? RepliedAt);
+        string? Reply, DateTimeOffset? RepliedAt, DateTimeOffset? HiddenAt);
 
     public sealed record Page(List<Item> Items, int PageNumber, int PageSize, int TotalCount);
 
@@ -41,13 +44,14 @@ public static class StudioReviews
             await reviews.OrderByDescending(r => r.Review.CreatedAt).ThenBy(r => r.Review.Id)
                 .Skip((query.Page - 1) * query.PageSize).Take(query.PageSize)
                 .Select(r => new Item(r.Review.Id, r.Review.ProgramId, r.ProgramTitle, r.Review.Rating, r.Review.Comment, r.Review.AuthorName,
-                    r.Review.CreatedAt, r.Review.UpdatedAt, r.Review.Reply, r.Review.RepliedAt))
+                    r.Review.CreatedAt, r.Review.UpdatedAt, r.Review.Reply, r.Review.RepliedAt, r.Review.HiddenAt))
                 .ToListAsync(cancellationToken),
             query.Page, query.PageSize, await reviews.CountAsync(cancellationToken)));
     }
 
     private static async Task<Results<NoContent, NotFound, ValidationProblem>> Reply(
-        string tenantSlug, Guid reviewId, ReplyRequest request, EnrollmentDbContext db, TimeProvider time, CancellationToken cancellationToken)
+        string tenantSlug, Guid reviewId, ReplyRequest request, EnrollmentDbContext db, TimeProvider time, IConfiguration configuration,
+        CancellationToken cancellationToken)
     {
         var text = request.Text.Trim();
         if (text.Length == 0)
@@ -55,11 +59,31 @@ public static class StudioReviews
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["text"] = ["Write a reply."] });
         }
 
-        var ids = Reviews(db, tenantSlug).Select(s => s.Review.Id);
-        var changed = await db.Reviews
-            .Where(r => r.Id == reviewId && ids.Contains(r.Id))
-            .ExecuteUpdateAsync(r => r.SetProperty(x => x.Reply, text).SetProperty(x => x.RepliedAt, time.GetUtcNow()), cancellationToken);
-        return changed == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
+        var found = await db.Reviews
+            .Join(db.Enrollments.Where(e => e.CoachSlug == tenantSlug), r => r.EnrollmentId, e => e.Id, (r, e) => new { Review = r, Enrollment = e })
+            .SingleOrDefaultAsync(x => x.Review.Id == reviewId, cancellationToken);
+        if (found is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (found.Review.Reply is null && found.Enrollment.CustomerEmail is { } email)
+        {
+            var publicUrl = new Uri(configuration["App:PublicUrl"] ?? throw new InvalidOperationException("App:PublicUrl is not configured."));
+            db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, new EmailNotification(
+                EmailTemplates.ReviewReplied, To: [email], ToOwnersOfTenant: null, Locale: "en", new Dictionary<string, string>
+                {
+                    ["programTitle"] = found.Enrollment.ProgramTitle,
+                    ["coach"] = found.Enrollment.CoachSlug,
+                    ["reply"] = text,
+                    ["programUrl"] = new Uri(publicUrl, $"/me/programs/{found.Enrollment.ProgramId}").ToString(),
+                })));
+        }
+
+        found.Review.Reply = text;
+        found.Review.RepliedAt = time.GetUtcNow();
+        await db.SaveChangesAsync(cancellationToken);
+        return TypedResults.NoContent();
     }
 
     private static async Task<Results<NoContent, NotFound>> RemoveReply(

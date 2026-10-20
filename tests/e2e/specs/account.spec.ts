@@ -59,3 +59,17 @@ test('a customer saves a program for later and removes it', async ({ page }, tes
   await saved.getByRole('button', { name: `Remove ${title} from saved` }).click()
   await expect(saved).toHaveCount(0)
 })
+
+// "Download my data" (design §5.4): one JSON file with the account and every service's part.
+test('a customer downloads their data', async ({ page }, testInfo) => {
+  desktopOnly(testInfo.project.name)
+  await signIn(page)
+
+  await page.goto('/me/account')
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download my data' }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toMatch(/^athlos-data-\d{4}-\d{2}-\d{2}\.json$/)
+  const data = JSON.parse(await (await import('node:fs/promises')).readFile((await file.path())!, 'utf-8'))
+  expect(Object.keys(data)).toEqual(expect.arrayContaining(['account', 'workspaces', 'orders', 'programs', 'saved']))
+})

@@ -32,6 +32,8 @@ public sealed class RateLimitTests : IAsyncLifetime
         _backend.MapGet("/api/v1/marketplace/programs", () => Results.Ok());
         _backend.MapPost("/api/v1/orders/checkout", () => Results.Ok());
         _backend.MapPost("/api/v1/orders/discount", () => Results.Ok());
+        _backend.MapPut("/api/v1/me/saved/{id}", () => Results.NoContent());
+        _backend.MapGet("/api/v1/me/saved", () => Results.Ok());
         await _backend.StartAsync(TestContext.Current.CancellationToken);
     }
 
@@ -43,6 +45,7 @@ public sealed class RateLimitTests : IAsyncLifetime
                .UseSetting("ReverseProxy:Clusters:catalog:Destinations:catalog-api:Address", backend)
                .UseSetting("ReverseProxy:Clusters:ordering:Destinations:ordering-api:Address", backend)
                .UseSetting("RateLimits:CheckoutsPerMinute", "2")
+               .UseSetting("RateLimits:CustomerWritesPerMinute", "3")
                .UseSetting("services:tenancy-api:http:0", backend)
                .UseSetting("RateLimits:PerClientRequestsPerSecond", "2")
                .UseSetting("RateLimits:Enabled", _limitsOff ? "false" : "true"));
@@ -136,6 +139,33 @@ public sealed class RateLimitTests : IAsyncLifetime
         var third = await Checkout(client, customer, "/api/v1/orders/discount");
 
         Assert.Equal([HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests], [first, second, third]);
+    }
+
+    // A customer's writes share a per-customer bucket (reads stay unlimited), and another customer is not affected.
+    [Fact]
+    public async Task Customer_writes_are_limited_per_customer_and_reads_are_not()
+    {
+        var client = Gateway();
+        var (anna, ben) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+
+        var writes = new List<HttpStatusCode>();
+        for (var i = 0; i < 4; i++)
+        {
+            writes.Add(await Send(client, anna, HttpMethod.Put, $"/api/v1/me/saved/{Guid.CreateVersion7()}"));
+        }
+
+        var read = await Send(client, anna, HttpMethod.Get, "/api/v1/me/saved");
+        var bens = await Send(client, ben, HttpMethod.Put, $"/api/v1/me/saved/{Guid.CreateVersion7()}");
+
+        Assert.Equal([HttpStatusCode.NoContent, HttpStatusCode.NoContent, HttpStatusCode.NoContent, HttpStatusCode.TooManyRequests], writes);
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.NoContent), (read, bens));
+    }
+
+    private static async Task<HttpStatusCode> Send(HttpClient client, Guid customer, HttpMethod method, string path)
+    {
+        using var request = new HttpRequestMessage(method, path);
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Athlos.Testing.TestTokens.For(customer));
+        return (await client.SendAsync(request, TestContext.Current.CancellationToken)).StatusCode;
     }
 
     private static async Task<HttpStatusCode> Checkout(HttpClient client, Guid customer, string path = "/api/v1/orders/checkout")

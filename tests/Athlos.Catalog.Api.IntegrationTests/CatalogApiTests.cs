@@ -414,6 +414,42 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal([first.Slug], othersAfter.Select(p => p.Slug));
     }
 
+    // A workout added to a program that has been on sale is reported to enrollment-api, which emails the
+    // program's customers (design §5.3); a draft's workouts are not.
+    [Fact]
+    public async Task New_workouts_of_a_program_on_sale_are_reported_once_committed()
+    {
+        var coach = NewCoach();
+        var draft = await _api.CreateProgram(coach);
+        var sold = await _api.CreateProgram(coach, publish: true);
+
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{draft.Id}/workouts", new { week = 1, day = 2, title = "Draft day" });
+        await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{sold.Id}/workouts", new { week = 1, day = 2, title = "Bonus day" });
+
+        for (var waited = 0; waited < 3000 && !_api.Updates.Told.Any(t => t.ProgramId == sold.Id); waited += 50)
+        {
+            await Task.Delay(50, Cancel);
+        }
+
+        Assert.Contains((coach.TenantId, sold.Id, "Bonus day"), _api.Updates.Told);
+        Assert.DoesNotContain(_api.Updates.Told, t => t.ProgramId == draft.Id);
+    }
+
+    // A double tap saves twice at the same moment: every request succeeds and one row is kept.
+    [Fact]
+    public async Task Saving_the_same_program_at_once_keeps_one_row_and_never_fails()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach, publish: true);
+        var customer = Guid.CreateVersion7();
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => AsCustomer(customer, HttpMethod.Put, $"/saved/{program.Id}")));
+        var saved = await Read<List<SearchItem>>(await AsCustomer(customer, HttpMethod.Get, "/saved"));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.NoContent, r.StatusCode));
+        Assert.Single(saved);
+    }
+
     // Ratings come from enrollment-api (design §2.4): cards carry them and "Top rated" sorts by the
     // average, then the number of reviews; programs without reviews come last.
     [Fact]

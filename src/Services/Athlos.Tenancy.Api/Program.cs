@@ -44,6 +44,8 @@ builder.Services.AddHttpClient(ServiceCustomerErasure.Ordering, http => http.Bas
 builder.Services.AddHttpClient(ServiceCustomerErasure.Enrollment, http => http.BaseAddress = new Uri("https+http://enrollment-api")).AddSignedRequests();
 builder.Services.AddHttpClient(ServiceCustomerErasure.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api")).AddSignedRequests();
 builder.Services.AddScoped<ICustomerErasure, ServiceCustomerErasure>();
+// "Download my data" reads the same services' signed export endpoints (design §5.4).
+builder.Services.AddScoped<ICustomerExport, ServiceCustomerExport>();
 builder.Services.Configure<EntraAccountDeletionOptions>(builder.Configuration.GetSection("EntraAccountDeletion"));
 builder.Services.AddHttpClient<IEntraUsers, GraphEntraUsers>();
 // The staff invite email leaves through the outbox to the notifications queue (design §5.2, §5.3).
@@ -94,6 +96,10 @@ var me = app.MapGroup("/api/v1/me")
     .WithTenantTransaction<TenancyDbContext>();
 me.MapListMyMemberships();
 me.MapUpsertMyProfile();
+// Reads only, but the other services' parts are fetched between the reads: no long transaction.
+app.MapGroup("/api/v1/me")
+    .RequireAuthorization()
+    .MapExportMyData();
 // Deleting the account manages its own transactions, around the calls to other services.
 app.MapDeleteMyAccount();
 

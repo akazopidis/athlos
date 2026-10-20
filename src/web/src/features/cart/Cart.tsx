@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useApp } from '@/lib/AppContext'
 import { cartTotals, MaxCartItems, useCart, type CartItem } from '@/lib/cart'
+import { TermsVersion } from '@/lib/legal'
 import { formatMoney } from '@/lib/money'
 import { leaveTo } from '@/lib/navigation'
 import { problemTitle } from '@/lib/problem'
@@ -30,6 +31,8 @@ export function Cart() {
   const coaches = useCoaches(cart.items.map((i) => i.coachSlug))
   const [params] = useSearchParams()
   const [notice, setNotice] = useState<string | null>(null)
+  // The customer accepts the Terms before paying (design §5.4); checkout sends the version shown.
+  const [accepted, setAccepted] = useState(false)
   const [blocked, setBlocked] = useState<string[]>([])
   const signedIn = Boolean(msal?.getActiveAccount())
 
@@ -88,11 +91,12 @@ export function Cart() {
     mutationFn: async (programIds: string[]) => {
       setNotice(null)
       const { data, error, response } = await api.POST('/api/v1/orders/checkout', {
-        body: appliedCode ? { programIds, discountCode: appliedCode } : { programIds },
+        body: appliedCode ? { programIds, discountCode: appliedCode, termsVersion: TermsVersion } : { programIds, termsVersion: TermsVersion },
         params: { header: { 'Idempotency-Key': keyFor(programIds, appliedCode) } },
       })
       if (data) return data
       const { reason, programIds: refused } = refusal(error)
+      if (reason === 'terms') throw new Error('The Terms have changed. Reload the page to read and accept the new version.')
       if (reason === 'discountCode') {
         // Used up or switched off since it was priced: the cart is shown again at full price.
         setCode(null)
@@ -266,11 +270,27 @@ export function Cart() {
               <AlertDescription>{checkout.error.message}</AlertDescription>
             </Alert>
           )}
+          {signedIn && (
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+              <span>
+                I accept the{' '}
+                <Link to="/legal/terms" target="_blank" className="underline underline-offset-4">
+                  Terms
+                </Link>{' '}
+                and the{' '}
+                <Link to="/legal/refunds" target="_blank" className="underline underline-offset-4">
+                  Refund policy
+                </Link>
+                .
+              </span>
+            </label>
+          )}
           {signedIn ? (
             <Button
               className="w-full"
               size="lg"
-              disabled={!toBuy.length || totals.length > 1 || checkout.isPending || Boolean(checkout.data)}
+              disabled={!accepted || !toBuy.length || totals.length > 1 || checkout.isPending || Boolean(checkout.data)}
               onClick={() => checkout.mutate(toBuy.map((i) => i.programId))}
             >
               {checkout.isPending || checkout.data ? 'Opening checkout…' : 'Check out'}
@@ -298,7 +318,7 @@ function CartLine({ item, discount, owned, blocked, onRemove }: { item: CartItem
   return (
     <li className="flex gap-4 p-4 sm:p-5">
       <Link to={`/c/${item.coachSlug}/programs/${item.slug}`} className="w-24 shrink-0 overflow-hidden rounded-xl sm:w-32" tabIndex={-1} aria-hidden>
-        <ProgramCover url={item.coverImageUrl} title={item.title} />
+        <ProgramCover url={item.coverImageUrl} title={item.title} category={item.category} />
       </Link>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <Link to={`/c/${item.coachSlug}/programs/${item.slug}`} className="line-clamp-2 font-semibold underline-offset-4 hover:underline">

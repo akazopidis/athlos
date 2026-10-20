@@ -1,0 +1,8 @@
+Subject: {{coach}} replied to your review of {{programTitle}}
+{{coach}} replied to your review of {{programTitle}}:
+
+"{{reply}}"
+
+Open the program: {{programUrl}}
+
+Athlos

@@ -84,6 +84,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/marketplace/programs/{programId}/reviews/{reviewId}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReportReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reviews/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminListReviewReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reviews/{reviewId}/hide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AdminHideReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reviews/{reviewId}/keep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AdminKeepReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/studio/{tenantSlug}/reviews": {
         parameters: {
             query?: never;
@@ -195,6 +259,8 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /** Format: date-time */
+            hiddenAt: null | string;
         };
         ProgramReviewsItem: {
             /** Format: uuid */
@@ -210,6 +276,7 @@ export interface components {
             reply: null | string;
             /** Format: date-time */
             repliedAt: null | string;
+            mine: boolean;
         };
         ProgramReviewsResponse: {
             /** Format: double */
@@ -224,6 +291,30 @@ export interface components {
             pageSize: number | string;
             /** Format: int32 */
             totalCount: number | string;
+        };
+        /** @enum {unknown} */
+        ReportReason: "Abusive" | "OffTopic" | "PersonalData" | "Spam" | "Other";
+        ReviewModerationOpenReport: {
+            /** Format: uuid */
+            reviewId: string;
+            /** Format: uuid */
+            programId: string;
+            programTitle: string;
+            coachSlug: string;
+            authorName: string;
+            /** Format: int32 */
+            rating: number | string;
+            comment: null | string;
+            /** Format: int32 */
+            reports: number | string;
+            reasons: components["schemas"]["ReportReason"][];
+            notes: string[];
+            /** Format: date-time */
+            firstReportedAt: string;
+        };
+        ReviewModerationReportRequest: {
+            reason: components["schemas"]["ReportReason"];
+            note: null | string;
         };
         StudioReviewsItem: {
             /** Format: uuid */
@@ -242,6 +333,8 @@ export interface components {
             reply: null | string;
             /** Format: date-time */
             repliedAt: null | string;
+            /** Format: date-time */
+            hiddenAt: null | string;
         };
         StudioReviewsPage: {
             items: components["schemas"]["StudioReviewsItem"][];
@@ -454,6 +547,119 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProgramReviewsResponse"];
                 };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ReportReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                programId: string;
+                reviewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewModerationReportRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AdminListReviewReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewModerationOpenReport"][];
+                };
+            };
+        };
+    };
+    AdminHideReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AdminKeepReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

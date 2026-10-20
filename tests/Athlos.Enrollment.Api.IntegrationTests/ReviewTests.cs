@@ -6,6 +6,8 @@ using Athlos.Messaging.Contracts;
 using Athlos.Notifications.Worker;
 using Athlos.Tenancy;
 using Athlos.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using static Athlos.Testing.EnrollmentArrange;
 using static Athlos.Testing.OrderingArrange;
 
@@ -155,6 +157,152 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Null(after.Reply);
     }
 
+    // Many buyers review one program at the same moment: the advisory lock orders the rating updates, so
+    // the copy in catalog ends with every review counted (design §2.4).
+    [Fact]
+    public async Task Concurrent_reviews_leave_an_exact_rating()
+    {
+        var program = _api.Programs.Add(_coach.TenantId, _coach.Slug);
+        var buyers = Enumerable.Range(0, 20).Select(_ => Guid.CreateVersion7()).ToList();
+        foreach (var buyer in buyers)
+        {
+            await _api.Deliver(Paid(buyer, _coach.TenantId, _coach.Slug, program));
+        }
+
+        var responses = await Task.WhenAll(buyers.Select((buyer, i) => WriteReview(buyer, program.ProgramId, i % 5 + 1, null)));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        Assert.Equal((20, 3m), _api.Ratings.For(_coach.TenantId, program.ProgramId));
+    }
+
+    // The public list tells a signed-in reviewer which review is theirs (no "Report" on it); nobody else.
+    [Fact]
+    public async Task The_public_list_marks_the_callers_own_review()
+    {
+        var program = await _api.Enroll(_customer, _coach);
+        await WriteReview(_customer, program.ProgramId, 5, "Mine");
+        var path = $"/api/v1/marketplace/programs/{program.ProgramId}/reviews";
+
+        var asAuthor = await Read<MineList>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, path), _customer));
+        var asOther = await Read<MineList>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, path), Guid.CreateVersion7()));
+        var anonymous = await Read<MineList>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, path)));
+
+        Assert.Equal((true, false, false), (Assert.Single(asAuthor.Items).Mine, Assert.Single(asOther.Items).Mine, Assert.Single(anonymous.Items).Mine));
+    }
+
+    private sealed record MineRow(bool Mine);
+
+    private sealed record MineList(List<MineRow> Items);
+
+    // Reviews are public only while the program is on sale (design §2.4).
+    [Fact]
+    public async Task Reviews_of_a_program_off_sale_are_not_public()
+    {
+        var program = await _api.Enroll(_customer, _coach);
+        await WriteReview(_customer, program.ProgramId, 4, "Good");
+
+        _api.Programs.TakeOffSale(program.ProgramId);
+        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs/{program.ProgramId}/reviews"));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // Moderation (design §2.4): reports collect per review (one per reporter); the admin hides the review,
+    // which leaves the page and the rating, stays visible to its author and the coach, marked, and closes
+    // the reports; "keep" shows it again.
+    [Fact]
+    public async Task Reported_reviews_are_hidden_or_kept_by_the_platform_admin()
+    {
+        var program = _api.Programs.Add(_coach.TenantId, _coach.Slug);
+        var other = Guid.CreateVersion7();
+        await _api.Deliver(Paid(_customer, _coach.TenantId, _coach.Slug, program));
+        await _api.Deliver(Paid(other, _coach.TenantId, _coach.Slug, program));
+        await WriteReview(_customer, program.ProgramId, 1, "Rude words");
+        await WriteReview(other, program.ProgramId, 5, "Great");
+        var reviewId = (await Read<PublicReviews>(await PublicList(program.ProgramId))).Items.Single(r => r.Rating == 1).Id;
+
+        var first = await ReportReview(other, program.ProgramId, reviewId, "Abusive");
+        await ReportReview(other, program.ProgramId, reviewId, "Spam");
+        await ReportReview(_coach.OwnerId, program.ProgramId, reviewId, "OffTopic");
+        var notAdmin = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/admin/reviews/reports"), other);
+        var reports = await Read<List<OpenReportRow>>(await AsAdmin(HttpMethod.Get, "/api/v1/admin/reviews/reports"));
+        var hidden = await AsAdmin(HttpMethod.Post, $"/api/v1/admin/reviews/{reviewId}/hide");
+        var page = await Read<PublicReviews>(await PublicList(program.ProgramId));
+        var mine = await Read<MyProgramWithReview>(await _api.AsCustomer(_customer, HttpMethod.Get, $"/programs/{program.ProgramId}"));
+        var afterHide = await Read<List<OpenReportRow>>(await AsAdmin(HttpMethod.Get, "/api/v1/admin/reviews/reports"));
+        var ratingHidden = _api.Ratings.For(_coach.TenantId, program.ProgramId);
+        await ReportReview(other, program.ProgramId, Guid.CreateVersion7(), "Spam");
+        await AsAdmin(HttpMethod.Post, $"/api/v1/admin/reviews/{reviewId}/keep");
+
+        Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, notAdmin.StatusCode);
+        var open = Assert.Single(reports);
+        Assert.Equal((reviewId, 2, "Rude words", program.Title), (open.ReviewId, open.Reports, open.Comment, open.ProgramTitle));
+        Assert.Equal(HttpStatusCode.NoContent, hidden.StatusCode);
+        Assert.Equal(["Great"], page.Items.Select(r => r.Comment));
+        Assert.Equal((1, 5m), ratingHidden);
+        Assert.NotNull(mine.Review!.HiddenAt);
+        Assert.Empty(afterHide);
+        Assert.Equal((2, 3m), _api.Ratings.For(_coach.TenantId, program.ProgramId));
+    }
+
+    // The coach's first reply emails the customer (design §5.3); changing the reply sends nothing more.
+    [Fact]
+    public async Task The_first_reply_emails_the_customer()
+    {
+        var program = await _api.Enroll(_customer, _coach);
+        await WriteReview(_customer, program.ProgramId, 4, "Nice");
+        var review = Assert.Single((await Read<StudioPage>(await AsCoach(_coach, HttpMethod.Get, "/reviews"))).Items);
+
+        await AsCoach(_coach, HttpMethod.Put, $"/reviews/{review.Id}/reply", new { text = "Thanks <3" });
+        await AsCoach(_coach, HttpMethod.Put, $"/reviews/{review.Id}/reply", new { text = "Thanks again" });
+        await _api.PublishOutbox();
+
+        var email = Assert.Single(Emails(), e => e.Template == EmailTemplates.ReviewReplied && e.Data["programTitle"] == program.Title);
+        Assert.Equal([$"{_customer}@test.local"], email.To);
+        var rendered = new EmailRenderer().Render(email.Template, email.Data);
+        Assert.Contains("Thanks &lt;3", rendered.Html, StringComparison.Ordinal);
+        Assert.Contains($"/me/programs/{program.ProgramId}", rendered.PlainText, StringComparison.Ordinal);
+    }
+
+    // A new workout in a program on sale emails each of its customers, at most once a day (design §5.3).
+    [Fact]
+    public async Task New_workouts_email_the_programs_customers_once_a_day()
+    {
+        var program = await _api.Enroll(_customer, _coach);
+        var other = Guid.CreateVersion7();
+        await _api.Deliver(Paid(other, _coach.TenantId, _coach.Slug, program));
+
+        var first = await Updated(_coach.TenantId, program.ProgramId, "Week 5, day 1");
+        await Updated(_coach.TenantId, program.ProgramId, "Week 5, day 2");
+        var wrongTenant = await Updated(Guid.CreateVersion7(), program.ProgramId, "Planted");
+        await _api.PublishOutbox();
+
+        var emails = Emails().Where(e => e.Template == EmailTemplates.ProgramUpdated && e.Data["programTitle"] == program.Title).ToList();
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (first.StatusCode, wrongTenant.StatusCode));
+        Assert.Equal(2, emails.Count);
+        Assert.All(emails, e => Assert.Equal("Week 5, day 1", e.Data["workoutTitle"]));
+        Assert.Equal([$"{_customer}@test.local", $"{other}@test.local"], emails.SelectMany(e => e.To).Order());
+        Assert.Contains("New in", new EmailRenderer().Render(emails[0].Template, emails[0].Data).Subject, StringComparison.Ordinal);
+    }
+
+    private Task<HttpResponseMessage> Updated(Guid tenantId, Guid programId, string workoutTitle) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/internal/tenants/{tenantId}/programs/{programId}/updated")
+        {
+            Content = JsonContent.Create(new { workoutTitle }),
+        });
+
+    private Task<HttpResponseMessage> PublicList(Guid programId) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs/{programId}/reviews"));
+
+    private Task<HttpResponseMessage> ReportReview(Guid reporter, Guid programId, Guid reviewId, string reason) =>
+        _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/v1/marketplace/programs/{programId}/reviews/{reviewId}/report") { Content = JsonContent.Create(new { reason }) },
+            reporter);
+
+    private Task<HttpResponseMessage> AsAdmin(HttpMethod method, string path) =>
+        _api.SendAsGateway(new HttpRequestMessage(method, path), Guid.CreateVersion7(), appRoles: ["Platform.Admin"]);
+
     private Task<HttpResponseMessage> WriteReview(Guid customerId, Guid programId, int rating, string? comment) =>
         _api.SendAsGateway(
             new HttpRequestMessage(HttpMethod.Put, $"/api/v1/me/programs/{programId}/review") { Content = JsonContent.Create(new { rating, comment }) },
@@ -165,10 +313,18 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
             new HttpRequestMessage(method, $"/api/v1/studio/{coach.Slug}{path}") { Content = body is null ? null : JsonContent.Create(body) },
             coach.OwnerId, coach.TenantId, role);
 
-    private IEnumerable<EmailNotification> Emails() =>
-        _api.Messages.Sent
+    // Every email queued in the outbox, sent or not. Read from the table: test apps share it and each runs
+    // a publisher, so which app's sender sends a row is a race, but the row is there.
+    private List<EmailNotification> Emails()
+    {
+        using var scope = _api.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<Athlos.Enrollment.Api.Data.EnrollmentDbContext>();
+        return db.OutboxMessages.AsNoTracking()
             .Where(m => m.Queue == EmailNotification.Queue)
-            .Select(m => JsonSerializer.Deserialize<EmailNotification>(m.Message.Payload, JsonSerializerOptions.Web)!);
+            .AsEnumerable()
+            .Select(m => JsonSerializer.Deserialize<EmailNotification>(m.Payload, JsonSerializerOptions.Web)!)
+            .ToList();
+    }
 
     private static async Task<T> Read<T>(HttpResponseMessage response)
     {
@@ -180,7 +336,9 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
 
     public ValueTask DisposeAsync() => _api.DisposeAsync();
 
-    private sealed record ReviewRow(int Rating, string? Comment, string AuthorName, string? Reply);
+    private sealed record ReviewRow(Guid Id, int Rating, string? Comment, string AuthorName, string? Reply, DateTimeOffset? HiddenAt);
+
+    private sealed record OpenReportRow(Guid ReviewId, string ProgramTitle, string? Comment, int Reports);
 
     private sealed record MyProgramWithReview(Guid ProgramId, ReviewRow? Review);
 

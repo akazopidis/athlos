@@ -6,5 +6,6 @@ You bought:
 Total: {{total}}. Your programs are ready in your account; each coach can refund a purchase within {{refundDays}} days.
 
 Start training: {{programsUrl}}
+Your receipt: {{receiptUrl}}
 
 Athlos

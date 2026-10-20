@@ -152,10 +152,12 @@ public static partial class StripeWebhook
             new Dictionary<string, string>
             {
                 ["summary"] = summary,
-                ["items"] = string.Join('\n', orders.Select(o => $"• {o.ProgramTitle} by {o.CoachSlug}, {MoneyText.Format(o.Amount, o.Currency)}")),
+                ["items"] = string.Join('\n', orders.Select(o => $"• {o.ProgramTitle} by {o.CoachSlug}, {MoneyText.Format(o.Amount, o.Currency)}"
+                    + (o.DiscountCode is null ? "" : $" (code {o.DiscountCode}, {MoneyText.Format(o.DiscountAmount, o.Currency)} off)"))),
                 ["total"] = MoneyText.Format(orders.Sum(o => o.Amount), first.Currency),
                 ["refundDays"] = OrderRefunds.RefundWindow(configuration).TotalDays.ToString("0", System.Globalization.CultureInfo.InvariantCulture),
                 ["programsUrl"] = new Uri(publicUrl, "/me").ToString(),
+                ["receiptUrl"] = new Uri(publicUrl, $"/me/orders/{first.CheckoutId}/receipt").ToString(),
             });
     }
 

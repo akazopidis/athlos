@@ -26,17 +26,18 @@ export function ProductCard({ program: p, coach, owned, mine = false }: { progra
       <Link to={href} className="block outline-none focus-visible:ring-3 focus-visible:ring-ring/50" tabIndex={-1} aria-hidden>
         <div className="relative overflow-hidden bg-muted">
           <ProgramCover url={p.coverImageUrl} title={p.title} category={p.category} className="transition-transform duration-500 ease-out group-hover:scale-[1.04]" />
-          <div className="absolute top-3 left-3 flex gap-1.5">
+          {/* One wrapping row, kept clear of the heart in the corner, so badges never cover each other. */}
+          <div className="absolute top-3 right-14 left-3 flex flex-wrap gap-1.5">
             <span className="rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm backdrop-blur">{categoryLabel(p.category)}</span>
             <span className="rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm backdrop-blur">
               {weeks} {weeks === 1 ? 'week' : 'weeks'}
             </span>
+            {owned && (
+              <span className="flex items-center gap-1 rounded-full bg-volt px-2.5 py-1 text-xs font-bold text-volt-foreground shadow-sm">
+                <Check className="size-3.5" aria-hidden /> Owned
+              </span>
+            )}
           </div>
-          {owned && (
-            <span className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-volt px-2.5 py-1 text-xs font-bold text-volt-foreground shadow-sm">
-              <Check className="size-3.5" aria-hidden /> Owned
-            </span>
-          )}
         </div>
       </Link>
       {/* Outside the cover's link and above the card's stretched link, so it gets its own clicks. */}
@@ -104,6 +105,7 @@ function AddToCart({ program: p }: { program: Program }) {
               priceAmount: Number(p.priceAmount),
               currency: p.currency,
               coverImageUrl: p.coverImageUrl,
+              category: p.category,
             })
       }
     >

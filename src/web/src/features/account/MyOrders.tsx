@@ -47,6 +47,11 @@ export function MyOrders() {
                 {/* An unpaid checkout stays Pending until Stripe expires it (24 hours), then disappears. */}
                 <Badge variant={o.status === 'Paid' ? 'secondary' : 'outline'}>{o.status === 'Pending' ? 'Awaiting payment' : o.status}</Badge>
                 <span className="w-20 text-right font-semibold tabular-nums">{formatMoney(o.amount, o.currency)}</span>
+                {o.checkoutId && (o.status === 'Paid' || o.status === 'Refunded') && (
+                  <Link to={`/me/orders/${o.checkoutId}/receipt`} className="text-sm underline-offset-4 hover:underline" aria-label={`Receipt for ${o.programTitle}`}>
+                    Receipt
+                  </Link>
+                )}
               </li>
             )
           })}

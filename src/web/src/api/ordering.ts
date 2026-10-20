@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/orders/receipts/{checkoutId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetMyReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/studio/{tenantSlug}/sales": {
         parameters: {
             query?: never;
@@ -243,6 +259,38 @@ export interface components {
             /** Format: int32 */
             totalCount: number | string;
         };
+        OrderListsReceipt: {
+            /** Format: uuid */
+            checkoutId: string;
+            /** Format: date-time */
+            paidAt: string;
+            currency: string;
+            lines: components["schemas"]["OrderListsReceiptLine"][];
+            /** Format: int64 */
+            subtotal: number | string;
+            /** Format: int64 */
+            discount: number | string;
+            /** Format: int64 */
+            total: number | string;
+            /** Format: int64 */
+            refunded: number | string;
+        };
+        OrderListsReceiptLine: {
+            /** Format: uuid */
+            orderId: string;
+            programTitle: string;
+            coachSlug: string;
+            /** Format: int64 */
+            price: number | string;
+            discountCode: null | string;
+            /** Format: int64 */
+            discountAmount: number | string;
+            /** Format: int64 */
+            amount: number | string;
+            status: components["schemas"]["OrderStatus"];
+            /** Format: date-time */
+            refundedAt: null | string;
+        };
         OrderListsSale: {
             /** Format: uuid */
             id: string;
@@ -294,6 +342,7 @@ export interface components {
         StartCheckoutRequest: {
             programIds: string[];
             discountCode?: null | string;
+            termsVersion?: null | string;
         };
         StartCheckoutResponse: {
             /** Format: uuid */
@@ -419,6 +468,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["OrderListsMyOrdersPage"];
                 };
+            };
+        };
+    };
+    GetMyReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                checkoutId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderListsReceipt"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

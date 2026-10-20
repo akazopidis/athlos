@@ -287,6 +287,132 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/marketplace/programs/{programId}/reviews/{reviewId}/report": {
+      "post": {
+        "tags": [
+          "Reviews"
+        ],
+        "operationId": "ReportReview",
+        "parameters": [
+          {
+            "name": "programId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reviewId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewModerationReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reviews/reports": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminListReviewReports",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewModerationOpenReport"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reviews/{reviewId}/hide": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminHideReview",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reviews/{reviewId}/keep": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminKeepReview",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
           }
         }
       }
@@ -726,7 +852,8 @@
           "reply",
           "repliedAt",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "hiddenAt"
         ],
         "type": "object",
         "properties": {
@@ -767,6 +894,13 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "hiddenAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -779,7 +913,8 @@
           "createdAt",
           "updatedAt",
           "reply",
-          "repliedAt"
+          "repliedAt",
+          "mine"
         ],
         "type": "object",
         "properties": {
@@ -824,6 +959,9 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "mine": {
+            "type": "boolean"
           }
         }
       },
@@ -898,6 +1036,107 @@
           }
         }
       },
+      "ReportReason": {
+        "enum": [
+          "Abusive",
+          "OffTopic",
+          "PersonalData",
+          "Spam",
+          "Other"
+        ]
+      },
+      "ReviewModerationOpenReport": {
+        "required": [
+          "reviewId",
+          "programId",
+          "programTitle",
+          "coachSlug",
+          "authorName",
+          "rating",
+          "comment",
+          "reports",
+          "reasons",
+          "notes",
+          "firstReportedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "reviewId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "programId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "programTitle": {
+            "type": "string"
+          },
+          "coachSlug": {
+            "type": "string"
+          },
+          "authorName": {
+            "type": "string"
+          },
+          "rating": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "comment": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reports": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportReason"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "firstReportedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReviewModerationReportRequest": {
+        "required": [
+          "reason",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/ReportReason"
+          },
+          "note": {
+            "maxLength": 500,
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "StudioReviewsItem": {
         "required": [
           "id",
@@ -909,7 +1148,8 @@
           "createdAt",
           "updatedAt",
           "reply",
-          "repliedAt"
+          "repliedAt",
+          "hiddenAt"
         ],
         "type": "object",
         "properties": {
@@ -956,6 +1196,13 @@
             ]
           },
           "repliedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "hiddenAt": {
             "type": [
               "null",
               "string"
@@ -1026,6 +1273,9 @@
     },
     {
       "name": "Reviews"
+    },
+    {
+      "name": "Admin"
     }
   ]
 }

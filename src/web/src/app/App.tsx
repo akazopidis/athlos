@@ -6,6 +6,7 @@ import { Home } from '@/features/marketplace/Home'
 import { ProgramPage } from '@/features/marketplace/ProgramPage'
 import { Storefront } from '@/features/marketplace/Storefront'
 import { Footer } from './Footer.tsx'
+import { ErrorBoundary } from './ErrorBoundary.tsx'
 import { SiteHeader } from './SiteHeader.tsx'
 
 // The public pages a visitor lands on are in the main bundle; the signed-in areas (studio, account,
@@ -16,6 +17,9 @@ const Admin = lazyPage(() => import('@/features/admin/Admin'), 'Admin')
 const Cart = lazyPage(() => import('@/features/cart/Cart'), 'Cart')
 const Coaches = lazyPage(() => import('@/features/marketplace/Coaches'), 'Coaches')
 const Sell = lazyPage(() => import('@/features/marketplace/Sell'), 'Sell')
+const Terms = lazyPage(() => import('@/features/legal/Legal'), 'Terms')
+const Privacy = lazyPage(() => import('@/features/legal/Legal'), 'Privacy')
+const Refunds = lazyPage(() => import('@/features/legal/Legal'), 'Refunds')
 const AcceptInvite = lazyPage(() => import('@/features/studio/AcceptInvite'), 'AcceptInvite')
 const CreateWorkspace = lazyPage(() => import('@/features/studio/CreateWorkspace'), 'CreateWorkspace')
 const Me = lazyPage(() => import('@/features/account/Me'), 'Me')
@@ -25,6 +29,7 @@ const SavedPrograms = lazyPage(() => import('@/features/account/SavedPrograms'),
 const MyWorkspaces = lazyPage(() => import('@/features/account/MyWorkspaces'), 'MyWorkspaces')
 const AccountSettings = lazyPage(() => import('@/features/account/AccountSettings'), 'AccountSettings')
 const MyProgramPage = lazyPage(() => import('@/features/account/MyProgramPage'), 'MyProgramPage')
+const Receipt = lazyPage(() => import('@/features/account/Receipt'), 'Receipt')
 const Studio = lazyPage(() => import('@/features/studio/Studio'), 'Studio')
 const StudioOverview = lazyPage(() => import('@/features/studio/StudioOverview'), 'StudioOverview')
 const StudioProgramEditor = lazyPage(() => import('@/features/studio/StudioProgramEditor'), 'StudioProgramEditor')
@@ -47,52 +52,58 @@ export default function App() {
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
       <SiteHeader />
       <main className="flex-1">
-        <Suspense fallback={<div className="container-page py-12"><Loading lines={4} /></div>}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/c/:slug" element={<Storefront />} />
-            <Route path="/sell" element={<Sell />} />
-            <Route element={<Contained />}>
-              <Route path="/c/:slug/programs/:programSlug" element={<ProgramPage />} />
-              <Route path="/invites/:slug" element={<AcceptInvite />} />
-              <Route path="/studio/new" element={<CreateWorkspace />} />
-              <Route path="/studio/:slug" element={<Studio />}>
-                <Route index element={<StudioOverview />} />
-                <Route path="programs/:programId" element={<StudioProgramEditor />} />
-                <Route path="sales" element={<StudioSales />} />
-                <Route path="reviews" element={<StudioReviews />} />
-                <Route path="discounts" element={<StudioDiscounts />} />
-                <Route path="settings" element={<StudioSettings />} />
+        <ErrorBoundary key={pathname}>
+          <Suspense fallback={<div className="container-page py-12"><Loading lines={4} /></div>}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/c/:slug" element={<Storefront />} />
+              <Route path="/sell" element={<Sell />} />
+              <Route element={<Contained />}>
+                <Route path="/c/:slug/programs/:programSlug" element={<ProgramPage />} />
+                <Route path="/legal/terms" element={<Terms />} />
+                <Route path="/legal/privacy" element={<Privacy />} />
+                <Route path="/legal/refunds" element={<Refunds />} />
+                <Route path="/invites/:slug" element={<AcceptInvite />} />
+                <Route path="/studio/new" element={<CreateWorkspace />} />
+                <Route path="/studio/:slug" element={<Studio />}>
+                  <Route index element={<StudioOverview />} />
+                  <Route path="programs/:programId" element={<StudioProgramEditor />} />
+                  <Route path="sales" element={<StudioSales />} />
+                  <Route path="reviews" element={<StudioReviews />} />
+                  <Route path="discounts" element={<StudioDiscounts />} />
+                  <Route path="settings" element={<StudioSettings />} />
+                </Route>
+                <Route path="/cart" element={<Cart />} />
+                <Route path="/coaches" element={<Coaches />} />
+                <Route path="/me" element={<Me />}>
+                  <Route index element={<MyPrograms />} />
+                  <Route path="saved" element={<SavedPrograms />} />
+                  <Route path="orders" element={<MyOrders />} />
+                  <Route path="workspaces" element={<MyWorkspaces />} />
+                  <Route path="account" element={<AccountSettings />} />
+                </Route>
+                <Route path="/me/programs/:programId" element={<MyProgramPage />} />
+                <Route path="/me/orders/:checkoutId/receipt" element={<Receipt />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route
+                  path="*"
+                  element={
+                    <Notice
+                      title="Page not found"
+                      action={
+                        <Button asChild>
+                          <Link to="/">Browse programs</Link>
+                        </Button>
+                      }
+                    >
+                      The link may be old, or the page has moved.
+                    </Notice>
+                  }
+                />
               </Route>
-              <Route path="/cart" element={<Cart />} />
-              <Route path="/coaches" element={<Coaches />} />
-              <Route path="/me" element={<Me />}>
-                <Route index element={<MyPrograms />} />
-                <Route path="saved" element={<SavedPrograms />} />
-                <Route path="orders" element={<MyOrders />} />
-                <Route path="workspaces" element={<MyWorkspaces />} />
-                <Route path="account" element={<AccountSettings />} />
-              </Route>
-              <Route path="/me/programs/:programId" element={<MyProgramPage />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route
-                path="*"
-                element={
-                  <Notice
-                    title="Page not found"
-                    action={
-                      <Button asChild>
-                        <Link to="/">Browse programs</Link>
-                      </Button>
-                    }
-                  >
-                    The link may be old, or the page has moved.
-                  </Notice>
-                }
-              />
-            </Route>
-          </Routes>
-        </Suspense>
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </main>
       <Footer />
     </div>

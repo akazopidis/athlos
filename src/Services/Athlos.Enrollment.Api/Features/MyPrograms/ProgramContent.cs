@@ -10,7 +10,13 @@ public interface IProgramContent
 {
     // Null if the program no longer exists.
     Task<ProgramContentResponse?> GetAsync(Guid tenantId, Guid programId, CancellationToken cancellationToken);
+
+    // The program as the shop sells it (catalog's offer: published, of an active coach), or null when it
+    // is not on sale. Reviews are public only while their program is (design §2.4).
+    Task<ProgramOnSale?> GetOnSaleAsync(Guid programId, CancellationToken cancellationToken);
 }
+
+public sealed record ProgramOnSale(Guid ProgramId, Guid TenantId, string CoachSlug, string Title);
 
 public sealed record ProgramContentResponse(
     Guid ProgramId, string CoachSlug, string Title, string Description, string Category, int DurationWeeks, string? CoverImageUrl, List<ProgramContentWorkout> Workouts);
@@ -29,5 +35,17 @@ public sealed class CatalogProgramContent(HttpClient http) : IProgramContent
 
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<ProgramContentResponse>(cancellationToken);
+    }
+
+    public async Task<ProgramOnSale?> GetOnSaleAsync(Guid programId, CancellationToken cancellationToken)
+    {
+        using var response = await http.GetAsync($"/internal/programs/{programId}/offer", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ProgramOnSale>(cancellationToken);
     }
 }

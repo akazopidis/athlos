@@ -72,6 +72,7 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         { "GET", "/api/v1/admin/payouts" },
         { "POST", $"/api/v1/admin/payouts/{Guid.Empty}/retry" },
         { "POST", "/api/v1/orders/discount" },
+        { "GET", $"/api/v1/me/orders/receipts/{Guid.Empty}" },
         { "GET", "/api/v1/studio/some-coach/discounts" },
         { "POST", "/api/v1/studio/some-coach/discounts" },
         { "PUT", $"/api/v1/studio/some-coach/discounts/{Guid.Empty}" },
@@ -252,6 +253,34 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         Assert.DoesNotContain("A-ONLY", list, StringComparison.Ordinal);
         Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound, HttpStatusCode.NotFound), (updated.StatusCode, deleted.StatusCode, used.StatusCode));
         Assert.Equal(50, percent);
+    }
+
+    // A data export (design §5.4) holds the customer's own orders, with every coach, and nobody else's;
+    // like every internal endpoint it needs the gateway signature.
+    [Fact]
+    public async Task Alices_export_holds_her_orders_only()
+    {
+        var export = await Body(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/customers/{_alice}/export")));
+        var unsigned = await _api.CreateClient().GetAsync($"/internal/customers/{_alice}/export", Cancel);
+
+        Assert.Contains(_aliceBuysFromA.ToString(), export, StringComparison.Ordinal);
+        Assert.Contains(_aliceBuysFromB.ToString(), export, StringComparison.Ordinal);
+        Assert.DoesNotContain(_bobBuysFromA.ToString(), export, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Unauthorized, unsigned.StatusCode);
+    }
+
+    // A receipt is the customer's own: Bob gets 404 for Alice's checkout (design §5.4).
+    [Fact]
+    public async Task Bob_gets_404_for_Alices_receipt()
+    {
+        var offer = _api.Sellers.Sell(_a.TenantId, _a.Slug);
+        var checkout = await _api.Checkout(_alice, offer.ProgramId);
+        await _api.Pay(checkout);
+
+        var alices = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/me/orders/receipts/{checkout.CheckoutId}"), _alice);
+        var bobs = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/me/orders/receipts/{checkout.CheckoutId}"), _bob);
+
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.NotFound), (alices.StatusCode, bobs.StatusCode));
     }
 
     // Layer 4 alone: tenant B reads none of A's codes and cannot plant one in A's name.

@@ -14,8 +14,8 @@ The limitations fall into three kinds:
 | # | Limitation | Kind | Area |
 |---|---|---|---|
 | 1 | No VAT or invoices | Scope | Legal, payments |
-| 2 | No legal pages (terms, privacy, cookies) | Scope | Legal |
-| 3 | No personal data export | Scope | Legal, GDPR |
+| 2 | Legal pages are drafts; coaches accept no terms | Scope | Legal |
+| 3 | The data export is one synchronous JSON file | Trade-off | Legal, GDPR |
 | 4 | Customers lose bought programs when a coach deletes their workspace | Trade-off | Tenant lifecycle |
 | 5 | No program versioning | Scope | Product |
 | 6 | Stripe in test mode only | Scope | Payments |
@@ -44,17 +44,19 @@ The limitations fall into three kinds:
 - **Impact:** with separate charges and transfers (§2.2), the platform is the merchant of record. Under EU rules for marketplaces selling digital services, it would owe VAT at the customer's country rate and report it through the OSS (One-Stop Shop) scheme. Selling without this is not legal in the EU.
 - **Solution:** Stripe Tax on Checkout (automatic tax calculation, plus customer address collection) and Stripe invoices or receipts. Stripe Tax costs about 0.5% per transaction. Prices would need to be stored as VAT-inclusive or exclusive, and each order's tax amount recorded in ordering-api.
 
-### 2. No legal pages
-- **Missing:** terms of service for customers and coaches, a privacy policy, a cookie notice and an imprint.
-- **Why:** these are legal texts, not engineering.
-- **Impact:** required before any public launch (GDPR transparency, EU consumer law, the platform's terms with coaches). Athlos sets no tracking cookies. The sign-in library keeps tokens in browser storage and the cart lives in local storage, both strictly necessary, but the privacy policy must say so.
-- **Solution:** static pages served by the SPA and linked from the footer and from sign-up. Coaches would accept the platform terms when they open a workspace, with the accepted version recorded in tenancy-api.
+### 2. Legal pages are drafts; coaches accept no terms
+- **Built (v1.12.0, design §5.4):** Terms, Privacy and Refund policy pages linked from the footer; customers accept the Terms at checkout, and each checkout keeps the accepted version.
+- **Missing:** a lawyer's review of the texts, an imprint naming the operator, and terms for coaches: a coach opens a workspace without accepting platform terms.
+- **Why:** these are legal texts, not engineering; the pages describe what the platform does, as a starting point.
+- **Impact:** required before any public launch with real payments (GDPR transparency, EU consumer law, the platform's terms with coaches).
+- **Solution:** a reviewed text, and the same version check for coaches when they open a workspace, with the accepted version recorded in tenancy-api.
 
-### 3. No personal data export
-- **Missing:** a "download my data" option. Account deletion exists (§5.2): the right to erasure is implemented, but the rights of access and portability (GDPR articles 15 and 20) are not.
-- **Why:** deletion was the harder, more interesting problem across tenants; export follows the same path.
-- **Impact:** requests would have to be answered by hand from four databases.
-- **Solution:** `GET /api/v1/me/export` on tenancy-api, fanning out to each service's internal route for the user's own rows (the same cross-tenant slices account deletion already uses), assembled into one JSON file. Without an async job, the export is bounded by the slowest service.
+### 3. The data export is one synchronous JSON file
+- **Built (v1.12.0, design §5.4):** "Download my data" (`GET /api/v1/me/export` on tenancy-api) gathers the user's own rows from every service through signed internal routes and hands back one JSON file: the rights of access and portability (GDPR articles 15 and 20) next to erasure (§5.2).
+- **Missing:** an asynchronous export for large accounts, and a coach's export of their workspace (programs, sales).
+- **Why:** a customer's data is small; one request is enough.
+- **Impact:** the export waits for the slowest service, and a cold start can make the first try time out (it answers 502 and the user tries again).
+- **Solution:** a queued export job writing the file to Blob Storage and emailing a short-lived link.
 
 ### 4. Customers lose bought programs when a coach deletes their workspace
 - **Missing:** a way for customers to keep paid content after the coach erases their workspace (§3.4). Since v1.7.0 a workspace cannot be deleted while any sale can still be refunded, and its open payment pages are closed first, so the loss only reaches purchases older than the refund window.
@@ -186,8 +188,7 @@ The limitations fall into three kinds:
 ### 21. Shop features of a mature marketplace are missing
 Each of these is ordinary product work with no new multi-tenancy question:
 - **Reviews (since v1.11.0, design §2.4):** only buyers review, and a refund takes the review away. Still missing:
-  - *Moderation.* The coach replies but cannot remove an abusive review, and the platform admin has no review queue. A "report" button and an admin list of reported reviews would be the next step.
-  - *Reviews of a program off sale.* The public list answers for any program id, so a program the coach unpublished (or a suspended coach's) still shows its reviews to someone who knows the id. They were public when written, so nothing private leaks.
+  - *Moderation (since v1.12.0) is by hand.* Reports reach the platform admin, who hides or keeps each review; there is no automatic filter for abusive words, and a hidden review can be shown again only while it is reported again.
   - *Two copies of the rating.* enrollment-api owns the reviews and catalog keeps the count and average for cards and sorting. The copy is written before the review commits, so the two can only differ if that commit fails after catalog took the new values; the next review of the program sets it right.
 - **Discount codes (since v1.11.0):** percentages only, one code per cart, no "once per customer" rule, and two customers paying at the same moment for a code's last use can both get it (the use count is read, not locked).
 - **Saved programs (since v1.11.0):** no email when a saved program's price drops.
@@ -200,9 +201,10 @@ Each of these is ordinary product work with no new multi-tenancy question:
 
 ### 22. Gaps in automated testing
 - **Missing:** some kinds of automated test. The backend has 462 tests on every PR, 195 of them in the isolation suite. Playwright covers, after every staging deploy, the shop, the cart, layouts on three screen sizes, the account pages and saved programs, a studio's lifecycle (with a discount code) on a throwaway workspace, axe accessibility checks on the public pages, and a signed-in checkout up to Stripe's page.
-  - *Not covered end to end:* refunds, writing a review (it needs a paid purchase), the platform admin, or paying on Stripe's page itself (only a person may enter card details).
-  - *No load test of checkout or webhooks:* only of reads (k6).
+  - *Not covered end to end:* refunds and the platform admin. A whole purchase with Stripe's test card, then a review, runs once `E2E_PURCHASE_PROGRAM_PATH` names a second program of an onboarded coach on staging (v1.12.0); until then it is skipped.
+  - *No load test of checkout or webhooks:* reads are load- and stress-tested on staging (k6, `stress.md`); writes are covered by concurrency tests (concurrent reviews leave an exact rating, concurrent saves keep one row) and contract tests between the services (v1.12.0), not by load.
 - **Why:** time. The isolation suite was the priority, because isolation is the subject of the thesis.
 - **Solution:**
-  - a test customer who owns a program on staging, so Playwright can write and delete a review;
+  - the second staging program for the purchase test;
+  - many test accounts, to load-test writes past the per-customer write limit;
   - a k6 scenario against Stripe's test mode for checkout, within Stripe's rate limits.

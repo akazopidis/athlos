@@ -36,6 +36,14 @@ public static class OrderLists
 
     public sealed record SalesPage(List<Sale> Items, int Page, int PageSize, int TotalCount);
 
+    // A receipt for one checkout (design §5.4): each program with its price before and after any
+    // discount, and the total paid. Refunded lines stay, marked, with the amount given back.
+    public sealed record ReceiptLine(
+        Guid OrderId, string ProgramTitle, string CoachSlug, long Price, string? DiscountCode, long DiscountAmount, long Amount, OrderStatus Status, DateTimeOffset? RefundedAt);
+
+    public sealed record Receipt(
+        Guid CheckoutId, DateTimeOffset PaidAt, string Currency, List<ReceiptLine> Lines, long Subtotal, long Discount, long Total, long Refunded);
+
     // CROSS-TENANT SLICE (design §3.2, "a customer's own orders"): ignores the tenant filter and
     // relies on the customer filter below and on RLS, which reads orders where customer_id = app.user_id.
     public static void MapListMyOrders(this IEndpointRouteBuilder me) =>
@@ -54,6 +62,34 @@ public static class OrderLists
                     paging.Page, paging.PageSize, await orders.CountAsync(cancellationToken)));
             })
             .WithName("ListMyOrders")
+            .WithTags("Orders");
+
+    // GET /api/v1/me/orders/receipts/{checkoutId}: the receipt of one of the customer's checkouts, once
+    // paid. Same cross-tenant slice as the list: the customer's own orders, across coaches. Another
+    // customer's checkout, or one not paid, is 404.
+    public static void MapGetMyReceipt(this IEndpointRouteBuilder me) =>
+        me.MapGet("/orders/receipts/{checkoutId:guid}", async Task<Results<Ok<Receipt>, NotFound>> (Guid checkoutId, ITenantContext tenant, OrderingDbContext db, CancellationToken cancellationToken) =>
+            {
+                var customerId = tenant.UserId;
+                var lines = await db.Orders.AsNoTracking()
+                    .IgnoreQueryFilters([TenantDbContext.TenantFilter])
+                    .Where(o => o.CustomerId == customerId && o.CheckoutId == checkoutId && o.PaidAt != null
+                        && (o.Status == OrderStatus.Paid || o.Status == OrderStatus.Refunded))
+                    .OrderBy(o => o.CreatedAt).ThenBy(o => o.Id)
+                    .Select(o => new { o.Id, o.ProgramTitle, o.CoachSlug, o.Amount, o.DiscountCode, o.DiscountAmount, o.Status, o.RefundedAt, o.PaidAt, o.Currency })
+                    .ToListAsync(cancellationToken);
+                if (lines.Count == 0)
+                {
+                    return TypedResults.NotFound();
+                }
+
+                return TypedResults.Ok(new Receipt(
+                    checkoutId, lines.Min(l => l.PaidAt!.Value), lines[0].Currency,
+                    [.. lines.Select(l => new ReceiptLine(l.Id, l.ProgramTitle, l.CoachSlug, l.Amount + l.DiscountAmount, l.DiscountCode, l.DiscountAmount, l.Amount, l.Status, l.RefundedAt))],
+                    lines.Sum(l => l.Amount + l.DiscountAmount), lines.Sum(l => l.DiscountAmount), lines.Sum(l => l.Amount),
+                    lines.Where(l => l.Status == OrderStatus.Refunded).Sum(l => l.Amount)));
+            })
+            .WithName("GetMyReceipt")
             .WithTags("Orders");
 
     // The coach's sales: the tenant filter does the scoping (RLS enforces it again).

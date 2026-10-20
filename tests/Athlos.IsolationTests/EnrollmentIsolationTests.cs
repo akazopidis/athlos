@@ -43,6 +43,10 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         { "GET", "/api/v1/studio/any/reviews" },
         { "PUT", $"/api/v1/studio/any/reviews/{Guid.Empty}/reply" },
         { "DELETE", $"/api/v1/studio/any/reviews/{Guid.Empty}/reply" },
+        { "POST", $"/api/v1/marketplace/programs/{Guid.Empty}/reviews/{Guid.Empty}/report" },
+        { "GET", "/api/v1/admin/reviews/reports" },
+        { "POST", $"/api/v1/admin/reviews/{Guid.Empty}/hide" },
+        { "POST", $"/api/v1/admin/reviews/{Guid.Empty}/keep" },
     };
 
     [Theory]
@@ -207,6 +211,23 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, error.SqlState);
     }
 
+    // A data export (design §5.4) holds the customer's own programs and reviews, and nobody else's.
+    [Fact]
+    public async Task Alices_export_holds_her_programs_only()
+    {
+        await Review(_bob, _bobsProgram.ProgramId, 2);
+
+        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/customers/{_alice}/export"));
+        var export = await response.Content.ReadAsStringAsync(Cancel);
+        var unsigned = await _api.CreateClient().GetAsync($"/internal/customers/{_alice}/export", Cancel);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(_alicesProgram.ProgramId.ToString(), export, StringComparison.Ordinal);
+        Assert.Contains(_alicesProgram.Workouts[0].Id.ToString(), export, StringComparison.Ordinal);
+        Assert.DoesNotContain(_bobsProgram.ProgramId.ToString(), export, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Unauthorized, unsigned.StatusCode);
+    }
+
     // Reviews (design §2.4): only the buyer reviews their program; another customer's attempt is 404.
     [Fact]
     public async Task Bob_cannot_review_or_remove_Alices_review()
@@ -237,6 +258,39 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         Assert.DoesNotContain(review.ToString(), listedUnderA, StringComparison.Ordinal);
         Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound), (replied.StatusCode, removed.StatusCode));
         Assert.Null(await Scalar<object>(_a.TenantId, null, $"SELECT reply FROM reviews WHERE id = '{review}'") as string);
+    }
+
+    // "A program got a new workout" (design §5.3) enters the tenant it names: naming B for A's program
+    // emails none of A's customers, and like every internal endpoint it needs the signature.
+    [Fact]
+    public async Task A_program_update_under_Bs_tenant_emails_none_of_As_customers()
+    {
+        var path = $"/internal/tenants/{_b.TenantId}/programs/{_alicesProgram.ProgramId}/updated";
+        var wrong = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, path) { Content = System.Net.Http.Json.JsonContent.Create(new { workoutTitle = "Planted" }) });
+        var unsigned = await _api.CreateClient().PostAsync(path, System.Net.Http.Json.JsonContent.Create(new { workoutTitle = "Planted" }), Cancel);
+        var stamped = await Scalar<long>(_a.TenantId, null, $"SELECT count(*) FROM enrollments WHERE program_id = '{_alicesProgram.ProgramId}' AND update_emailed_at IS NOT NULL");
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.Unauthorized), (wrong.StatusCode, unsigned.StatusCode));
+        Assert.Equal(0L, stamped);
+    }
+
+    // Moderation (design §2.4): a report must name the review's own program (another program's id finds
+    // nothing), and only the platform admin hides; a coach or customer gets 403 whatever the review.
+    [Fact]
+    public async Task Reports_name_the_reviews_own_program_and_only_the_admin_hides()
+    {
+        await Review(_alice, _alicesProgram.ProgramId, 1);
+        var review = await Scalar<Guid>(_a.TenantId, null, $"SELECT id FROM reviews WHERE program_id = '{_alicesProgram.ProgramId}'");
+
+        var wrongProgram = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/api/v1/marketplace/programs/{_bobsProgram.ProgramId}/reviews/{review}/report")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new { reason = "Spam" }),
+        }, _bob);
+        var coachHides = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/reviews/{review}/hide"), _b.OwnerId, _b.TenantId, TenantRole.Owner);
+        var hidden = await Scalar<object>(_a.TenantId, null, $"SELECT hidden_at FROM reviews WHERE id = '{review}'");
+
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.Forbidden), (wrongProgram.StatusCode, coachHides.StatusCode));
+        Assert.True(hidden is DBNull or null);
     }
 
     // Layer 4 alone: the public-read scope reads every review, never enrollments or progress, and cannot change a review.

@@ -16,12 +16,13 @@ import { useApp } from '@/lib/AppContext'
 import { formatRating } from '@/lib/rating'
 import { MaxCartItems, useCart } from '@/lib/cart'
 import { categoryLabel } from '@/lib/categories'
+import { TermsVersion } from '@/lib/legal'
 import { formatMoney } from '@/lib/money'
 import { leaveTo } from '@/lib/navigation'
 import { problemTitle } from '@/lib/problem'
 import { useCoaches } from '@/lib/useCoaches'
-import { useMyWorkspaces } from '@/lib/useMyWorkspaces'
-import { useOwnedPrograms } from '@/lib/useOwnedPrograms'
+import { useMyWorkspaces, useMyWorkspacesPending } from '@/lib/useMyWorkspaces'
+import { useOwnedPrograms, useOwnedProgramsPending } from '@/lib/useOwnedPrograms'
 import { useSlow } from '@/lib/useSlow'
 import { useTitle } from '@/lib/useTitle'
 import { ProductCard } from '@/components/product-card'
@@ -56,12 +57,16 @@ export function ProgramPage() {
   const ownsIt = Boolean(program.data && owned.has(program.data.id))
   // A program of a workspace the visitor coaches in: theirs in the studio, not for sale to them.
   const mine = useMyWorkspaces().has(slug)
+  // Until both are known, the buy box shows neither "Buy" nor "Open": no flicker for coaches and owners.
+  const workspacesPending = useMyWorkspacesPending()
+  const ownedPending = useOwnedProgramsPending()
+  const deciding = workspacesPending || ownedPending
   useTitle(program.data?.title)
 
   const buy = useMutation({
     mutationFn: async (programId: string) => {
       const { data, error, response } = await api.POST('/api/v1/orders/checkout', {
-        body: { programIds: [programId] },
+        body: { programIds: [programId], termsVersion: TermsVersion },
         params: { header: { 'Idempotency-Key': idempotencyKey } },
       })
       if (data) return data
@@ -111,6 +116,7 @@ export function ProgramPage() {
       priceAmount: Number(p.priceAmount),
       currency: p.currency,
       coverImageUrl: p.coverImageUrl,
+      category: p.category,
     })
 
   return (
@@ -210,7 +216,9 @@ export function ProgramPage() {
                 <p className="font-heading text-2xl font-black tabular-nums lg:text-4xl">{formatMoney(p.priceAmount, p.currency)}</p>
                 <p className="hidden text-sm text-muted-foreground lg:block">One payment. All workouts, yours to keep.</p>
               </div>
-              {mine ? (
+              {deciding ? (
+                <div className="h-10 flex-1 animate-pulse rounded-lg bg-muted lg:h-[5.5rem] lg:flex-none" aria-busy="true" aria-label="Loading" />
+              ) : mine ? (
                 <div className="flex-1 space-y-2 lg:flex-none">
                   <p className="hidden text-sm font-medium lg:block">This is your workspace's program.</p>
                   <Button asChild className="w-full" size="lg" variant="outline">
@@ -249,6 +257,19 @@ export function ProgramPage() {
                 </div>
               )}
             </div>
+            {signedIn && !deciding && !mine && !ownsIt && (
+              <p className="mt-3 text-center text-xs text-muted-foreground">
+                By buying you accept the{' '}
+                <Link to="/legal/terms" className="underline underline-offset-4">
+                  Terms
+                </Link>{' '}
+                and the{' '}
+                <Link to="/legal/refunds" className="underline underline-offset-4">
+                  Refund policy
+                </Link>
+                .
+              </p>
+            )}
             {slow && <div className="mt-3"><p className="text-center text-xs text-muted-foreground" role="status">Waking up the payment service. This can take up to a minute the first time.</p></div>}
             {buy.error && (
               <Alert variant="destructive" role="alert" className="mt-3">

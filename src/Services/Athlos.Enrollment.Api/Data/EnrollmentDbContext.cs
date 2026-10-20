@@ -14,6 +14,8 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
 
     public DbSet<Review> Reviews => Set<Review>();
 
+    public DbSet<ReviewReport> ReviewReports => Set<ReviewReport>();
+
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -28,6 +30,7 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
             enrollment.HasAlternateKey(e => new { e.Id, e.TenantId, e.CustomerId });
             enrollment.Property(e => e.ProgramTitle).HasMaxLength(120);
             enrollment.Property(e => e.CoachSlug).HasMaxLength(40);
+            enrollment.Property(e => e.CustomerEmail).HasMaxLength(320);
         });
 
         modelBuilder.Entity<WorkoutProgress>(progress =>
@@ -60,6 +63,19 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
                 .HasForeignKey(r => new { r.EnrollmentId, r.TenantId, r.CustomerId })
                 .HasPrincipalKey(e => new { e.Id, e.TenantId, e.CustomerId })
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReviewReport>(report =>
+        {
+            report.ToTable("review_reports");
+            report.HasIndex(r => new { r.ReviewId, r.ReporterId }).IsUnique();
+            report.HasIndex(r => r.ResolvedAt);
+            report.Property(r => r.ProgramTitle).HasMaxLength(120);
+            report.Property(r => r.CoachSlug).HasMaxLength(40);
+            report.Property(r => r.AuthorName).HasMaxLength(60);
+            report.Property(r => r.Comment).HasMaxLength(Review.MaxCommentLength);
+            report.Property(r => r.Note).HasMaxLength(500);
+            report.Property(r => r.Reason).HasConversion<string>().HasMaxLength(20);
         });
 
         modelBuilder.ConfigureOutbox();

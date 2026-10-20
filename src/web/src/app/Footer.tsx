@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
-import { Logo } from './Logo.tsx'
+import { Logo } from '@/components/logo'
 
 async function fetchVersion(): Promise<string> {
   const response = await fetch('/version')
@@ -14,7 +14,7 @@ export function Footer() {
   const { data: version } = useQuery({ queryKey: ['version'], queryFn: fetchVersion, staleTime: Infinity })
 
   return (
-    <footer className="mt-16 border-t bg-muted/40">
+    <footer className="mt-16 border-t bg-muted/40 print:hidden">
       <div className="container-page flex flex-col gap-8 py-10 sm:flex-row sm:items-start sm:justify-between">
         <div className="max-w-xs space-y-3">
           <Logo />
@@ -41,7 +41,20 @@ export function Footer() {
         </nav>
       </div>
       <div className="border-t">
-        <p className="container-page py-4 text-xs text-muted-foreground">Athlos {version ?? ''}</p>
+        <div className="container-page flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-4 text-xs text-muted-foreground">
+          <p>Athlos {version ?? ''}</p>
+          <nav aria-label="Legal" className="flex gap-4">
+            <Link to="/legal/terms" className="hover:text-foreground">
+              Terms
+            </Link>
+            <Link to="/legal/privacy" className="hover:text-foreground">
+              Privacy
+            </Link>
+            <Link to="/legal/refunds" className="hover:text-foreground">
+              Refunds
+            </Link>
+          </nav>
+        </div>
       </div>
     </footer>
   )

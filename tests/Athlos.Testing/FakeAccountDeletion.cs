@@ -48,3 +48,24 @@ public sealed class FakeEntraUsers : IEntraUsers
         return Task.CompletedTask;
     }
 }
+
+// The other services' export endpoints, as tenancy sees them: fixed parts per customer, or a failure.
+public sealed class FakeCustomerExport : ICustomerExport
+{
+    private readonly ConcurrentDictionary<Guid, bool> _failing = new();
+
+    public void FailFor(Guid customerId) => _failing[customerId] = true;
+
+    public Task<CustomerData> GetAsync(Guid customerId, CancellationToken cancellationToken)
+    {
+        if (_failing.ContainsKey(customerId))
+        {
+            throw new HttpRequestException("enrollment-api is not reachable");
+        }
+
+        return Task.FromResult(new CustomerData(
+            System.Text.Json.JsonSerializer.SerializeToElement(new { orders = new[] { new { programTitle = "Strong start" } } }),
+            System.Text.Json.JsonSerializer.SerializeToElement(new { programs = Array.Empty<object>() }),
+            System.Text.Json.JsonSerializer.SerializeToElement(new { saved = Array.Empty<object>() })));
+    }
+}

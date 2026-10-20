@@ -3,6 +3,7 @@ import { MessageSquareReply, Star } from 'lucide-react'
 import { useState } from 'react'
 import type { components } from '@/api/enrollment'
 import { Empty, Loading } from '@/components/page'
+import { ReportReview } from '@/components/report-review'
 import { Stars } from '@/components/stars'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -96,6 +97,11 @@ function ReviewCard({ review: r, slug }: { review: Review; slug: string }) {
         <span className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()}</span>
         <span className="ml-auto truncate text-sm text-muted-foreground">{r.programTitle}</span>
       </div>
+      {r.hiddenAt ? (
+        <p className="text-xs font-medium text-muted-foreground">Hidden by Athlos after a report: it no longer shows on your program's page or in its rating.</p>
+      ) : (
+        <ReportReview programId={r.programId} reviewId={r.id} />
+      )}
       {r.comment ? <p className="text-sm whitespace-pre-line">{r.comment}</p> : <p className="text-sm text-muted-foreground italic">No comment, just stars.</p>}
       {replying ? (
         <form

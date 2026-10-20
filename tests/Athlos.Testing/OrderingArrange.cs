@@ -22,6 +22,9 @@ public static class OrderingArrange
 
     public sealed record Coach(Guid TenantId, string Slug, Guid OwnerId);
 
+    // The Terms version checkout requires (design §5.4).
+    public const string TermsVersion = Athlos.Ordering.Api.Features.Checkout.StartCheckout.CurrentTermsVersion;
+
     public static Coach NewCoach() => new(Guid.CreateVersion7(), TenancyArrange.NewSlug(), Guid.CreateVersion7());
 
     public static Task<HttpResponseMessage> StartCheckout(this OrderingApiFactory api, Guid customerId, Guid programId, string? idempotencyKey = null) =>
@@ -29,7 +32,7 @@ public static class OrderingArrange
 
     public static Task<HttpResponseMessage> StartCheckout(this OrderingApiFactory api, Guid customerId, IReadOnlyList<Guid> programIds, string? idempotencyKey = null)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout") { Content = JsonContent.Create(new { programIds }) };
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout") { Content = JsonContent.Create(new { programIds, termsVersion = TermsVersion }) };
         if (idempotencyKey is not null) request.Headers.Add("Idempotency-Key", idempotencyKey);
         return api.SendAsGateway(request, customerId);
     }

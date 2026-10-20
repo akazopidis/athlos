@@ -99,6 +99,18 @@ public sealed class FakeProgramContent : IProgramContent
 
     public void Remove(Guid tenantId, Guid programId) => _programs.TryRemove((tenantId, programId), out _);
 
+    // Taken off sale (unpublished, or its coach suspended): the content stays, the shop no longer sells it.
+    private readonly ConcurrentDictionary<Guid, bool> _offSale = new();
+
+    public void TakeOffSale(Guid programId) => _offSale[programId] = true;
+
+    public Task<ProgramOnSale?> GetOnSaleAsync(Guid programId, CancellationToken cancellationToken) =>
+        Task.FromResult(_offSale.ContainsKey(programId) ? null : _programs
+            .Where(p => p.Key.ProgramId == programId)
+            .Select(p => new ProgramOnSale(programId, p.Key.TenantId, p.Value.CoachSlug, p.Value.Title))
+            .Cast<ProgramOnSale?>()
+            .FirstOrDefault());
+
     public Task<ProgramContentResponse?> GetAsync(Guid tenantId, Guid programId, CancellationToken cancellationToken) =>
         Task.FromResult(_programs.GetValueOrDefault((tenantId, programId)));
 }

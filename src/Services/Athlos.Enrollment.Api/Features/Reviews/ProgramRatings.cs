@@ -20,7 +20,7 @@ public static class ProgramRatings
     public static async Task PublishAsync(EnrollmentDbContext db, IProgramRatings ratings, Guid tenantId, Guid programId, CancellationToken cancellationToken)
     {
         var stats = await db.Reviews.AsNoTracking()
-            .Where(r => r.ProgramId == programId)
+            .Where(r => r.ProgramId == programId && r.HiddenAt == null)
             .GroupBy(r => 1)
             .Select(g => new { Count = g.Count(), Average = g.Average(r => (decimal)r.Rating) })
             .SingleOrDefaultAsync(cancellationToken);

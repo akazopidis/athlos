@@ -22,6 +22,9 @@ namespace Athlos.Ordering.Api.Features.Checkout;
 // 3. The customer's Checkout row (the Idempotency-Key) and one Order per program are written; each
 //    order inside its coach's tenant, one tenant at a time, so the EF filter and RLS check every
 //    insert. The tenant comes from catalog's signed offer, never from the request.
+// The customer accepts the Terms (design §5.4): the request names the version they were shown, which
+// must be the current one (Legal:TermsVersion), or nothing is created (409, reason terms). The checkout
+// records the version and the time.
 // A discount code (design §2.4) is looked up inside each coach's tenant, like the cart's price check;
 // one that applies to nothing refuses the checkout (reason discountCode), so the customer never pays
 // more than the cart showed.
@@ -34,9 +37,13 @@ public static class StartCheckout
 {
     public const int MaxPrograms = 10;
 
+    // The Terms in force (the SPA's lib/legal.ts shows the same version); Legal:TermsVersion overrides it.
+    public const string CurrentTermsVersion = "2026-10-20";
+
     public sealed record Request(
         [property: Required, MinLength(1), MaxLength(MaxPrograms)] List<Guid> ProgramIds,
-        [property: MaxLength(40)] string? DiscountCode = null);
+        [property: MaxLength(40)] string? DiscountCode = null,
+        [property: MaxLength(20)] string? TermsVersion = null);
 
     public sealed record Response(Guid CheckoutId, string CheckoutUrl);
 
@@ -68,6 +75,12 @@ public static class StartCheckout
         if (idempotencyKey is { Length: > 100 })
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Idempotency-Key is at most 100 characters.");
+        }
+
+        var terms = configuration["Legal:TermsVersion"] ?? CurrentTermsVersion;
+        if (request.TermsVersion != terms)
+        {
+            return Problem(StatusCodes.Status409Conflict, "terms", "Read and accept the current Terms to check out.", []);
         }
 
         if (!checkout.IsConfigured)
@@ -216,6 +229,8 @@ public static class StartCheckout
                 IdempotencyKey = idempotencyKey,
                 StripeCheckoutSessionId = session.Id,
                 CheckoutUrl = session.Url,
+                TermsVersion = terms,
+                TermsAcceptedAt = time.GetUtcNow(),
             });
             try
             {

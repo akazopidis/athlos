@@ -1,0 +1,6 @@
+Subject: New in {{programTitle}}: {{workoutTitle}}
+{{coach}} added to {{programTitle}}, a program you own: {{workoutTitle}}.
+
+It is already in your program: {{programUrl}}
+
+Athlos

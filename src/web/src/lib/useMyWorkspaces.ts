@@ -5,8 +5,8 @@ import { useApp } from './AppContext.tsx'
 // their programs as "Your program" instead of offering to buy them: ordering-api refuses that
 // checkout too (design §2.2). Empty when signed out.
 export function useMyWorkspaces(): Set<string> {
-  const { api, msal } = useApp()
-  const signedIn = Boolean(msal?.getActiveAccount())
+  const { api, auth } = useApp()
+  const signedIn = Boolean(auth?.account)
   const memberships = useQuery({
     queryKey: ['memberships'],
     queryFn: async () => (await api.GET('/api/v1/me/memberships')).data ?? [],
@@ -18,8 +18,8 @@ export function useMyWorkspaces(): Set<string> {
 // True while a signed-in user's workspaces are still loading: a page that offers different actions to
 // a coach (their own program) waits, instead of first offering to buy it.
 export function useMyWorkspacesPending(): boolean {
-  const { api, msal } = useApp()
-  const signedIn = Boolean(msal?.getActiveAccount())
+  const { api, auth } = useApp()
+  const signedIn = Boolean(auth?.account)
   const memberships = useQuery({
     queryKey: ['memberships'],
     queryFn: async () => (await api.GET('/api/v1/me/memberships')).data ?? [],

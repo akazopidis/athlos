@@ -1,10 +1,10 @@
-import type { PublicClientApplication } from '@azure/msal-browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApi } from '@/api/client'
 import { AppContext } from '@/lib/AppContext'
+import { signedInAs } from '@/test-auth'
 import { StudioSales } from './StudioSales.tsx'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -23,10 +23,7 @@ const sale = (id: string, status: 'Paid' | 'Refunded', refundableUntil = '2999-0
   refundableUntil,
 })
 
-const signedIn = {
-  getActiveAccount: () => ({ username: 'coach' }),
-  acquireTokenSilent: async () => ({ accessToken: 'token' }),
-} as unknown as PublicClientApplication
+const signedIn = signedInAs('coach')
 
 function renderSales(role: 'Owner' | 'Staff') {
   const requests: Request[] = []
@@ -45,7 +42,7 @@ function renderSales(role: 'Owner' | 'Staff') {
   )
   const config = { entraClientId: 'client', entraAuthority: 'https://login.example', apiScope: 'api://athlos/access', version: 'test' }
   render(
-    <AppContext.Provider value={{ config, msal: signedIn, api: createApi(signedIn, config.apiScope) }}>
+    <AppContext.Provider value={{ config, auth: signedIn, api: createApi(signedIn) }}>
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter initialEntries={['/studio/anna/sales']}>
           <Routes>

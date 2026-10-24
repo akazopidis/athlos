@@ -15,7 +15,7 @@ const Confirmation = 'delete my account'
 // stay with the coaches without your address, and your sign-in account is deleted. Owners delete
 // their workspaces first; the server says which.
 export function DeleteAccount() {
-  const { api, msal } = useApp()
+  const { api, auth } = useApp()
   const [confirm, setConfirm] = useState('')
 
   const remove = useMutation({
@@ -24,7 +24,7 @@ export function DeleteAccount() {
       if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not delete your account. Try again.')
     },
     // The sign-in account no longer exists, so end the session here too.
-    onSuccess: () => msal?.logoutRedirect(),
+    onSuccess: () => auth?.signOut(),
   })
 
   const submit = (e: FormEvent) => {

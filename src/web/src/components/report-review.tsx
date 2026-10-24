@@ -18,7 +18,7 @@ type Reason = (typeof Reasons)[number]['value']
 // Reporting a review to the platform admin (design §2.4), for customers on a program's page and for
 // coaches in their studio. Signed out, it is not offered.
 export function ReportReview({ programId, reviewId }: { programId: string; reviewId: string }) {
-  const { api, msal } = useApp()
+  const { api, auth } = useApp()
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState<Reason>('Abusive')
   const [note, setNote] = useState('')
@@ -32,7 +32,7 @@ export function ReportReview({ programId, reviewId }: { programId: string; revie
     },
   })
 
-  if (!msal?.getActiveAccount()) return null
+  if (!auth?.account) return null
   if (report.isSuccess) return <p className="text-xs text-muted-foreground" role="status">Thanks, the Athlos team will take a look.</p>
   if (!open) {
     return (

@@ -14,8 +14,8 @@ import { useTitle } from '@/lib/useTitle'
 // uses the browser's print dialog; the site's header and footer are left out of the printout.
 export function Receipt() {
   const { checkoutId = '' } = useParams()
-  const { api, msal } = useApp()
-  const signedIn = Boolean(msal?.getActiveAccount())
+  const { api, auth } = useApp()
+  const signedIn = Boolean(auth?.account)
   useTitle('Receipt')
 
   const receipt = useQuery({

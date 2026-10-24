@@ -4,8 +4,8 @@ import { useApp } from './AppContext.tsx'
 // The signed-in customer's saved programs (design §2.4, catalog-api's "/me/saved"): the list for
 // "/me/saved", and the ids for the hearts on product cards and pages. Empty when signed out.
 export function useSavedPrograms() {
-  const { api, msal } = useApp()
-  const signedIn = Boolean(msal?.getActiveAccount())
+  const { api, auth } = useApp()
+  const signedIn = Boolean(auth?.account)
   const saved = useQuery({
     queryKey: ['saved'],
     queryFn: async () => (await api.GET('/api/v1/me/saved')).data ?? [],

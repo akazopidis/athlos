@@ -1,4 +1,3 @@
-import type { PublicClientApplication } from '@azure/msal-browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
@@ -6,6 +5,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { createApi } from '@/api/client'
 import { AppContext } from '@/lib/AppContext'
 import { appRolesOf } from '@/lib/usePlatformAdmin'
+import { signedInAs } from '@/test-auth'
 import { Admin } from './Admin.tsx'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -17,10 +17,7 @@ const workspace = { id: 'w1', slug: 'anna', displayName: 'Anna Coaching', status
 const metrics = { workspaces: 3, active: 2, suspended: 1, deleted: 0, activeFree: 1, activePro: 1, readyToSell: 1, newLast30Days: 3 }
 
 function renderAs(claims: object) {
-  const msal = {
-    getActiveAccount: () => ({ username: 'admin', localAccountId: 'admin' }),
-    acquireTokenSilent: async () => ({ accessToken: tokenWith(claims) }),
-  } as unknown as PublicClientApplication
+  const auth = signedInAs('admin', tokenWith(claims))
   const requests: Request[] = []
   vi.stubGlobal(
     'fetch',
@@ -34,7 +31,7 @@ function renderAs(claims: object) {
   )
   const config = { entraClientId: 'client', entraAuthority: 'https://login.example', apiScope: 'api://athlos/access', version: 'test' }
   render(
-    <AppContext.Provider value={{ config, msal, api: createApi(msal, config.apiScope) }}>
+    <AppContext.Provider value={{ config, auth, api: createApi(auth) }}>
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter>
           <Admin />

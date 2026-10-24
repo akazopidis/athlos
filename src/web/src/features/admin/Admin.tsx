@@ -27,10 +27,10 @@ const PageSize = 20
 // assigning plans. Only for users with the Platform.Admin app role; tenancy-api enforces it.
 export function Admin() {
   useTitle('Platform admin')
-  const { msal } = useApp()
+  const { auth } = useApp()
   const isAdmin = usePlatformAdmin()
 
-  if (!msal?.getActiveAccount() || !isAdmin) {
+  if (!auth?.account || !isAdmin) {
     return (
       <Notice title="Platform admins only" action={<Link to="/" className="font-medium underline underline-offset-4">Back to the marketplace</Link>}>
         This page is for the people who run Athlos.

@@ -7,7 +7,17 @@ import { AppContext } from '@/lib/AppContext'
 import { signedInAs } from '@/test-auth'
 import { StudioProgramEditor } from './StudioProgramEditor.tsx'
 
-afterEach(() => vi.unstubAllGlobals())
+// jsdom cannot decode images: a test can stand in for the browser's shrinking (lib/image.ts).
+const shrink = vi.hoisted(() => ({ as: null as null | ((file: File, width: number) => Promise<Blob>) }))
+vi.mock('@/lib/image', async (actual) => {
+  const image = await actual<typeof import('@/lib/image')>()
+  return { ...image, shrinkImage: (file: File, width: number) => (shrink.as ? shrink.as(file, width) : image.shrinkImage(file, width)) }
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  shrink.as = null
+})
 
 const signedIn = signedInAs('coach')
 
@@ -69,6 +79,21 @@ test('uploading a cover sends the raw image with its content type', async () => 
   expect(new URL(upload.url).pathname).toBe(`/api/v1/studio/anna/programs/${programId}/cover`)
   expect(upload.headers.get('Content-Type')).toBe('image/png')
   expect(new Uint8Array(await upload.arrayBuffer())).toEqual(new Uint8Array([0x89, 0x50, 0x4e, 0x47]))
+})
+
+test('a cover goes up at full size, then at card size for the shop', async () => {
+  shrink.as = async (_, width) => new Blob([new Uint8Array(width === 800 ? 10 : 100)], { type: 'image/webp' })
+  const requests = renderEditor(draft)
+  const file = new File([new Uint8Array(1000)], 'cover.jpg', { type: 'image/jpeg' })
+
+  fireEvent.change(await screen.findByLabelText('Cover image file'), { target: { files: [file] } })
+
+  await waitFor(() => expect(requests.filter((r) => r.method === 'PUT')).toHaveLength(2))
+  const [full, card] = requests.filter((r) => r.method === 'PUT')
+  expect(new URL(full!.url).search).toBe('')
+  expect((await full!.arrayBuffer()).byteLength).toBe(100)
+  expect(new URL(card!.url).searchParams.get('size')).toBe('card')
+  expect((await card!.arrayBuffer()).byteLength).toBe(10)
 })
 
 test('a program that was on sale offers no delete, a draft does', async () => {

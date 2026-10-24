@@ -62,6 +62,9 @@ async function pay(page: Page) {
   await page.locator('#billingName').fill('Athlos E2E')
   const postalCode = page.locator('#billingPostalCode')
   if (await postalCode.isVisible()) await postalCode.fill('10001')
+  // Stripe offers to save the details with Link, ticked, and then requires a phone number: untick it.
+  const link = page.getByRole('checkbox', { name: /Save my information with Link/ })
+  if ((await link.isVisible()) && (await link.isChecked())) await link.uncheck()
   await page.locator('button[type="submit"]').click()
 
   await page.waitForURL(/\/me\?checkout=success/, { timeout: 120_000 })

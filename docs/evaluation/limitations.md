@@ -190,7 +190,7 @@ The limitations fall into three kinds:
 ### 21. Shop features of a mature marketplace are missing
 Each of these is ordinary product work with no new multi-tenancy question:
 - **Reviews (since v1.11.0, design §2.4):** only buyers review, and a refund takes the review away. Still missing:
-  - *Moderation (since v1.12.0) is by hand.* Reports reach the platform admin, who hides or keeps each review; there is no automatic filter for abusive words, and a hidden review can be shown again only while it is reported again.
+  - *Moderation (since v1.12.0) is mostly by hand.* Reports reach the platform admin, who hides or keeps each review. Since v1.16.0 an automatic check holds back comments with contact details, links or listed abusive words for the admin; it is a word list and patterns, not a language model, so it misses insults it does not list and can hold back an innocent comment until the admin keeps it. A hidden review can be shown again only while it is reported again.
   - *Two copies of the rating.* enrollment-api owns the reviews and catalog keeps the count and average for cards and sorting. The copy is written before the review commits, so the two can only differ if that commit fails after catalog took the new values; the next review of the program sets it right.
 - **Discount codes (since v1.11.0):** percentages only, one code per cart, no "once per customer" rule, and two customers paying at the same moment for a code's last use can both get it (the use count is read, not locked).
 - **Saved programs (since v1.11.0):** no email when a saved program's price drops.

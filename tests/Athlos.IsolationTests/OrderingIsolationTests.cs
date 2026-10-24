@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using Athlos.Tenancy;
 using Athlos.Testing;
 using Npgsql;
@@ -77,6 +78,8 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         { "POST", "/api/v1/studio/some-coach/discounts" },
         { "PUT", $"/api/v1/studio/some-coach/discounts/{Guid.Empty}" },
         { "DELETE", $"/api/v1/studio/some-coach/discounts/{Guid.Empty}" },
+        { "GET", "/api/v1/me/cart" },
+        { "PUT", "/api/v1/me/cart" },
     };
 
     [Theory]
@@ -194,6 +197,32 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         var bobDeletes = await Execute(null, _bob, $"DELETE FROM checkouts WHERE id = '{checkout.CheckoutId}'");
 
         Assert.Equal((1L, 0L, 0L, 0), (asAlice, asBob, asCoachA, bobDeletes));
+    }
+
+    // A cart is its customer's (design §2.2): Bob reads and writes his own cart only, through the API and
+    // in PostgreSQL (he cannot delete Alice's or write one for anybody else); a coach's tenant session
+    // sees no carts at all.
+    [Fact]
+    public async Task A_cart_is_its_customers_alone()
+    {
+        var program = Guid.CreateVersion7();
+        var line = new { programId = program, coachSlug = _a.Slug, slug = "strong-start", title = "Strong start", priceAmount = 4900, currency = "EUR" };
+        var put = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, "/api/v1/me/cart") { Content = JsonContent.Create(new { items = new[] { line } }) }, _alice);
+        var bobsCart = await Body(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/me/cart"), _bob));
+        var sql = $"SELECT count(*) FROM carts WHERE customer_id = '{_alice}'";
+
+        var asAlice = await Scalar<long>(null, _alice, sql);
+        var asBob = await Scalar<long>(null, _bob, sql);
+        var asCoachA = await Scalar<long>(_a.TenantId, null, sql);
+        var bobDeletes = await Execute(null, _bob, $"DELETE FROM carts WHERE customer_id = '{_alice}'");
+        var bobPlants = await Assert.ThrowsAsync<PostgresException>(() => Execute(null, _bob, $"INSERT INTO carts (customer_id, created_at, updated_at) VALUES ('{Guid.CreateVersion7()}', now(), now())"));
+        var aliceCart = await Body(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/me/cart"), _alice));
+
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        Assert.DoesNotContain(program.ToString(), bobsCart, StringComparison.Ordinal);
+        Assert.Equal((1L, 0L, 0L, 0), (asAlice, asBob, asCoachA, bobDeletes));
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, bobPlants.SqlState);
+        Assert.Contains(program.ToString(), aliceCart, StringComparison.Ordinal);
     }
 
     // A refund is a tenant's own action: B's owner, naming A's sale (under either address), finds

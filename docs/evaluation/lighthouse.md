@@ -49,8 +49,22 @@ Returning visitor, home page, five samples each, unthrottled from the test machi
 - **Headless Chrome's mobile emulation sometimes delays the first frame by one to two seconds** (the first `requestAnimationFrame` fired at 1.3–1.5 s, although React had rendered at 0.48 s). The same layout in a narrow desktop window always painted at 0.6 s. This makes single runs vary, which is why the script takes the median of three. The single staging run before the change showed a phone layout shift of 0.43 on three pages that the dev medians did not.
 - **Data differs by environment.** Dev has more programs and images than staging, so the home page's bytes and image numbers are dev's.
 
+## Round 2: MSAL loaded on demand (v1.15.0)
+
+The first item below, measured the same way on dev at `sha-fa004cb` (PR #176), the same day. MSAL now loads only for Entra's redirect back, a tab that signed in, or a click on Sign in, so a signed-out visitor's first load is 161 kB compressed instead of 223 kB. Raw data: [`lighthouse-dev-lazy-msal.csv`](../../tests/evaluation/results/lighthouse-dev-lazy-msal.csv).
+
+| Page | Desktop (v1.14.0 → round 2) | Phone (v1.14.0 → round 2) | Phone first paint | Phone largest paint |
+|---|---|---|---|---|
+| Home | 97 → 98 | 62 → 65 | 4.64 → 3.60 s | 9.22 → 7.33 s |
+| Coaches | 97 → 98 | 63 → 67 | 4.64 → 3.59 s | 8.17 → 6.76 s |
+| Sell on Athlos | 96 → 98 | 67 → 77 | 4.71 → 3.51 s | 5.39 → 4.04 s |
+| Storefront | 96 → 99 | 67 → 75 | 4.79 → 3.59 s | 5.50 → 4.31 s |
+| Program page | 97 → 99 | 67 → 75 | 4.63 → 3.60 s | 5.53 → 4.35 s |
+
+The phone's first paint is now about 3.6 s on every page (1 s sooner), and the largest paint 4.0 to 4.4 s where it is the first heading. The home and coaches pages stay slower because Lighthouse's model counts their images before the heading (largest paint 6.8 to 7.3 s). Each page transfers about 245 kB less, MSAL's chunk included.
+
 ## What would improve the phone numbers
 
-- **Load MSAL only when it is needed** (sign-in, a redirect back from Entra, or an account in session storage). It is 63 kB compressed in the first load, and most visitors are not signed in.
+- ~~**Load MSAL only when it is needed.**~~ Done in v1.15.0 (round 2 above).
 - **Server-side rendering or a static shell** for the public pages, so the heading paints before the JavaScript runs. This is a larger change to how the gateway serves the SPA (§8.1).
 - **Resize existing covers once**, or serve sized variants, so cards do not load a 1,600 px image (`srcset`).

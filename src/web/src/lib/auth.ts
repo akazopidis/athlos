@@ -1,4 +1,5 @@
 import type { AccountInfo } from '@azure/msal-browser'
+import { CartStorageKey } from './cart.ts'
 import { signInConfigured, type AppConfig } from './config.ts'
 
 export type Account = Pick<AccountInfo, 'username' | 'localAccountId' | 'name'>
@@ -40,6 +41,12 @@ export async function createAuth(config: AppConfig): Promise<Auth | null> {
     },
     signOut: async () => {
       remember(false)
+      // The cart is kept with the account: this browser's copy goes, so the next person here starts empty.
+      try {
+        localStorage.removeItem(CartStorageKey)
+      } catch {
+        // Storage blocked: nothing was kept.
+      }
       const { instance } = await load()
       await instance.logoutRedirect()
     },

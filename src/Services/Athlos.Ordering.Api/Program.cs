@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Athlos.Messaging;
 using Athlos.Ordering.Api.Data;
+using Athlos.Ordering.Api.Features.Cart;
 using Athlos.Ordering.Api.Features.Checkout;
 using Athlos.Ordering.Api.Features.Customers;
 using Athlos.Ordering.Api.Features.Discounts;
@@ -83,6 +84,11 @@ app.MapGroup("/api/v1/me")
     .RequireAuthorization()
     .WithTenantTransaction<OrderingDbContext>()
     .MapGetMyReceipt();
+// Customer: their cart, kept with the account (their own row; RLS customer_id = app.user_id)
+app.MapGroup("/api/v1/me")
+    .RequireAuthorization()
+    .WithTenantTransaction<OrderingDbContext>()
+    .MapMyCart();
 
 // Coach dashboard: tenant and role come from the gateway
 app.MapGroup("/api/v1/studio/{tenantSlug}")

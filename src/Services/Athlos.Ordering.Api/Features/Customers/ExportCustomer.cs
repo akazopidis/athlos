@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Ordering.Api.Features.Customers;
 
 // A customer's data export (design §5.4), called by tenancy-api: their orders with every coach and
-// their checkouts, with the Terms each accepted.
+// their checkouts, with the Terms each accepted, and their cart.
 //
 // CROSS-TENANT SLICE (design §3.2, "a customer's own rows, for their export"): acts for that user, so
 // the reads ignore the tenant filter and rely on the customer filter below and on RLS
@@ -19,7 +19,9 @@ public static class ExportCustomer
 
     public sealed record ExportedCheckout(Guid Id, DateTimeOffset CreatedAt, string? TermsVersion, DateTimeOffset? TermsAcceptedAt);
 
-    public sealed record Export(List<ExportedOrder> Orders, List<ExportedCheckout> Checkouts);
+    public sealed record ExportedCartLine(Guid ProgramId, string Title, string CoachSlug, long PriceAmount, string Currency);
+
+    public sealed record Export(List<ExportedOrder> Orders, List<ExportedCheckout> Checkouts, List<ExportedCartLine> Cart);
 
     public static void MapExportCustomer(this IEndpointRouteBuilder app) =>
         app.MapGet("/internal/customers/{customerId:guid}/export", Handle)
@@ -41,6 +43,8 @@ public static class ExportCustomer
             .OrderBy(c => c.CreatedAt)
             .Select(c => new ExportedCheckout(c.Id, c.CreatedAt, c.TermsVersion, c.TermsAcceptedAt))
             .ToListAsync(cancellationToken);
-        return TypedResults.Ok(new Export(orders, checkouts));
+        var cart = await db.Carts.AsNoTracking().SingleOrDefaultAsync(c => c.CustomerId == customerId, cancellationToken);
+        return TypedResults.Ok(new Export(orders, checkouts,
+            [.. (cart?.Lines ?? []).Select(l => new ExportedCartLine(l.ProgramId, l.Title, l.CoachSlug, l.PriceAmount, l.Currency))]));
     }
 }

@@ -48,9 +48,12 @@ export function Cart() {
       staleTime: 60_000,
     })),
   })
+  // Its cover too: a cart from another device has none, and a stored cover link expires.
   const priced = cart.items.map((item, n) => {
-    const price = current[n]?.data?.priceAmount
-    return typeof price === 'number' || typeof price === 'string' ? { ...item, priceAmount: Number(price) } : item
+    const page = current[n]?.data
+    const price = page?.priceAmount
+    const withCover = page?.coverImageUrl ? { ...item, coverImageUrl: page.coverImageUrl } : item
+    return typeof price === 'number' || typeof price === 'string' ? { ...withCover, priceAmount: Number(price) } : withCover
   })
   const changed = priced.filter((p, n) => Number(p.priceAmount) !== Number(cart.items[n]!.priceAmount))
 

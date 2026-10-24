@@ -211,9 +211,8 @@ Each of these is ordinary product work with no new multi-tenancy question:
   - a k6 scenario against Stripe's test mode for checkout, within Stripe's rate limits.
 
 ### 23. Slow first paint on a slow phone
-- **Missing:** a fast first paint on a slow connection. On Lighthouse's simulated slow 4G phone the shop paints its first content after 4.6 s, against 1.8 s for "good" (`lighthouse.md`). On desktop it is about 1 s, and accessibility, best practices and SEO are 100.
-- **Why:** the SPA renders in the browser only. Nothing shows until about 220 kB of compressed JavaScript has run, including MSAL (63 kB), which every visitor loads although most are not signed in, and until `/config.json` has arrived. v1.14.0 removed the avoidable delays: fonts and `/config.json` are preloaded, built files are cached for a year, and uploaded images are shrunk.
+- **Missing:** a fast first paint on a slow connection. On Lighthouse's simulated slow 4G phone the shop paints its first content after 3.6 s (4.6 s before MSAL loaded on demand, v1.15.0), against 1.8 s for "good" (`lighthouse.md`). On desktop it is about 1 s, and accessibility, best practices and SEO are 100.
+- **Why:** the SPA renders in the browser only. Nothing shows until about 160 kB of compressed JavaScript has run and `/config.json` has arrived. v1.14.0 and v1.15.0 removed the avoidable delays: fonts and `/config.json` are preloaded, built files are cached for a year, uploaded images are shrunk, and MSAL (62 kB) loads only for visitors who sign in.
 - **Solution:**
-  - load MSAL only for sign-in, a redirect back from Entra, or an account already in session storage;
   - server-side rendering, or a static shell for the public pages, served by the gateway;
   - sized image variants (`srcset`), and resizing the covers uploaded before v1.14.0.

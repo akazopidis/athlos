@@ -43,8 +43,9 @@ test('a customer saves a program for later and removes it', async ({ page }, tes
   await first.click()
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
 
-  const unsave = page.getByRole('button', { name: `Remove ${title} from saved` })
-  const save = page.getByRole('button', { name: `Save ${title} for later` })
+  // Exact: the program page also lists other programs, whose names may differ only in case ("Test2", "test2").
+  const unsave = page.getByRole('button', { name: `Remove ${title} from saved`, exact: true })
+  const save = page.getByRole('button', { name: `Save ${title} for later`, exact: true })
   await expect(unsave.or(save)).toBeVisible()
   // The heart turns at once; wait for the request itself, so leaving the page does not cancel it.
   const savedRequest = (method: string) =>

@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { desktopOnly, signIn, skipWithoutTestUser } from '../signIn'
 
+const programPath = process.env.E2E_PROGRAM_PATH || undefined
+
 // The customer's account pages (design §8): the account menu opens each one directly, and the tabs
 // move between them. The test customer's data differs per stage, so the pages are checked for their
 // structure, not for particular programs or orders.
@@ -37,13 +39,16 @@ test('a customer saves a program for later and removes it', async ({ page }, tes
   desktopOnly(testInfo.project.name)
   await signIn(page)
 
-  await page.goto('/')
-  // A program the test customer does not own: owned programs offer "Open", not saving (the purchase
-  // spec buys one), and their cards say "Owned".
-  const first = page.locator('main article').filter({ hasNot: page.getByText('Owned', { exact: true }) }).locator('h3 a').first()
-  const title = (await first.innerText()).trim()
-  await first.click()
-  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
+  // A program the test customer does not own: owned programs offer "Open", not saving (the purchase spec
+  // buys one). E2E_PROGRAM_PATH is that program for the checkout spec too; without it, the shop's first.
+  // The title comes from the page itself (the DOM text, not the rendered one).
+  if (programPath) {
+    await page.goto(programPath)
+  } else {
+    await page.goto('/')
+    await page.locator('main article h3 a').first().click()
+  }
+  const title = (await page.getByRole('heading', { level: 1 }).textContent())!.trim()
 
   // Exact: the program page also lists other programs, whose names may differ only in case ("Test2", "test2").
   const unsave = page.getByRole('button', { name: `Remove ${title} from saved`, exact: true })

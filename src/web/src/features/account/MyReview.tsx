@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { MessageSquareReply, Pencil } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router'
 import type { components } from '@/api/enrollment'
 import { Field } from '@/components/field'
 import { StarInput, Stars } from '@/components/stars'
@@ -23,6 +24,12 @@ export function MyReview({ programId, review }: { programId: string; review: Rev
   const [editing, setEditing] = useState(!review)
   const [rating, setRating] = useState(review ? Number(review.rating) : 0)
   const [comment, setComment] = useState(review?.comment ?? '')
+  // "Rate this program" in My programs links here (#review).
+  const { hash } = useLocation()
+  const section = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (hash === '#review') section.current?.scrollIntoView({ block: 'start' })
+  }, [hash])
 
   const refresh = () =>
     Promise.all([
@@ -52,7 +59,7 @@ export function MyReview({ programId, review }: { programId: string; review: Rev
   const error = save.error ?? remove.error
 
   return (
-    <section aria-labelledby="my-review-heading" className="space-y-4 rounded-3xl border bg-card p-6 sm:p-8">
+    <section ref={section} id="review" aria-labelledby="my-review-heading" className="scroll-mt-28 space-y-4 rounded-3xl border bg-card p-6 sm:p-8">
       <div className="space-y-1">
         <h2 id="my-review-heading" className="text-xl font-bold">
           {review ? 'Your review' : 'Review this program'}

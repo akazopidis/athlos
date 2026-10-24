@@ -1,0 +1,63 @@
+{
+  "label": "stress-v1.13.0-dev",
+  "coach": "demo-forge",
+  "stepSeconds": 60,
+  "finishedAt": "2026-10-24T10:36:01.717Z",
+  "steps": [
+    {
+      "rate": 25,
+      "requests": 1501,
+      "limitedRate": 0,
+      "failedRate": 0,
+      "served": {
+        "p50Ms": 53.5151,
+        "p95Ms": 72.7354,
+        "p99Ms": 124.6349
+      }
+    },
+    {
+      "rate": 50,
+      "requests": 2982,
+      "limitedRate": 0,
+      "failedRate": 0,
+      "served": {
+        "p50Ms": 52.53715,
+        "p95Ms": 65.58344,
+        "p99Ms": 92.82947900000008
+      }
+    },
+    {
+      "rate": 100,
+      "requests": 6000,
+      "limitedRate": 0,
+      "failedRate": 0,
+      "served": {
+        "p50Ms": 51.75105,
+        "p95Ms": 84.42526,
+        "p99Ms": 122.94045100000001
+      }
+    },
+    {
+      "rate": 150,
+      "requests": 8999,
+      "limitedRate": 0,
+      "failedRate": 0,
+      "served": {
+        "p50Ms": 51.7192,
+        "p95Ms": 64.20469,
+        "p99Ms": 85.11521200000004
+      }
+    },
+    {
+      "rate": 200,
+      "requests": 12000,
+      "limitedRate": 0,
+      "failedRate": 0,
+      "served": {
+        "p50Ms": 51.2856,
+        "p95Ms": 62.299475,
+        "p99Ms": 71.82249900000005
+      }
+    }
+  ]
+}

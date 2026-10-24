@@ -15,7 +15,8 @@ public static class MyEnrollments
 {
     public const int MaxPageSize = 50;
 
-    public sealed record MyProgram(Guid ProgramId, string ProgramTitle, string CoachSlug, DateTimeOffset EnrolledAt, int CompletedWorkouts);
+    // Reviewed: the customer has reviewed it (the list prompts "Rate it" otherwise, design §2.4).
+    public sealed record MyProgram(Guid ProgramId, string ProgramTitle, string CoachSlug, DateTimeOffset EnrolledAt, int CompletedWorkouts, bool Reviewed);
 
     // API convention for paged lists (design §7.1).
     public sealed record MyProgramsPage(List<MyProgram> Items, int Page, int PageSize, int TotalCount);
@@ -28,12 +29,14 @@ public static class MyEnrollments
             {
                 var enrollments = Own(db, tenant.UserId);
                 var progress = db.WorkoutProgress.IgnoreQueryFilters([TenantDbContext.TenantFilter]);
+                var reviews = db.Reviews.IgnoreQueryFilters([TenantDbContext.TenantFilter]);
 
                 return TypedResults.Ok(new MyProgramsPage(
                     await enrollments.OrderByDescending(e => e.EnrolledAt).ThenBy(e => e.Id)
                         .Skip((paging.Page - 1) * paging.PageSize).Take(paging.PageSize)
                         .Select(e => new MyProgram(e.ProgramId, e.ProgramTitle, e.CoachSlug, e.EnrolledAt,
-                            progress.Count(p => p.EnrollmentId == e.Id && p.CustomerId == e.CustomerId)))
+                            progress.Count(p => p.EnrollmentId == e.Id && p.CustomerId == e.CustomerId),
+                            reviews.Any(r => r.EnrollmentId == e.Id && r.CustomerId == e.CustomerId)))
                         .ToListAsync(cancellationToken),
                     paging.Page, paging.PageSize, await enrollments.CountAsync(cancellationToken)));
             })

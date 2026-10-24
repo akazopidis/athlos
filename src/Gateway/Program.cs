@@ -15,6 +15,8 @@ builder.Services.AddHttpClient<TenantPlans>(http => http.BaseAddress = new Uri("
 builder.Services.AddHttpClient(LinkPreviews.Tenancy, http => http.BaseAddress = new Uri("https+http://tenancy-api"));
 builder.Services.AddHttpClient(LinkPreviews.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api"));
 builder.Services.AddSingleton<LinkPreviews>();
+// robots.txt and sitemap.xml for search engines (design §8.1).
+builder.Services.AddSingleton<Sitemap>();
 builder.Services.Configure<RateLimits.Options>(builder.Configuration.GetSection("RateLimits"));
 builder.Services.AddSingleton<RateLimits>();
 
@@ -69,6 +71,7 @@ app.MapReverseProxy(proxy =>
     proxy.Use(RateLimits.Apply);
 });
 app.MapLinkPreviews();
+app.MapSitemap();
 app.MapSpa();
 
 app.Run();

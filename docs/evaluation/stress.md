@@ -37,3 +37,20 @@ Replicas and CPU during the run (Azure Monitor, maximum per minute):
 - A minimum of two catalog-api replicas in prod (cost: one more 0.25 vCPU replica kept warm, roughly €10 a month at Consumption prices after the free grant, which the €100 budget for the year cannot carry), or a scaling rule on CPU as well as concurrent requests.
 - Caching the storefront's program list and program pages in catalog-api for a few seconds (they change rarely), which would remove most of the per-request database and serialization work at this load. (Cover links are now the same within a 10-minute window, v1.13.0, which lets browsers cache the images, but this saves bandwidth, not catalog CPU.)
 - A shared rate-limit store (Redis), so the per-coach limit does not grow with gateway replicas (`limitations.md` 14).
+
+## After the fix (v1.13.0)
+
+Catalog-api now caches its public marketplace reads for 10 seconds per replica (`PublicReadCache`, design §4). The same script was run on 24 October 2026 against dev, which runs the same infrastructure template as staging (raw data: [`tests/load/results/stress-v1.13.0-dev.json`](../../tests/load/results/stress-v1.13.0-dev.json)):
+
+| Step | Requests in the step | p50 | p95 | p99 | Timed out | 429 | 5xx |
+|---|---|---|---|---|---|---|---|
+| 25 req/s | 1,501 | 54 ms | 73 ms | 125 ms | 0% | 0 | 0 |
+| 50 req/s | 2,982 | 53 ms | 66 ms | 93 ms | 0% | 0 | 0 |
+| 100 req/s | 6,000 | 52 ms | 84 ms | 123 ms | 0% | 0 | 0 |
+| 150 req/s | 8,999 | 52 ms | 64 ms | 85 ms | 0% | 0 | 0 |
+| 200 req/s | 12,000 | 51 ms | 62 ms | 72 ms | 0% | 0 | 0 |
+
+- **The knee is gone at this load:** p95 stays between 62 and 84 ms all the way to 200 req/s, against 11 to 15 seconds from 100 req/s before. Every step got the full rate (the client no longer ran out of virtual users).
+- **Catalog-api's CPU stayed at or below 38% on one replica up to 100 req/s** (91% to 120% before); it still scaled to three replicas at 150 to 200 req/s on its concurrency rule, at 70 to 78%.
+- **The cost:** a change in the shop shows within 10 seconds instead of at once, which the shop accepts (a coach sees their studio, which is never cached, at once).
+

@@ -19,7 +19,8 @@ public static class StudioReviews
         Guid Id, Guid ProgramId, string ProgramTitle, int Rating, string? Comment, string AuthorName, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
         string? Reply, DateTimeOffset? RepliedAt, DateTimeOffset? HiddenAt);
 
-    public sealed record Page(List<Item> Items, int PageNumber, int PageSize, int TotalCount);
+    // Average and ReviewCount: the workspace's reviews as the shop shows them (hidden ones left out).
+    public sealed record Page(List<Item> Items, int PageNumber, int PageSize, int TotalCount, decimal Average, int ReviewCount);
 
     public sealed record Query(Guid? ProgramId, [property: Range(1, 10_000)] int Page = 1, [property: Range(1, ProgramReviews.MaxPageSize)] int PageSize = 20);
 
@@ -40,13 +41,16 @@ public static class StudioReviews
             reviews = reviews.Where(r => r.Review.ProgramId == programId);
         }
 
+        var shown = Reviews(db, tenantSlug).Where(r => r.Review.HiddenAt == null);
+        var reviewCount = await shown.CountAsync(cancellationToken);
+        var average = reviewCount == 0 ? 0 : Math.Round(await shown.AverageAsync(r => (decimal)r.Review.Rating, cancellationToken), 2);
         return TypedResults.Ok(new Page(
             await reviews.OrderByDescending(r => r.Review.CreatedAt).ThenBy(r => r.Review.Id)
                 .Skip((query.Page - 1) * query.PageSize).Take(query.PageSize)
                 .Select(r => new Item(r.Review.Id, r.Review.ProgramId, r.ProgramTitle, r.Review.Rating, r.Review.Comment, r.Review.AuthorName,
                     r.Review.CreatedAt, r.Review.UpdatedAt, r.Review.Reply, r.Review.RepliedAt, r.Review.HiddenAt))
                 .ToListAsync(cancellationToken),
-            query.Page, query.PageSize, await reviews.CountAsync(cancellationToken)));
+            query.Page, query.PageSize, await reviews.CountAsync(cancellationToken), average, reviewCount));
     }
 
     private static async Task<Results<NoContent, NotFound, ValidationProblem>> Reply(

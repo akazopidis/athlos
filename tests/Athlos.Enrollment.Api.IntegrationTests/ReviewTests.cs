@@ -28,12 +28,15 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
     {
         var program = await _api.Enroll(_customer, _coach);
         var stranger = await WriteReview(Guid.CreateVersion7(), program.ProgramId, 1, "Never bought it");
+        var before = Assert.Single((await _api.MyPrograms(_customer)).Items);
 
         var first = await WriteReview(_customer, program.ProgramId, 4, "  Solid plan.  ");
         var edited = await WriteReview(_customer, program.ProgramId, 5, "Even better in week 3.");
         var mine = await Read<MyProgramWithReview>(await _api.AsCustomer(_customer, HttpMethod.Get, $"/programs/{program.ProgramId}"));
 
         Assert.Equal(HttpStatusCode.NotFound, stranger.StatusCode);
+        Assert.False(before.Reviewed);
+        Assert.True(Assert.Single((await _api.MyPrograms(_customer)).Items).Reviewed);
         Assert.Equal("Solid plan.", (await Read<ReviewRow>(first)).Comment);
         Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
         Assert.Equal((5, "Even better in week 3.", "Test U."), (mine.Review!.Rating, mine.Review.Comment, mine.Review.AuthorName));
@@ -151,6 +154,7 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
         var after = Assert.Single((await Read<StudioPage>(await AsCoach(_coach, HttpMethod.Get, $"/reviews?programId={program.ProgramId}"))).Items);
 
         Assert.Equal((program.Title, 4), (review.ProgramTitle, review.Rating));
+        Assert.Equal((4m, 1), (list.Average, list.ReviewCount));
         Assert.Equal(HttpStatusCode.BadRequest, blank.StatusCode);
         Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (replied.StatusCode, removed.StatusCode));
         Assert.Equal("Thank you!", Assert.Single(page.Items).Reply);
@@ -346,5 +350,5 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
 
     private sealed record StudioItem(Guid Id, Guid ProgramId, string ProgramTitle, int Rating, string? Reply);
 
-    private sealed record StudioPage(List<StudioItem> Items, int TotalCount);
+    private sealed record StudioPage(List<StudioItem> Items, int TotalCount, decimal Average, int ReviewCount);
 }

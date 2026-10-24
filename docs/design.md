@@ -4,7 +4,7 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17.1, built; v1.12.0 in production (2026-10-24)
 
-**Changes in v17.2 (v1.13.0):** catalog's public reads cached for 10 seconds (§4); cover links stable for 10 minutes (§2.3).
+**Changes in v17.2 (v1.13.0):** catalog's public reads cached for 10 seconds (§4); cover links stable for 10 minutes (§2.3); robots.txt and a sitemap (§8.1); "Rate this program" in My programs and the latest reviews on the studio overview (§8).
 
 **Changes in v17.1 (v1.12.0):** legal pages and accepting the Terms at checkout, receipts, and "Download my data" (§5.4); reporting reviews and the admin's moderation, reviews public only while their program is on sale (§2.4); a per-customer limit on writes (§4); an error boundary in the SPA (§8); emails to customers about review replies and new workouts (§5.3).
 
@@ -666,6 +666,8 @@ The footer shows the running version (from the gateway's `/version` endpoint), w
 The Vite build is part of the gateway image. The gateway serves it with ASP.NET Core static files (`MapStaticAssets`, which adds compression and fingerprinted caching), falls back to `index.html` for client-side routes, and sends the security headers from §5.1. API routes (`/api/...`, `/webhooks/...`, `/health/...`, `/version`) are matched first, so the fallback never hides an API 404.
 
 **Build once, promote still holds.** Anything that differs per environment (Entra client id and authority, API scopes) is not baked into the bundle. The gateway serves it at `GET /config.json` from its own environment variables, and the SPA fetches it before rendering. The same image runs in dev, staging and prod. `/config.json` also carries `refundWindowDays` and `platformFeePercent`, the same `Payments:*` settings ordering-api applies, for what the shop promises (set them on both apps if they change).
+
+**Search engines** (v1.13.0). `/robots.txt` keeps crawlers out of the studio, the account pages, the cart and the admin, and names `/sitemap.xml`, which lists the static pages, every storefront with programs on sale and every program page (read from catalog's public search with a signed request, cached for an hour; on a failure the static pages only).
 
 **Link previews** (v1.10.0). Apps that show a link's title and image (WhatsApp, Instagram, search engines) read the HTML without running the SPA. For `/c/{slug}` and `/c/{slug}/programs/{programSlug}` the gateway serves the same `index.html` with that page's `<title>`, description and Open Graph and Twitter card tags (`LinkPreviews`), read from the services' public marketplace endpoints with a signed request and cached for 5 minutes. A lookup that fails or takes more than 4 seconds (a cold start) serves the plain shell, and the SPA renders the page either way.
 

@@ -31,20 +31,30 @@ public static class SavedPrograms
     }
 
     // Newest saved first; a program that left the shop is not listed (it returns if published again).
-    private static async Task<Ok<List<SearchPrograms.Item>>> List(ITenantContext tenant, CatalogDbContext db, MediaStore media, CancellationToken cancellationToken)
+    private static async Task<Ok<List<SearchPrograms.Item>>> List(
+        ITenantContext tenant, CatalogDbContext db, MediaStore media, TimeProvider time, CancellationToken cancellationToken)
     {
         var rows = await Own(db, tenant.UserId)
             .Join(OnSale(db), s => s.ProgramId, p => p.Id, (s, p) => new { s.SavedAt, Program = p })
             .OrderByDescending(r => r.SavedAt)
-            .Select(r => new { r.Program.Id, r.Program.CoachSlug, r.Program.Slug, r.Program.Title, r.Program.Category, r.Program.DurationWeeks,
+            .Select(r => new { r.Program.Id, r.Program.TenantId, r.Program.CoachSlug, r.Program.Slug, r.Program.Title, r.Program.Category, r.Program.DurationWeeks,
                 r.Program.PriceAmount, r.Program.Currency, r.Program.CoverImagePath, r.Program.RatingAverage, r.Program.RatingCount })
             .ToListAsync(cancellationToken);
+
+        // The codes their coaches show, as on the shop's cards (public; RLS public-read).
+        var now = time.GetUtcNow();
+        var tenantIds = rows.Select(p => p.TenantId).Distinct().ToList();
+        var discounts = await db.PublicDiscounts.AsNoTracking()
+            .IgnoreQueryFilters([TenantDbContext.TenantFilter])
+            .Where(d => tenantIds.Contains(d.TenantId) && (d.ExpiresAt == null || d.ExpiresAt > now))
+            .ToDictionaryAsync(d => d.TenantId, cancellationToken);
 
         var items = new List<SearchPrograms.Item>(rows.Count);
         foreach (var p in rows)
         {
             items.Add(new SearchPrograms.Item(p.Id, p.CoachSlug, p.Slug, p.Title, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency,
-                await media.ReadLinkAsync(p.CoverImagePath, cancellationToken), p.RatingAverage, p.RatingCount));
+                await media.ReadLinkAsync(p.CoverImagePath, cancellationToken), p.RatingAverage, p.RatingCount,
+                DiscountOffer.For(p.Id, discounts.GetValueOrDefault(p.TenantId))));
         }
 
         return TypedResults.Ok(items);

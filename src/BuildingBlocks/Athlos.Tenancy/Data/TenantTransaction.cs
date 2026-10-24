@@ -21,7 +21,7 @@ public static class TenantTransaction
             await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             var result = await next(context);
 
-            if (result is not IStatusCodeHttpResult { StatusCode: >= 400 })
+            if (StatusOf(result) is not >= 400)
             {
                 await transaction.CommitAsync(cancellationToken);
             }
@@ -30,6 +30,18 @@ public static class TenantTransaction
         });
 
         return group;
+    }
+
+    // Handlers return Results<...> unions, which carry the actual result inside (INestedHttpResult)
+    // and have no status of their own.
+    private static int? StatusOf(object? result)
+    {
+        while (result is INestedHttpResult nested)
+        {
+            result = nested.Result;
+        }
+
+        return (result as IStatusCodeHttpResult)?.StatusCode;
     }
 
     // Public marketplace routes (a cross-tenant slice, design §3.2): the session may also read other

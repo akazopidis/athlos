@@ -4,7 +4,9 @@ using Athlos.Catalog.Api.Features.Programs;
 using Athlos.Catalog.Api.Features.Workouts;
 using Athlos.Enrollment.Api.Features.MyPrograms;
 using Athlos.Enrollment.Api.Features.Reviews;
+using Athlos.Ordering.Api.Data;
 using Athlos.Ordering.Api.Features.Checkout;
+using Athlos.Ordering.Api.Features.Discounts;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Api.Features.Account;
 using Athlos.Testing;
@@ -17,7 +19,7 @@ namespace Athlos.ContractTests;
 // Contracts between the services (design §15.1): each service's real client code calls the real
 // endpoint of the service it depends on, signed as in production. A renamed route, field or status
 // breaks a test here instead of a deploy. Every signed internal call is covered:
-//   ordering   -> catalog (offer), tenancy (payout account, membership)
+//   ordering   -> catalog (offer, shown discount code), tenancy (payout account, membership)
 //   enrollment -> catalog (content, on sale, rating)
 //   catalog    -> tenancy (payout readiness, plan quota), enrollment (program updated)
 //   tenancy    -> ordering, enrollment, catalog (customer export and erasure)
@@ -49,6 +51,28 @@ public sealed class ServiceContractTests(AthlosDatabases databases, AthlosStorag
         Assert.Equal((workspace.TenantId, true, false), (account!.TenantId, account.Active, account.OnboardingComplete));
         Assert.Equal((true, false), (owner, stranger));
     }
+
+    [Fact]
+    public async Task Ordering_sets_the_discount_code_catalog_shows()
+    {
+        var coach = CatalogArrange.NewCoach();
+        var program = await _catalog.CreateProgram(coach, publish: true);
+        var shop = new CatalogPublicDiscounts(Clients((SellerDirectory.Catalog, _catalog)));
+        var ends = DateTimeOffset.UtcNow.AddDays(7);
+
+        await shop.SetAsync(coach.TenantId, new DiscountCode { Code = "SUMMER-20", PercentOff = 20, ProgramId = program.Id, ExpiresAt = ends }, Cancel);
+        var shown = await ShownOn(coach, program.Slug);
+        await shop.SetAsync(coach.TenantId, null, Cancel);
+        var gone = await ShownOn(coach, program.Slug);
+
+        Assert.Equal(("SUMMER-20", 20), (shown.Discount!.Code, shown.Discount.PercentOff));
+        Assert.Equal(ends, shown.Discount.ExpiresAt!.Value, TimeSpan.FromMilliseconds(1));
+        Assert.Null(gone.Discount);
+    }
+
+    private async Task<DiscountedProgram> ShownOn(CatalogArrange.Coach coach, string slug) =>
+        (await (await _catalog.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{coach.Slug}/programs/{slug}")))
+            .Content.ReadFromJsonAsync<DiscountedProgram>(Cancel))!;
 
     [Fact]
     public async Task Enrollment_reads_catalogs_content_and_offer_and_sets_the_rating()
@@ -141,6 +165,10 @@ public sealed class ServiceContractTests(AthlosDatabases databases, AthlosStorag
     }
 
     private sealed record RatedProgram(decimal RatingAverage, int RatingCount);
+
+    private sealed record ShownDiscount(string Code, int PercentOff, DateTimeOffset? ExpiresAt);
+
+    private sealed record DiscountedProgram(ShownDiscount? Discount);
 
     public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 

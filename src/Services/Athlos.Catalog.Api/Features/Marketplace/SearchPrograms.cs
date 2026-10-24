@@ -18,10 +18,11 @@ public static class SearchPrograms
 
     // Id: what checkout takes, public like on the program page; the shop's "Add to cart" sends it.
     // RatingAverage and RatingCount: the program's reviews (design §2.4); 0 and 0 without any.
+    // Discount: the code its coach shows on it, if any (design §2.4).
     public sealed record Item(
         Guid Id,
         string CoachSlug, string Slug, string Title, ProgramCategory Category, int DurationWeeks, long PriceAmount, string Currency, string? CoverImageUrl,
-        decimal RatingAverage, int RatingCount);
+        decimal RatingAverage, int RatingCount, DiscountOffer? Discount);
 
     // How many programs each coach has among the results, ignoring the coach filter itself, for the
     // shop's coach filter.
@@ -58,7 +59,8 @@ public static class SearchPrograms
             .WithName("SearchPrograms")
             .WithTags("Marketplace");
 
-    private static async Task<Ok<SearchResults>> Handle([AsParameters] Query query, CatalogDbContext db, MediaStore media, CancellationToken cancellationToken)
+    private static async Task<Ok<SearchResults>> Handle(
+        [AsParameters] Query query, CatalogDbContext db, MediaStore media, TimeProvider time, CancellationToken cancellationToken)
     {
         var programs = db.Programs.AsNoTracking()
             .IgnoreQueryFilters([TenantDbContext.TenantFilter])
@@ -123,14 +125,23 @@ public static class SearchPrograms
         var page = await sorted.ThenBy(p => p.Id)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(p => new { p.Id, p.CoachSlug, p.Slug, p.Title, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency, p.CoverImagePath, p.RatingAverage, p.RatingCount })
+            .Select(p => new { p.Id, p.TenantId, p.CoachSlug, p.Slug, p.Title, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency, p.CoverImagePath, p.RatingAverage, p.RatingCount })
             .ToListAsync(cancellationToken);
+
+        // The shown codes of this page's coaches (public like their programs; RLS public-read), unexpired.
+        var now = time.GetUtcNow();
+        var tenantIds = page.Select(p => p.TenantId).Distinct().ToList();
+        var discounts = await db.PublicDiscounts.AsNoTracking()
+            .IgnoreQueryFilters([TenantDbContext.TenantFilter])
+            .Where(d => tenantIds.Contains(d.TenantId) && (d.ExpiresAt == null || d.ExpiresAt > now))
+            .ToDictionaryAsync(d => d.TenantId, cancellationToken);
 
         var items = new List<Item>(page.Count);
         foreach (var p in page)
         {
             items.Add(new Item(p.Id, p.CoachSlug, p.Slug, p.Title, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency,
-                await media.ReadLinkAsync(p.CoverImagePath, cancellationToken), p.RatingAverage, p.RatingCount));
+                await media.ReadLinkAsync(p.CoverImagePath, cancellationToken), p.RatingAverage, p.RatingCount,
+                DiscountOffer.For(p.Id, discounts.GetValueOrDefault(p.TenantId))));
         }
 
         return TypedResults.Ok(new SearchResults(items, query.Page, query.PageSize, total, coaches));

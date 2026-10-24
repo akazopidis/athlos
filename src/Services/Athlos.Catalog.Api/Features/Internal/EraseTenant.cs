@@ -5,9 +5,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Athlos.Catalog.Api.Features.Internal;
 
-// Deleting a workspace (design §3.4), called by tenancy-api: every program, workout and image of one
-// tenant. Not a cross-tenant slice: the handler enters that tenant before its transaction, so the
-// tenant filter and RLS limit the deletes to its rows; the media go by their tenants/{id}/ prefix.
+// Deleting a workspace (design §3.4), called by tenancy-api: every program, workout, image and shown
+// discount code of one tenant. Not a cross-tenant slice: the handler enters that tenant before its
+// transaction, so the tenant filter and RLS limit the deletes to its rows; the media go by their
+// tenants/{id}/ prefix.
 // Idempotent: a retry finds nothing left and answers 204 again.
 public static class EraseTenant
 {
@@ -23,6 +24,7 @@ public static class EraseTenant
         {
             await db.Workouts.ExecuteDeleteAsync(cancellationToken);
             await db.Programs.ExecuteDeleteAsync(cancellationToken);
+            await db.PublicDiscounts.ExecuteDeleteAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
 

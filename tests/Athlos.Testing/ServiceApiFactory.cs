@@ -3,6 +3,7 @@ using Athlos.Catalog.Api.Data;
 using Athlos.Messaging;
 using Athlos.Ordering.Api.Data;
 using Athlos.Ordering.Api.Features.Checkout;
+using Athlos.Ordering.Api.Features.Discounts;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Api.Data;
 using Athlos.Tenancy.Api.Features.Payouts;
@@ -153,6 +154,8 @@ public sealed class OrderingApiFactory(AthlosDatabases databases) : ServiceApiFa
 
     public CapturingMessageSender Messages { get; } = new();
 
+    public FakePublicDiscounts PublicDiscounts { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -165,6 +168,7 @@ public sealed class OrderingApiFactory(AthlosDatabases databases) : ServiceApiFa
             services.AddSingleton<ISellerDirectory>(Sellers);
             services.AddSingleton<ICheckoutSessions>(CheckoutSessions);
             services.AddSingleton<IMessageSender>(Messages);
+            services.AddSingleton<IPublicDiscounts>(PublicDiscounts);
         });
     }
 

@@ -13,6 +13,7 @@ import { ProgramPage } from './ProgramPage.tsx'
 vi.mock('@/lib/navigation', () => ({ leaveTo: vi.fn() }))
 
 afterEach(() => {
+  discount = null
   vi.unstubAllGlobals()
   vi.mocked(leaveTo).mockReset()
   localStorage.clear()
@@ -52,7 +53,10 @@ const program = {
   sample: { week: 1, day: 1, title: 'Squat day', content: 'Five sets of five squats.', videoUrl: null },
 }
 
-// A signed-in customer: enough of MSAL for getAccessToken.
+// The code the coach shows on the program (design §2.4), if a test sets one.
+let discount: { code: string; percentOff: number; expiresAt: string | null } | null = null
+
+// A signed-in customer.
 const signedIn = signedInAs('customer')
 
 function renderPage(checkout: (request: Request) => Response, owned: string[] = [], workspaces: string[] = []) {
@@ -82,7 +86,7 @@ function renderPage(checkout: (request: Request) => Response, owned: string[] = 
       if (new URL(request.url).pathname === '/api/v1/me/memberships') {
         return Response.json(workspaces.map((slug) => ({ tenantId: 't', slug, displayName: slug, role: 'Owner', status: 'Active' })))
       }
-      return Response.json(program)
+      return Response.json({ ...program, discount })
     }),
   )
 
@@ -136,6 +140,14 @@ test('a customer who already owns the program gets Open program instead of Buy',
   expect(await screen.findByRole('link', { name: 'Open program' })).toHaveAttribute('href', `/me/programs/${program.id}`)
   expect(screen.queryByRole('button', { name: 'Buy now' })).toBeNull()
   expect(screen.queryByRole('button', { name: /Add to cart/ })).toBeNull()
+})
+
+test('the code the coach shows is on the page, with the price it gives', async () => {
+  discount = { code: 'SUMMER', percentOff: 20, expiresAt: null }
+  renderPage(() => Response.json({}))
+
+  const code = await screen.findByText('SUMMER')
+  expect(code.closest('p')).toHaveTextContent(/20% off with code SUMMER: €39\.20/)
 })
 
 test("a coach sees their own workspace's program as theirs, not for sale", async () => {

@@ -195,6 +195,13 @@ export interface components {
             priceAmount: number | string;
             currency: string;
         };
+        DiscountOffer: {
+            code: string;
+            /** Format: int32 */
+            percentOff: number | string;
+            /** Format: date-time */
+            expiresAt: null | string;
+        };
         GetPublishedProgramOutlineItem: {
             /** Format: int32 */
             week: number | string;
@@ -232,6 +239,7 @@ export interface components {
             ratingAverage: number | string;
             /** Format: int32 */
             ratingCount: number | string;
+            discount: null | components["schemas"]["DiscountOffer"];
         };
         /** Format: binary */
         IFormFile: string;
@@ -279,6 +287,7 @@ export interface components {
             ratingAverage: number | string;
             /** Format: int32 */
             ratingCount: number | string;
+            discount: null | components["schemas"]["DiscountOffer"];
         };
         SearchProgramsSearchResults: {
             items: components["schemas"]["SearchProgramsItem"][];

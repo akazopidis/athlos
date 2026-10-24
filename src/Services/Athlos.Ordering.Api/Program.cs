@@ -38,6 +38,8 @@ builder.Services.AddHostedService<PayoutRetries>();
 builder.Services.AddHttpClient(SellerDirectory.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api")).AddSignedRequests();
 builder.Services.AddHttpClient(SellerDirectory.Tenancy, http => http.BaseAddress = new Uri("https+http://tenancy-api")).AddSignedRequests();
 builder.Services.AddSingleton<ISellerDirectory, SellerDirectory>();
+// The discount code a workspace shows in the shop: catalog-api keeps the copy (design §2.4).
+builder.Services.AddSingleton<IPublicDiscounts, CatalogPublicDiscounts>();
 
 builder.Services.AddValidation();
 builder.Services.AddOpenApi(options =>

@@ -28,6 +28,10 @@ public sealed class DiscountCode : ITenantOwned, IHasTimestamps
 
     public bool IsActive { get; set; } = true;
 
+    // Shown on the coach's programs in the shop ("20% off with SUMMER"), at most one per workspace, and
+    // never one with a use limit (design §2.4). catalog-api keeps a copy (PublicDiscounts).
+    public bool IsPublic { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

@@ -6,6 +6,7 @@ using System.Text.Json;
 using Athlos.Messaging;
 using Athlos.Ordering.Api.Data;
 using Athlos.Ordering.Api.Features.Checkout;
+using Athlos.Ordering.Api.Features.Discounts;
 
 namespace Athlos.Testing;
 
@@ -288,4 +289,24 @@ public static class StripeEvents
                 },
             },
         });
+}
+
+// catalog-api's copy of each workspace's shown discount code (design §2.4): the last one sent, or null.
+public sealed class FakePublicDiscounts : IPublicDiscounts
+{
+    public ConcurrentDictionary<Guid, DiscountCode?> Shown { get; } = new();
+
+    // catalog-api cannot be reached: the studio's change must not be kept.
+    public bool Unreachable { get; set; }
+
+    public Task SetAsync(Guid tenantId, DiscountCode? shown, CancellationToken cancellationToken)
+    {
+        if (Unreachable)
+        {
+            throw new HttpRequestException("catalog-api is unreachable");
+        }
+
+        Shown[tenantId] = shown;
+        return Task.CompletedTask;
+    }
 }

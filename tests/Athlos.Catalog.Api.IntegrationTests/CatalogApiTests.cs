@@ -497,6 +497,59 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal((0m, 0), (page.Items[3].RatingAverage, page.Items[3].RatingCount));
     }
 
+    // The code a coach shows (design §2.4): on the shop's cards, saved programs and the program page, on
+    // every program of the workspace or only the one it names, until it ends; removed when ordering-api
+    // says none is shown. Another coach's programs never carry it.
+    [Fact]
+    public async Task A_shown_discount_is_on_the_coachs_programs_until_it_ends()
+    {
+        var coach = NewCoach();
+        var other = NewCoach();
+        var first = await _api.CreateProgram(coach, publish: true);
+        var second = await _api.CreateProgram(coach, publish: true);
+        var theirs = await _api.CreateProgram(other, publish: true);
+        var customer = Guid.CreateVersion7();
+        await AsCustomer(customer, HttpMethod.Put, $"/saved/{first.Id}");
+
+        await ShowDiscount(coach, new { code = "SUMMER", percentOff = 20, expiresAt = DateTimeOffset.UtcNow.AddDays(3) });
+        var everywhere = await Read<OfferPage>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs?coach={coach.Slug}")));
+        var notTheirs = await Read<OfferPage>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs?coach={other.Slug}")));
+        var saved = await Read<List<OfferItem>>(await AsCustomer(customer, HttpMethod.Get, "/saved"));
+        var page = await Read<OfferItem>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{coach.Slug}/programs/{first.Slug}")));
+        await ShowDiscount(coach, new { code = "ONLY-ONE", percentOff = 30, programId = second.Id });
+        var onlyOne = await Read<OfferPage>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs?coach={coach.Slug}")));
+        await ShowDiscount(coach, new { code = "ENDED", percentOff = 30, expiresAt = DateTimeOffset.UtcNow.AddSeconds(-1) });
+        var ended = await Read<OfferPage>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs?coach={coach.Slug}")));
+        await ShowDiscount(coach, new { code = "BACK", percentOff = 10 });
+        var removed = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/tenants/{coach.TenantId}/public-discount"));
+        var none = await Read<OfferPage>(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs?coach={coach.Slug}")));
+
+        Assert.Equal([("SUMMER", 20), ("SUMMER", 20)], everywhere.Items.Select(i => (i.Discount!.Code, i.Discount.PercentOff)));
+        Assert.Null(Assert.Single(notTheirs.Items, i => i.Slug == theirs.Slug).Discount);
+        Assert.Equal("SUMMER", Assert.Single(saved).Discount!.Code);
+        Assert.Equal(("SUMMER", true), (page.Discount!.Code, page.Discount.ExpiresAt > DateTimeOffset.UtcNow));
+        Assert.Equal("ONLY-ONE", onlyOne.Items.Single(i => i.Slug == second.Slug).Discount!.Code);
+        Assert.Null(onlyOne.Items.Single(i => i.Slug == first.Slug).Discount);
+        Assert.All(ended.Items, i => Assert.Null(i.Discount));
+        Assert.Equal(HttpStatusCode.NoContent, removed.StatusCode);
+        Assert.All(none.Items, i => Assert.Null(i.Discount));
+    }
+
+    private async Task ShowDiscount(Coach coach, object body)
+    {
+        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{coach.TenantId}/public-discount")
+        {
+            Content = JsonContent.Create(body),
+        });
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    private sealed record Offer(string Code, int PercentOff, DateTimeOffset? ExpiresAt);
+
+    private sealed record OfferItem(string Slug, Offer? Discount);
+
+    private sealed record OfferPage(List<OfferItem> Items);
+
     private async Task SetRating(Coach coach, Guid programId, int count, decimal average)
     {
         var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{coach.TenantId}/programs/{programId}/rating")

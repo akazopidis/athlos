@@ -149,6 +149,10 @@ namespace Athlos.Ordering.Api.Data.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_public");
+
                     b.Property<int?>("MaxRedemptions")
                         .HasColumnType("integer")
                         .HasColumnName("max_redemptions");

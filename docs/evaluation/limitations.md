@@ -35,6 +35,7 @@ The limitations fall into three kinds:
 | 20 | Email from a Microsoft-managed domain | Scope | Email |
 | 21 | Shop features of a mature marketplace are missing | Scope | Product |
 | 22 | Gaps in automated testing | Scope | Quality |
+| 23 | Slow first paint on a slow phone | Trade-off | Frontend |
 
 ## Legal and compliance
 
@@ -192,7 +193,7 @@ Each of these is ordinary product work with no new multi-tenancy question:
   - *Two copies of the rating.* enrollment-api owns the reviews and catalog keeps the count and average for cards and sorting. The copy is written before the review commits, so the two can only differ if that commit fails after catalog took the new values; the next review of the program sets it right.
 - **Discount codes (since v1.11.0):** percentages only, one code per cart, no "once per customer" rule, and two customers paying at the same moment for a code's last use can both get it (the use count is read, not locked).
 - **Saved programs (since v1.11.0):** no email when a saved program's price drops.
-- **Search engine visibility:** storefronts and program pages have their own titles and link previews (v1.10.0), but there is no sitemap and no server-side rendering.
+- **Search engine visibility:** storefronts and program pages have their own titles and link previews (v1.10.0), and the gateway serves `robots.txt` and a sitemap (v1.13.0), but there is no server-side rendering.
 - **Search quality:** search is a case-insensitive text match on title, description and the coach's address (not the coach's display name, which catalog does not hold), with no full-text index, ranking or typo tolerance (§8). A PostgreSQL full-text or trigram index would be the next step.
 - **Languages and currencies:** English only, euros only. Money is already stored as minor units plus a currency code, so the data model is ready.
 - **Cart:** it lives in the browser, not in the account, so it does not follow the customer to another device and is shared by two accounts on one browser. (Since v1.8.1 it shows current prices and names any that changed.)
@@ -208,3 +209,11 @@ Each of these is ordinary product work with no new multi-tenancy question:
   - the second staging program for the purchase test;
   - many test accounts, to load-test writes past the per-customer write limit;
   - a k6 scenario against Stripe's test mode for checkout, within Stripe's rate limits.
+
+### 23. Slow first paint on a slow phone
+- **Missing:** a fast first paint on a slow connection. On Lighthouse's simulated slow 4G phone the shop paints its first content after 4.6 s, against 1.8 s for "good" (`lighthouse.md`). On desktop it is about 1 s, and accessibility, best practices and SEO are 100.
+- **Why:** the SPA renders in the browser only. Nothing shows until about 220 kB of compressed JavaScript has run, including MSAL (63 kB), which every visitor loads although most are not signed in, and until `/config.json` has arrived. v1.14.0 removed the avoidable delays: fonts and `/config.json` are preloaded, built files are cached for a year, and uploaded images are shrunk.
+- **Solution:**
+  - load MSAL only for sign-in, a redirect back from Entra, or an account already in session storage;
+  - server-side rendering, or a static shell for the public pages, served by the gateway;
+  - sized image variants (`srcset`), and resizing the covers uploaded before v1.14.0.

@@ -12,8 +12,8 @@ namespace Athlos.Gateway;
 // serves the SPA shell with that page's title, description and image filled in (Open Graph and Twitter
 // card tags), read from the services' public marketplace endpoints, signed like any forwarded request.
 // Anything that fails (an unknown coach, a service starting from zero) serves the plain shell: the SPA
-// renders the page either way. Previews are cached for 5 minutes; an image link (a 15-minute read link
-// to a cover or logo) is fetched by the app soon after it reads the page.
+// renders the page either way. Previews are cached for 5 minutes; an image link (a read link to a cover
+// or logo, valid at least 10 minutes) is fetched by the app soon after it reads the page.
 public sealed partial class LinkPreviews(IHttpClientFactory clients, GatewaySignature signature, HybridCache cache, IWebHostEnvironment environment, ILogger<LinkPreviews> logger)
 {
     public const string Tenancy = "preview-tenancy";

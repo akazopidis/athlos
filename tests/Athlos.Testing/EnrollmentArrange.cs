@@ -142,7 +142,7 @@ public static class EnrollmentArrange
 {
     public static readonly JsonSerializerOptions Json = OrderingArrange.Json;
 
-    public sealed record MyProgramItem(Guid ProgramId, string ProgramTitle, string CoachSlug, DateTimeOffset EnrolledAt, int CompletedWorkouts);
+    public sealed record MyProgramItem(Guid ProgramId, string ProgramTitle, string CoachSlug, DateTimeOffset EnrolledAt, int CompletedWorkouts, bool Reviewed = false);
 
     public sealed record MyProgramsPage(List<MyProgramItem> Items, int Page, int PageSize, int TotalCount);
 

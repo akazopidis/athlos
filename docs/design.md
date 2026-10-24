@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v17, built; v1.11.0 in production (2026-10-19)
+**Status:** v17.1, built; v1.12.0 in production (2026-10-24)
+
+**Changes in v17.2 (v1.13.0):** catalog's public reads cached for 10 seconds (§4); cover links stable for 10 minutes (§2.3); robots.txt and a sitemap (§8.1); "Rate this program" in My programs and the latest reviews on the studio overview (§8).
 
 **Changes in v17.1 (v1.12.0):** legal pages and accepting the Terms at checkout, receipts, and "Download my data" (§5.4); reporting reviews and the admin's moderation, reviews public only while their program is on sale (§2.4); a per-customer limit on writes (§4); an error boundary in the SPA (§8); emails to customers about review replies and new workouts (§5.3).
 
@@ -198,7 +200,7 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 Catalog notes (phase 3):
 - `programs.coach_slug` is a copy of the owning workspace's slug, taken from the gateway-verified route when the program is created. Marketplace results link to `/c/{slug}` without catalog reading tenancy's database; slugs never change, so the copy cannot go stale.
 - `workouts` are the paid content: no public-read policy. Only the owning tenant reads them; enrolled customers get them through enrollment-api (enrollment notes below).
-- Cover images: `PUT /api/v1/studio/{slug}/programs/{id}/cover` takes the image as the request body (JPEG, PNG or WebP, recognised by their first bytes, not the claimed `Content-Type`; at most 2 MB). The blob path is `tenants/{tenantId}/programs/{programId}/cover-{uuid}.{ext}`, built from `ITenantContext`; a new name per upload avoids stale caches, and the old blob is deleted. Every program response carries `coverImageUrl`, a read-only SAS link for that one blob, valid 15 minutes: a user-delegation SAS in Azure (the storage accounts have shared-key access disabled), a shared-key SAS against Azurite locally.
+- Cover images: `PUT /api/v1/studio/{slug}/programs/{id}/cover` takes the image as the request body (JPEG, PNG or WebP, recognised by their first bytes, not the claimed `Content-Type`; at most 2 MB). The blob path is `tenants/{tenantId}/programs/{programId}/cover-{uuid}.{ext}`, built from `ITenantContext`; a new name per upload avoids stale caches, and the old blob is deleted. Every program response carries `coverImageUrl`, a read-only SAS link for that one blob, valid 10 to 20 minutes (since v1.13.0 the expiry is rounded to a 10-minute window, so the link is the same for everyone in that window and browsers cache the image instead of downloading it under a new address on every page): a user-delegation SAS in Azure (the storage accounts have shared-key access disabled), a shared-key SAS against Azurite locally.
 - Deleting a program: only one that was never on sale. `first_published_at` is set on the first publish and never cleared (unpublishing clears `published_at`), because customers keep access to what they bought (§3.4); a program that has been on sale can be unpublished, not deleted. Found in phase 6: the earlier rule ("only drafts") let a coach delete a sold program after unpublishing it.
 - Publishing requires an active workspace with finished Stripe onboarding (§3.4): catalog asks tenancy-api's `GET /internal/tenants/{id}/payout-account` with a signed service-to-service call (`SignedRequestHandler`, the same HMAC as the gateway's, no tenant headers). A suspended tenant's programs leave the marketplace with the tenant lifecycle (§3.4).
 
@@ -394,6 +396,7 @@ Goal: one tenant's spike must not degrade others. Layered, cheapest first:
 
 **As built (phase 7):**
 - *Whose budget a request spends.* A coach's studio routes count once the caller is confirmed a member; their storefront (`/api/v1/marketplace/coaches/{slug}/...`, and the program list with `?coach={slug}`) counts for everyone. Both share one token bucket per coach, sized by the plan's requests per second. The cross-coach marketplace search and unknown addresses are limited per client IP instead (`RateLimits:PerClientRequestsPerSecond`, 20). Signed-in customers' reads (`/me`, orders) are not rate limited. Starting a checkout, which opens a Stripe payment page and writes pending orders, is limited to `RateLimits:CheckoutsPerMinute` (10) per signed-in customer (per client IP without a sign-in), and checking a discount code shares that bucket. Since v1.12.0 a customer's other writes (anything but a read under `/api/v1/me`: reviews, saved programs, progress; and reporting a review) share `RateLimits:CustomerWritesPerMinute` (60) per customer, so one account cannot flood the services with writes.
+- *Public reads cached (v1.13.0).* catalog-api caches its public marketplace reads (search, program pages) for 10 seconds in each replica's memory (`PublicReadCache`, `Marketplace:CacheSeconds`), keyed by the full address. They depend on no tenant or user, so a burst of visitors costs one database read per address per 10 seconds; studio and internal routes are never cached, and a change shows in the shop within 10 seconds. The stress test found catalog-api's single replica running out of CPU on this work (`evaluation/stress.md`).
 - *How the gateway knows the plan.* `GET /internal/tenants/{slug}/plan` on tenancy-api (signed, like the membership lookup), cached for 60 s, so plan limits live only in tenancy's `Plans`.
 - *Concurrency.* Cover uploads and text searches also take one of `RateLimits:ConcurrentHeavyRequests` (4) slots per coach or client.
 - *Rejections.* 429 with `Retry-After` and a ProblemDetails body, counted by `athlos.ratelimit.rejected` (tags: `scope`, `tenant`, `plan`, `reason`). `RateLimits:Enabled=false` turns the limits off for the experiment's "limits off" run.
@@ -429,7 +432,7 @@ The shared B1ms database is itself a noisy-neighbor story: without limits, tenan
 - No CORS: the SPA and the API share the gateway's origin. Local development uses the Vite dev-server proxy, so CORS stays off there too.
 - Stripe webhooks: verify the `Stripe-Signature` header with the signing secret, reject events older than 5 minutes, dedupe on event id.
 - No secrets in the repo, ever. Local secrets live in .NET user secrets or in Aspire parameters; Azure secrets in Key Vault. GitHub secret scanning needs a public repo or paid Advanced Security; the repo is private (§16), so GitGuardian's check on every PR scans for secrets instead.
-- Upload limits: content-type allow-list and size cap for media; SAS URLs expire within 15 minutes.
+- Upload limits: content-type allow-list and size cap for media; SAS URLs expire within 20 minutes.
 - Personal data is minimal: Entra holds credentials; Athlos stores user ids, display names and emails only where needed.
 - The API never returns stack traces; `ProblemDetails` only, with the trace id so errors can be found in App Insights.
 
@@ -663,6 +666,8 @@ The footer shows the running version (from the gateway's `/version` endpoint), w
 The Vite build is part of the gateway image. The gateway serves it with ASP.NET Core static files (`MapStaticAssets`, which adds compression and fingerprinted caching), falls back to `index.html` for client-side routes, and sends the security headers from §5.1. API routes (`/api/...`, `/webhooks/...`, `/health/...`, `/version`) are matched first, so the fallback never hides an API 404.
 
 **Build once, promote still holds.** Anything that differs per environment (Entra client id and authority, API scopes) is not baked into the bundle. The gateway serves it at `GET /config.json` from its own environment variables, and the SPA fetches it before rendering. The same image runs in dev, staging and prod. `/config.json` also carries `refundWindowDays` and `platformFeePercent`, the same `Payments:*` settings ordering-api applies, for what the shop promises (set them on both apps if they change).
+
+**Search engines** (v1.13.0). `/robots.txt` keeps crawlers out of the studio, the account pages, the cart and the admin, and names `/sitemap.xml`, which lists the static pages, every storefront with programs on sale and every program page (read from catalog's public search with a signed request, cached for an hour; on a failure the static pages only).
 
 **Link previews** (v1.10.0). Apps that show a link's title and image (WhatsApp, Instagram, search engines) read the HTML without running the SPA. For `/c/{slug}` and `/c/{slug}/programs/{programSlug}` the gateway serves the same `index.html` with that page's `<title>`, description and Open Graph and Twitter card tags (`LinkPreviews`), read from the services' public marketplace endpoints with a signed request and cached for 5 minutes. A lookup that fails or takes more than 4 seconds (a cold start) serves the plain shell, and the SPA renders the page either way.
 

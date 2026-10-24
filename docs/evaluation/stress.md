@@ -27,7 +27,7 @@ Replicas and CPU during the run (Azure Monitor, maximum per minute):
 ## What it shows
 
 - **Below about 85 req/s on warm minimum replicas, the shop answers well within the 300 ms target** (p95 82 to 200 ms).
-- **The first bottleneck is catalog-api, not the gateway.** At about 85 to 100 req/s its single replica runs out of CPU (the program list and program pages, each signing a 15-minute read link for the cover image), requests queue, and p95 rises to 11 to 15 seconds.
+- **The first bottleneck is catalog-api, not the gateway.** At about 85 to 100 req/s its single 0.25 vCPU replica runs out of CPU on ordinary per-request work (the queries, EF Core and JSON for the program list and program pages), requests queue, and p95 rises to 11 to 15 seconds. Signing the cover links is not the cost: the delegation key is cached for a day and each link is one HMAC.
 - **The platform recovers by scaling out, without errors.** Container Apps' HTTP rule adds catalog replicas within about two minutes; meanwhile 9% of the requests in the 150 req/s step waited longer than the client's 30-second timeout. After scale-out, 200 req/s are served with p50 63 ms and p95 1.1 s. No request was answered with a 5xx.
 - **The rate limit did not trip.** The coach's 100 req/s bucket lives in each gateway replica's memory, and the gateway had scaled to two replicas, so the coach's effective limit was 200 req/s (`limitations.md` 14). The limit therefore protects other coaches only up to the replica count; the services themselves scaled to absorb it.
 - **The client was a limit too:** at 100 and 150 req/s, k6 reached its 600 virtual users while responses were slow, so fewer requests were sent than asked (86 and 140 per second).
@@ -35,5 +35,22 @@ Replicas and CPU during the run (Azure Monitor, maximum per minute):
 ## What would raise the knee
 
 - A minimum of two catalog-api replicas in prod (cost: one more 0.25 vCPU replica kept warm, roughly €10 a month at Consumption prices after the free grant, which the €100 budget for the year cannot carry), or a scaling rule on CPU as well as concurrent requests.
-- Caching cover read links per image for a few minutes (they are valid 15 minutes), which removes most of catalog-api's per-request signing work.
+- Caching the storefront's program list and program pages in catalog-api for a few seconds (they change rarely), which would remove most of the per-request database and serialization work at this load. (Cover links are now the same within a 10-minute window, v1.13.0, which lets browsers cache the images, but this saves bandwidth, not catalog CPU.)
 - A shared rate-limit store (Redis), so the per-coach limit does not grow with gateway replicas (`limitations.md` 14).
+
+## After the fix (v1.13.0)
+
+Catalog-api now caches its public marketplace reads for 10 seconds per replica (`PublicReadCache`, design §4). The same script was run on 24 October 2026 against dev, which runs the same infrastructure template as staging (raw data: [`tests/load/results/stress-v1.13.0-dev.json`](../../tests/load/results/stress-v1.13.0-dev.json)):
+
+| Step | Requests in the step | p50 | p95 | p99 | Timed out | 429 | 5xx |
+|---|---|---|---|---|---|---|---|
+| 25 req/s | 1,501 | 54 ms | 73 ms | 125 ms | 0% | 0 | 0 |
+| 50 req/s | 2,982 | 53 ms | 66 ms | 93 ms | 0% | 0 | 0 |
+| 100 req/s | 6,000 | 52 ms | 84 ms | 123 ms | 0% | 0 | 0 |
+| 150 req/s | 8,999 | 52 ms | 64 ms | 85 ms | 0% | 0 | 0 |
+| 200 req/s | 12,000 | 51 ms | 62 ms | 72 ms | 0% | 0 | 0 |
+
+- **The knee is gone at this load:** p95 stays between 62 and 84 ms all the way to 200 req/s, against 11 to 15 seconds from 100 req/s before. Every step got the full rate (the client no longer ran out of virtual users).
+- **Catalog-api's CPU stayed at or below 38% on one replica up to 100 req/s** (91% to 120% before); it still scaled to three replicas at 150 to 200 req/s on its concurrency rule, at 70 to 78%.
+- **The cost:** a change in the shop shows within 10 seconds instead of at once, which the shop accepts (a coach sees their studio, which is never cached, at once).
+

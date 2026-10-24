@@ -749,7 +749,8 @@
           "programTitle",
           "coachSlug",
           "enrolledAt",
-          "completedWorkouts"
+          "completedWorkouts",
+          "reviewed"
         ],
         "type": "object",
         "properties": {
@@ -774,6 +775,9 @@
               "string"
             ],
             "format": "int32"
+          },
+          "reviewed": {
+            "type": "boolean"
           }
         }
       },
@@ -1216,7 +1220,9 @@
           "items",
           "pageNumber",
           "pageSize",
-          "totalCount"
+          "totalCount",
+          "average",
+          "reviewCount"
         ],
         "type": "object",
         "properties": {
@@ -1243,6 +1249,22 @@
             "format": "int32"
           },
           "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "average": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "reviewCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",

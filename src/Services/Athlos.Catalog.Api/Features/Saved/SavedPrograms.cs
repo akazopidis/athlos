@@ -38,7 +38,7 @@ public static class SavedPrograms
             .Join(OnSale(db), s => s.ProgramId, p => p.Id, (s, p) => new { s.SavedAt, Program = p })
             .OrderByDescending(r => r.SavedAt)
             .Select(r => new { r.Program.Id, r.Program.TenantId, r.Program.CoachSlug, r.Program.Slug, r.Program.Title, r.Program.Category, r.Program.DurationWeeks,
-                r.Program.PriceAmount, r.Program.Currency, r.Program.CoverImagePath, r.Program.RatingAverage, r.Program.RatingCount })
+                r.Program.PriceAmount, r.Program.Currency, CoverImagePath = r.Program.CoverCardPath ?? r.Program.CoverImagePath, r.Program.RatingAverage, r.Program.RatingCount })
             .ToListAsync(cancellationToken);
 
         // The codes their coaches show, as on the shop's cards (public; RLS public-read).

@@ -558,6 +558,13 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {

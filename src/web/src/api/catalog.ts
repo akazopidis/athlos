@@ -674,7 +674,9 @@ export interface operations {
     };
     UploadProgramCover: {
         parameters: {
-            query?: never;
+            query?: {
+                size?: string;
+            };
             header?: never;
             path: {
                 tenantSlug: string;

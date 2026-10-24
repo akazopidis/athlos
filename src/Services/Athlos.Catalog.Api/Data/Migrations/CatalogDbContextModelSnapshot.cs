@@ -104,6 +104,10 @@ namespace Athlos.Catalog.Api.Data.Migrations
                         .HasColumnType("character varying(40)")
                         .HasColumnName("coach_slug");
 
+                    b.Property<string>("CoverCardPath")
+                        .HasColumnType("text")
+                        .HasColumnName("cover_card_path");
+
                     b.Property<string>("CoverImagePath")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)")

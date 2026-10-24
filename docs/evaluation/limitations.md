@@ -215,4 +215,4 @@ Each of these is ordinary product work with no new multi-tenancy question:
 - **Why:** the SPA renders in the browser only. Nothing shows until about 160 kB of compressed JavaScript has run and `/config.json` has arrived. v1.14.0 and v1.15.0 removed the avoidable delays: fonts and `/config.json` are preloaded, built files are cached for a year, uploaded images are shrunk, and MSAL (62 kB) loads only for visitors who sign in.
 - **Solution:**
   - server-side rendering, or a static shell for the public pages, served by the gateway;
-  - sized image variants (`srcset`), and resizing the covers uploaded before v1.14.0.
+  - resizing the covers uploaded before v1.16.0, which have no card-size version (since v1.16.0 the studio uploads one, and the shop's cards use it).

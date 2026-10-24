@@ -8,11 +8,19 @@ namespace Athlos.Catalog.Api.Features.Programs;
 
 // A program's cover image. The request body is the image itself (JPEG, PNG or WebP, at most 2 MB).
 // The blob path is built from the tenant in ITenantContext and the program's id, never from input.
+// ?size=card uploads the same cover at card size for the shop's cards (TrainingProgram.CoverCardPath);
+// a full upload replaces both.
 public static class ProgramCover
 {
+    public enum Size
+    {
+        Full,
+        Card,
+    }
+
     // A new name per upload, so browsers and caches never show an old cover.
-    public static string CoverPath(Guid tenantId, Guid programId, ImageType type) =>
-        $"tenants/{tenantId}/programs/{programId}/cover-{Guid.CreateVersion7():N}.{type.Extension}";
+    public static string CoverPath(Guid tenantId, Guid programId, ImageType type, Size size = Size.Full) =>
+        $"tenants/{tenantId}/programs/{programId}/cover-{(size == Size.Card ? "card-" : "")}{Guid.CreateVersion7():N}.{type.Extension}";
 
     public static void MapProgramCover(this IEndpointRouteBuilder app)
     {
@@ -25,9 +33,15 @@ public static class ProgramCover
             .WithTags("Programs");
     }
 
+    // size: "card" for the card-size version; anything else but nothing is refused.
     private static async Task<Results<Ok<ProgramDetails>, NotFound, ProblemHttpResult>> Upload(
-        Guid programId, HttpRequest request, ITenantContext tenant, CatalogDbContext db, MediaStore media, CancellationToken cancellationToken)
+        Guid programId, string? size, HttpRequest request, ITenantContext tenant, CatalogDbContext db, MediaStore media, CancellationToken cancellationToken)
     {
+        if (size is not null && !string.Equals(size, "card", StringComparison.OrdinalIgnoreCase))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status400BadRequest, title: "size can only be card.");
+        }
+
         var program = await db.Programs.SingleOrDefaultAsync(p => p.Id == programId, cancellationToken);
         if (program is null)
         {
@@ -53,14 +67,26 @@ public static class ProgramCover
             return TypedResults.Problem(statusCode: StatusCodes.Status415UnsupportedMediaType, title: "The cover must be a JPEG, PNG or WebP image.");
         }
 
-        var previous = program.CoverImagePath;
-        program.CoverImagePath = ProgramCover.CoverPath(tenant.TenantId!.Value, program.Id, type);
-        await media.UploadAsync(program.CoverImagePath, BinaryData.FromBytes(bytes), type, cancellationToken);
+        var cardSize = size is not null;
+        var path = CoverPath(tenant.TenantId!.Value, program.Id, type, cardSize ? Size.Card : Size.Full);
+        // A full cover replaces the card version too, which showed the previous image.
+        string?[] previous = cardSize ? [program.CoverCardPath] : [program.CoverImagePath, program.CoverCardPath];
+        if (cardSize)
+        {
+            program.CoverCardPath = path;
+        }
+        else
+        {
+            program.CoverImagePath = path;
+            program.CoverCardPath = null;
+        }
+
+        await media.UploadAsync(path, BinaryData.FromBytes(bytes), type, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
-        if (previous is not null)
+        foreach (var old in previous.OfType<string>())
         {
-            await media.DeleteAsync(previous, cancellationToken);
+            await media.DeleteAsync(old, cancellationToken);
         }
 
         return TypedResults.Ok(await ProgramDetails.FromAsync(program, media, cancellationToken));
@@ -75,10 +101,12 @@ public static class ProgramCover
             return TypedResults.NotFound();
         }
 
-        if (program.CoverImagePath is { } path)
+        string?[] paths = [program.CoverImagePath, program.CoverCardPath];
+        program.CoverImagePath = null;
+        program.CoverCardPath = null;
+        await db.SaveChangesAsync(cancellationToken);
+        foreach (var path in paths.OfType<string>())
         {
-            program.CoverImagePath = null;
-            await db.SaveChangesAsync(cancellationToken);
             await media.DeleteAsync(path, cancellationToken);
         }
 

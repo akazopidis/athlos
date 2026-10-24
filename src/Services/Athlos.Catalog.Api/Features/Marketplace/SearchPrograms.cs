@@ -125,7 +125,8 @@ public static class SearchPrograms
         var page = await sorted.ThenBy(p => p.Id)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(p => new { p.Id, p.TenantId, p.CoachSlug, p.Slug, p.Title, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency, p.CoverImagePath, p.RatingAverage, p.RatingCount })
+            // The card-size cover where there is one (design §8).
+            .Select(p => new { p.Id, p.TenantId, p.CoachSlug, p.Slug, p.Title, p.Category, p.DurationWeeks, p.PriceAmount, p.Currency, CoverImagePath = p.CoverCardPath ?? p.CoverImagePath, p.RatingAverage, p.RatingCount })
             .ToListAsync(cancellationToken);
 
         // The shown codes of this page's coaches (public like their programs; RLS public-read), unexpired.

@@ -118,6 +118,40 @@ public sealed class ProgramCoverTests(AthlosDatabases databases, AthlosStorage s
         Assert.Equal(HttpStatusCode.OK, (await _web.GetAsync(item.CoverImageUrl, Cancel)).StatusCode);
     }
 
+    // The card-size cover (design §8): cards and saved programs show it, the program page the full one;
+    // a new full cover takes the old card version away, and deleting the cover removes both.
+    [Fact]
+    public async Task Cards_show_the_card_size_cover_and_a_new_full_cover_replaces_it()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach, publish: true);
+        var full = Png(512);
+        var card = Png(128);
+        await _api.UploadCover(coach, program.Id, full);
+        Assert.Equal(HttpStatusCode.OK, (await _api.UploadCover(coach, program.Id, card, size: "card")).StatusCode);
+
+        var cardLink = await CardCover(coach);
+        var pageLink = await PageCover(coach, program.Slug);
+        var cardBytes = await _web.GetByteArrayAsync(cardLink, Cancel);
+        var pageBytes = await _web.GetByteArrayAsync(pageLink, Cancel);
+        await _api.UploadCover(coach, program.Id, Png(256));
+        var afterNewFull = await CardCover(coach);
+        var oldCard = await _web.GetAsync(cardLink, Cancel);
+
+        Assert.Contains("/cover-card-", cardLink, StringComparison.Ordinal);
+        Assert.Equal((card.Length, full.Length), (cardBytes.Length, pageBytes.Length));
+        Assert.DoesNotContain("/cover-card-", afterNewFull, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.NotFound, oldCard.StatusCode);
+    }
+
+    private async Task<string> CardCover(Coach coach) =>
+        Assert.Single((await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs?coach={coach.Slug}")))
+            .Content.ReadFromJsonAsync<SearchPage>(Json, Cancel))!.Items).CoverImageUrl!;
+
+    private async Task<string> PageCover(Coach coach, string slug) =>
+        (await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{coach.Slug}/programs/{slug}")))
+            .Content.ReadFromJsonAsync<Details>(Json, Cancel))!.CoverImageUrl!;
+
     private static async Task<Details> Read(HttpResponseMessage response)
     {
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

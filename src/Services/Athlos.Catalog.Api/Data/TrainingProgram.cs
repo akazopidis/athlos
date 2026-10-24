@@ -45,6 +45,11 @@ public sealed class TrainingProgram : ITenantOwned, IHasTimestamps
 
     public string? CoverImagePath { get; set; }
 
+    // The same cover at card size (800 px wide), which the studio uploads after the full one: the shop's
+    // cards and saved programs show it, the program page the full one. Null for covers from before
+    // v1.16.0 (the cards then show the full one); a new full cover takes the old card version away.
+    public string? CoverCardPath { get; set; }
+
     // Copies of the program's reviews, which enrollment-api owns (design §2.4): how many, and their
     // average (0 without reviews). Set through PUT /internal/tenants/{id}/programs/{id}/rating.
     public int RatingCount { get; set; }

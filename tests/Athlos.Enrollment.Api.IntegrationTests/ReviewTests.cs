@@ -240,13 +240,14 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, notAdmin.StatusCode);
-        var open = Assert.Single(reports);
+        // The queue is shared with other tests' reviews: this one's entry only.
+        var open = Assert.Single(reports, r => r.ReviewId == reviewId);
         Assert.Equal((reviewId, 2, "Rude words", program.Title), (open.ReviewId, open.Reports, open.Comment, open.ProgramTitle));
         Assert.Equal(HttpStatusCode.NoContent, hidden.StatusCode);
         Assert.Equal(["Great"], page.Items.Select(r => r.Comment));
         Assert.Equal((1, 5m), ratingHidden);
         Assert.NotNull(mine.Review!.HiddenAt);
-        Assert.Empty(afterHide);
+        Assert.DoesNotContain(afterHide, r => r.ReviewId == reviewId);
         Assert.Equal((2, 3m), _api.Ratings.For(_coach.TenantId, program.ProgramId));
     }
 
@@ -275,6 +276,8 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Single(kept.Items);
         Assert.NotNull(again.HiddenAt);
         Assert.Equal("Better on www.example.gr", Assert.Single(queueAgain, r => r.ReviewId == reviewId).Comment);
+        // Leave the shared queue as it was.
+        await AsAdmin(HttpMethod.Post, $"/api/v1/admin/reviews/{reviewId}/hide");
     }
 
     [Theory]

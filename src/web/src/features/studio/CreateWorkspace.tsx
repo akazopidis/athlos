@@ -1,13 +1,14 @@
 import { useMutation } from '@tanstack/react-query'
 import { Store, Users, Wallet } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useApp } from '@/lib/AppContext'
+import { CoachTermsVersion } from '@/lib/legal'
 import { useTitle } from '@/lib/useTitle'
 import { slugFrom } from '@/lib/slug'
 
@@ -19,10 +20,15 @@ export function CreateWorkspace() {
   const [displayName, setDisplayName] = useState('')
   const [slug, setSlug] = useState('')
   const [slugEdited, setSlugEdited] = useState(false)
+  // The Terms for coaches are accepted here (design §5.4); the version shown is sent.
+  const [accepted, setAccepted] = useState(false)
 
   const create = useMutation({
     mutationFn: async () => {
-      const { data, error, response } = await api.POST('/api/v1/tenants', { body: { slug, displayName } })
+      const { data, error, response } = await api.POST('/api/v1/tenants', { body: { slug, displayName, termsVersion: CoachTermsVersion } })
+      if (response.status === 409 && (error as { reason?: string } | undefined)?.reason === 'terms') {
+        throw new Error('The Terms for coaches have changed. Reload the page to read and accept the new version.')
+      }
       if (response.status === 409) throw new Error('That address is taken. Try another one.')
       if (error || !data) throw new Error('Could not create the workspace.')
       return data
@@ -104,7 +110,17 @@ export function CreateWorkspace() {
                 </div>
                 <p className="text-xs text-muted-foreground">Lowercase letters, digits and dashes. It can't be changed later.</p>
               </div>
-              <Button type="submit" disabled={create.isPending}>
+              <label className="flex items-start gap-3 text-sm">
+                <input type="checkbox" required checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="mt-0.5 size-4 accent-primary" />
+                <span>
+                  I accept the{' '}
+                  <Link to="/legal/coaches" target="_blank" className="font-medium underline underline-offset-4">
+                    Terms for coaches
+                  </Link>
+                  .
+                </span>
+              </label>
+              <Button type="submit" disabled={create.isPending || !accepted}>
                 Create workspace
               </Button>
               {create.error && (

@@ -20,6 +20,7 @@ const Sell = lazyPage(() => import('@/features/marketplace/Sell'), 'Sell')
 const Terms = lazyPage(() => import('@/features/legal/Legal'), 'Terms')
 const Privacy = lazyPage(() => import('@/features/legal/Legal'), 'Privacy')
 const Refunds = lazyPage(() => import('@/features/legal/Legal'), 'Refunds')
+const CoachTerms = lazyPage(() => import('@/features/legal/Legal'), 'CoachTerms')
 const AcceptInvite = lazyPage(() => import('@/features/studio/AcceptInvite'), 'AcceptInvite')
 const CreateWorkspace = lazyPage(() => import('@/features/studio/CreateWorkspace'), 'CreateWorkspace')
 const Me = lazyPage(() => import('@/features/account/Me'), 'Me')
@@ -65,6 +66,7 @@ export default function App() {
                 <Route path="/legal/terms" element={<Terms />} />
                 <Route path="/legal/privacy" element={<Privacy />} />
                 <Route path="/legal/refunds" element={<Refunds />} />
+                <Route path="/legal/coaches" element={<CoachTerms />} />
                 <Route path="/invites/:slug" element={<AcceptInvite />} />
                 <Route path="/studio/new" element={<CreateWorkspace />} />
                 <Route path="/studio/:slug" element={<Studio />}>

@@ -4,7 +4,7 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17.3, built; v1.14.0 in production (2026-10-24)
 
-**Changes in v17.5 (v1.16.0):** covers also at card size for the shop's cards (§2.3, §8.1).
+**Changes in v17.5 (v1.16.0):** covers also at card size for the shop's cards (§2.3, §8.1); the Terms for coaches, accepted when a workspace is opened (§2.3, §5.4).
 
 **Changes in v17.4 (v1.15.0):** MSAL loads only when sign-in has work (§5); a coach can show one discount code on their programs, copied to catalog's `public_discounts` (§2.3, §2.4); the cart kept with the account, ordering's `carts` (§2.3, §8); `WithTenantTransaction` now sees the status inside a handler's `Results<...>` union, so an error result is never committed (it committed before, which no slice relied on).
 
@@ -185,7 +185,7 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 
 | Service | Table | Key columns |
 |---|---|---|
-| tenancy | `tenants` | `slug` (unique), `display_name`, `status` (Active, Suspended, Deleted), `plan` (Free, Pro), `branding` (jsonb: linked logo URL, uploaded logo path, colors, public contact email, bio, Instagram, YouTube and website links), `stripe_account_id`, `stripe_onboarding_complete` |
+| tenancy | `tenants` | `slug` (unique), `display_name`, `status` (Active, Suspended, Deleted), `plan` (Free, Pro), `branding` (jsonb: linked logo URL, uploaded logo path, colors, public contact email, bio, Instagram, YouTube and website links), `stripe_account_id`, `stripe_onboarding_complete`, `coach_terms_version`, `coach_terms_accepted_at`, `coach_terms_accepted_by` (the Terms for coaches accepted when the workspace was opened, §5.4) |
 | tenancy | `memberships` **T** | `user_id` (Entra object id), `role` (Owner, Staff) |
 | tenancy | `user_profiles` | `user_id` (unique), `email`, `display_name` |
 | tenancy | `staff_invites` **T** | `email`, `token_hash`, `expires_at`, `accepted_at` |
@@ -519,8 +519,9 @@ Built in phase 5:
 ### 5.4 Terms, receipts and personal data (v1.12.0)
 
 What a shop taking real money from EU customers needs besides the payment itself.
-- *Legal pages.* `/legal/terms`, `/legal/privacy` and `/legal/refunds`, linked from the footer, say what the platform does: who sells (the coach), who is paid (the platform, which passes each coach their share), the refund window, what data goes to Microsoft and Stripe, and what deleting an account erases. They are SPA pages; a lawyer would review them before live payments (`limitations.md`).
+- *Legal pages.* `/legal/terms`, `/legal/privacy`, `/legal/refunds` and `/legal/coaches` (the Terms for coaches, v1.16.0), linked from the footer, say what the platform does: who sells (the coach), who is paid (the platform, which passes each coach their share), the refund window, what data goes to Microsoft and Stripe, and what deleting an account erases. They are SPA pages; a lawyer would review them before live payments (`limitations.md`).
 - *Accepting the Terms.* The cart asks the customer to tick "I accept the Terms and the Refund policy"; "Buy now" says that buying accepts them. Each checkout sends the version shown (`termsVersion`, the SPA's `lib/legal.ts`), and ordering-api refuses any version but `Legal:TermsVersion` (`409`, reason `terms`), so nobody pays under terms they were not shown. The `checkouts` row keeps `terms_version` and `terms_accepted_at` as evidence.
+- *Terms for coaches (v1.16.0).* Opening a workspace (`POST /api/v1/tenants`) ticks "I accept the Terms for coaches" and sends the version shown (`termsVersion`); tenancy-api refuses any version but `Legal:CoachTermsVersion` (`409`, reason `terms`). The workspace keeps the version, the time and the user who accepted, and that user's data export shows them. The coach terms say what the platform does with a seller: the fee, payouts to the coach's own Stripe account, refunds and lost disputes taking the coach's share back, content rules, suspension, and what deleting a workspace means for customers. Workspaces opened earlier are not asked again, and a new version is not put to existing workspaces (`limitations.md` 2).
 - *Receipts.* `GET /api/v1/me/orders/receipts/{checkoutId}` (ordering-api, in the "customer's own orders" slice) gives one checkout's receipt across coaches: each program's price, discount and amount paid, the total, and anything refunded; another customer's checkout or an unpaid one is `404`. The SPA shows it at `/me/orders/{checkoutId}/receipt`, printable to PDF from the browser (the site's header and footer are not printed), and the purchase email links to it. It is a receipt, not a tax invoice (VAT is out of scope, `limitations.md`).
 - *Download my data* (the GDPR's right of access, next to erasure in §5.2). `GET /api/v1/me/export` on tenancy-api returns one JSON file: the profile and workspaces from tenancy, and each service's part from a signed `GET /internal/customers/{id}/export` that acts for the user and reads their own rows only (orders and checkouts with the accepted Terms, and the cart; programs, completed workouts and reviews; saved programs). Each is a listed cross-tenant slice, read only. If a service cannot answer, nothing partial is handed out (`502`). The button is in `/me/account`.
 

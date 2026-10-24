@@ -168,6 +168,18 @@ namespace Athlos.Tenancy.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTimeOffset?>("CoachTermsAcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("coach_terms_accepted_at");
+
+                    b.Property<Guid?>("CoachTermsAcceptedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("coach_terms_accepted_by");
+
+                    b.Property<string>("CoachTermsVersion")
+                        .HasColumnType("text")
+                        .HasColumnName("coach_terms_version");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -285,9 +297,21 @@ namespace Athlos.Tenancy.Api.Data.Migrations
                         {
                             b1.Property<Guid>("TenantId");
 
+                            b1.Property<string>("Bio");
+
+                            b1.Property<string>("ContactEmail");
+
+                            b1.Property<string>("InstagramUrl");
+
+                            b1.Property<string>("LogoPath");
+
                             b1.Property<string>("LogoUrl");
 
                             b1.Property<string>("PrimaryColor");
+
+                            b1.Property<string>("WebsiteUrl");
+
+                            b1.Property<string>("YouTubeUrl");
 
                             b1.HasKey("TenantId");
 

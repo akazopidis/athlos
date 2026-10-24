@@ -6,6 +6,7 @@ import { BrandScope } from '@/components/brand'
 import { Loading, Notice, Section } from '@/components/page'
 import type { components } from '@/api/catalog'
 import { CoachAvatar, CoachLinks } from '@/components/coach-profile'
+import { DiscountNote } from '@/components/discount-note'
 import { ProgramCover } from '@/components/program-cover'
 import { SaveButton } from '@/components/save-button'
 import { Stars } from '@/components/stars'
@@ -34,8 +35,8 @@ import { useStorefront } from './useStorefront.ts'
 // Checkout sends the customer to Stripe; Stripe returns them to /me (paid) or to /cart (cancelled).
 export function ProgramPage() {
   const { slug = '', programSlug = '' } = useParams()
-  const { api, msal, config } = useApp()
-  const signedIn = Boolean(msal?.getActiveAccount())
+  const { api, auth, config } = useApp()
+  const signedIn = Boolean(auth?.account)
   const coach = useStorefront(slug)
   const cart = useCart()
 
@@ -214,6 +215,7 @@ export function ProgramPage() {
             <div className="flex flex-wrap items-center gap-3 lg:flex-col lg:items-stretch">
               <div className="min-w-0 lg:space-y-1">
                 <p className="font-heading text-2xl font-black tabular-nums lg:text-4xl">{formatMoney(p.priceAmount, p.currency)}</p>
+                {p.discount && !ownsIt && !mine && <DiscountNote offer={p.discount} price={Number(p.priceAmount)} currency={p.currency} />}
                 <p className="hidden text-sm text-muted-foreground lg:block">One payment. All workouts, yours to keep.</p>
               </div>
               {deciding ? (
@@ -249,8 +251,8 @@ export function ProgramPage() {
                     <Button className="flex-1" size="lg" variant="outline" onClick={() => buy.mutate(p.id)} disabled={buy.isPending || buy.isSuccess}>
                       {buy.isPending || buy.isSuccess ? 'Opening checkout…' : 'Buy now'}
                     </Button>
-                  ) : msal ? (
-                    <Button className="flex-1" size="lg" variant="outline" onClick={() => msal.loginRedirect({ scopes: [config.apiScope!] })}>
+                  ) : auth ? (
+                    <Button className="flex-1" size="lg" variant="outline" onClick={() => auth.signIn()}>
                       Sign in to buy
                     </Button>
                   ) : null}

@@ -17,9 +17,9 @@ import { MyReview } from './MyReview.tsx'
 // enrollment-api answers 404 for a program the customer did not buy.
 export function MyProgramPage() {
   const { programId = '' } = useParams()
-  const { api, msal } = useApp()
+  const { api, auth } = useApp()
   const queryClient = useQueryClient()
-  const signedIn = Boolean(msal?.getActiveAccount())
+  const signedIn = Boolean(auth?.account)
 
   const program = useQuery({
     queryKey: ['my-program', programId],

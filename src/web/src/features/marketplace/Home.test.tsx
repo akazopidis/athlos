@@ -36,7 +36,7 @@ test('the search in the URL reaches the API and Next loads the following page', 
 
   const config = { entraClientId: null, entraAuthority: null, apiScope: null, version: 'test' }
   render(
-    <AppContext.Provider value={{ config, msal: null, api: createApi(null, null) }}>
+    <AppContext.Provider value={{ config, auth: null, api: createApi(null) }}>
       <QueryClientProvider client={new QueryClient()}>
         <CartProvider>
           <MemoryRouter initialEntries={['/?q=strength&category=CrossFit']}>

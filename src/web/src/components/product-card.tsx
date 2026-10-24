@@ -1,6 +1,7 @@
 import { Check, ShoppingBag } from 'lucide-react'
 import { Link } from 'react-router'
 import type { components } from '@/api/catalog'
+import { DiscountNote } from '@/components/discount-note'
 import { ProgramCover } from '@/components/program-cover'
 import { SaveButton } from '@/components/save-button'
 import { RatingBadge } from '@/components/stars'
@@ -13,8 +14,8 @@ import { formatMoney } from '@/lib/money'
 
 type Program = components['schemas']['SearchProgramsItem']
 
-// A program as a shop product: cover, category and length, the coach, its rating, the price, a quick
-// "Add to cart", and a heart to save it for later.
+// A program as a shop product: cover, category and length, the coach, its rating, the code its coach
+// shows (if any), the price, a quick "Add to cart", and a heart to save it for later.
 // mine: a program of a workspace the visitor coaches in; it is theirs in the studio, not for sale to them.
 export function ProductCard({ program: p, coach, owned, mine = false }: { program: Program; coach?: Coach; owned: boolean; mine?: boolean }) {
   const weeks = Number(p.durationWeeks)
@@ -55,6 +56,7 @@ export function ProductCard({ program: p, coach, owned, mine = false }: { progra
           </Link>
         </h3>
         <RatingBadge average={Number(p.ratingAverage ?? 0)} count={Number(p.ratingCount ?? 0)} />
+        {p.discount && !owned && !mine && <DiscountNote offer={p.discount} className="text-xs" />}
         <div className="mt-auto flex items-center justify-between gap-3">
           <span className="font-heading text-xl font-black tabular-nums">{formatMoney(p.priceAmount, p.currency)}</span>
           {/* Above the card's stretched link, so it gets its own clicks. */}

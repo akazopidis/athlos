@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/cart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetMyCart"];
+        put: operations["PutMyCart"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/studio/{tenantSlug}/sales": {
         parameters: {
             query?: never;
@@ -229,6 +245,25 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        MyCartLine: {
+            /** Format: uuid */
+            programId: string;
+            coachSlug: string;
+            slug: string;
+            title: string;
+            /** Format: int64 */
+            priceAmount: number | string;
+            currency: string;
+            category: null | string;
+        };
+        MyCartRequest: {
+            items: components["schemas"]["MyCartLine"][];
+        };
+        MyCartResponse: {
+            items: components["schemas"]["MyCartLine"][];
+            /** Format: date-time */
+            updatedAt: null | string;
+        };
         OrderListsMyOrder: {
             /** Format: uuid */
             id: string;
@@ -359,6 +394,8 @@ export interface components {
             expiresAt: null | string;
             /** Format: int32 */
             maxRedemptions: null | number | string;
+            /** @default false */
+            isPublic: boolean;
         };
         StudioDiscountsItem: {
             /** Format: uuid */
@@ -373,6 +410,7 @@ export interface components {
             /** Format: int32 */
             maxRedemptions: null | number | string;
             isActive: boolean;
+            isPublic: boolean;
             /** Format: int32 */
             redemptions: number | string;
             /** Format: date-time */
@@ -388,6 +426,8 @@ export interface components {
             /** Format: int32 */
             maxRedemptions: null | number | string;
             isActive: boolean;
+            /** @default false */
+            isPublic: boolean;
         };
     };
     responses: never;
@@ -497,6 +537,50 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    GetMyCart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyCartResponse"];
+                };
+            };
+        };
+    };
+    PutMyCart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyCartRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyCartResponse"];
+                };
             };
         };
     };

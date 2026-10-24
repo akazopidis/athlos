@@ -22,6 +22,37 @@ namespace Athlos.Catalog.Api.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Athlos.Catalog.Api.Data.PublicDiscount", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<int>("PercentOff")
+                        .HasColumnType("integer")
+                        .HasColumnName("percent_off");
+
+                    b.Property<Guid?>("ProgramId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("program_id");
+
+                    b.HasKey("TenantId")
+                        .HasName("pk_public_discounts");
+
+                    b.ToTable("public_discounts", (string)null);
+                });
+
             modelBuilder.Entity("Athlos.Catalog.Api.Data.SavedProgram", b =>
                 {
                     b.Property<Guid>("Id")

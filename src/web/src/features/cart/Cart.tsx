@@ -25,7 +25,7 @@ import { useTitle } from '@/lib/useTitle'
 // discount code (design §2.4) is priced by ordering-api, which applies it the same way at checkout.
 export function Cart() {
   useTitle('Cart')
-  const { api, msal, config } = useApp()
+  const { api, auth } = useApp()
   const cart = useCart()
   const owned = useOwnedPrograms()
   const coaches = useCoaches(cart.items.map((i) => i.coachSlug))
@@ -34,7 +34,7 @@ export function Cart() {
   // The customer accepts the Terms before paying (design §5.4); checkout sends the version shown.
   const [accepted, setAccepted] = useState(false)
   const [blocked, setBlocked] = useState<string[]>([])
-  const signedIn = Boolean(msal?.getActiveAccount())
+  const signedIn = Boolean(auth?.account)
 
   // Each program's current price (its public page): the cart shows and totals what checkout will
   // charge, and names any price that changed since it was added. A program no longer for sale keeps
@@ -48,9 +48,12 @@ export function Cart() {
       staleTime: 60_000,
     })),
   })
+  // Its cover too: a cart from another device has none, and a stored cover link expires.
   const priced = cart.items.map((item, n) => {
-    const price = current[n]?.data?.priceAmount
-    return typeof price === 'number' || typeof price === 'string' ? { ...item, priceAmount: Number(price) } : item
+    const page = current[n]?.data
+    const price = page?.priceAmount
+    const withCover = page?.coverImageUrl ? { ...item, coverImageUrl: page.coverImageUrl } : item
+    return typeof price === 'number' || typeof price === 'string' ? { ...withCover, priceAmount: Number(price) } : withCover
   })
   const changed = priced.filter((p, n) => Number(p.priceAmount) !== Number(cart.items[n]!.priceAmount))
 
@@ -295,8 +298,8 @@ export function Cart() {
             >
               {checkout.isPending || checkout.data ? 'Opening checkout…' : 'Check out'}
             </Button>
-          ) : msal ? (
-            <Button className="w-full" size="lg" onClick={() => msal.loginRedirect({ scopes: [config.apiScope!] })}>
+          ) : auth ? (
+            <Button className="w-full" size="lg" onClick={() => auth.signIn()}>
               Sign in to check out
             </Button>
           ) : (

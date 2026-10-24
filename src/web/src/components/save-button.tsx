@@ -8,15 +8,15 @@ import { cn } from '@/lib/utils'
 // It shows the new state at once, while the request is on its way.
 // compact: a round icon button over a product card's cover; otherwise a labelled button.
 export function SaveButton({ programId, title, compact = false, className }: { programId: string; title: string; compact?: boolean; className?: string }) {
-  const { msal, config } = useApp()
-  const signedIn = Boolean(msal?.getActiveAccount())
+  const { auth } = useApp()
+  const signedIn = Boolean(auth?.account)
   const { ids } = useSavedPrograms()
   const save = useSaveProgram()
-  if (!msal) return null
+  if (!auth) return null
 
   const saved = save.isPending ? save.variables.save : ids.has(programId)
   const label = saved ? `Remove ${title} from saved` : `Save ${title} for later`
-  const onClick = () => (signedIn ? save.mutate({ programId, save: !saved }) : msal.loginRedirect({ scopes: [config.apiScope!] }))
+  const onClick = () => (signedIn ? save.mutate({ programId, save: !saved }) : auth.signIn())
   const heart = <Heart aria-hidden className={cn(saved && 'fill-current text-red-600 dark:text-red-400')} />
 
   return compact ? (

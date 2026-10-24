@@ -1,4 +1,3 @@
-import type { PublicClientApplication } from '@azure/msal-browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
@@ -8,11 +7,13 @@ import { AppContext } from '@/lib/AppContext'
 import { CartProvider } from '@/lib/CartProvider'
 import { TermsVersion } from '@/lib/legal'
 import { leaveTo } from '@/lib/navigation'
+import { signedInAs } from '@/test-auth'
 import { ProgramPage } from './ProgramPage.tsx'
 
 vi.mock('@/lib/navigation', () => ({ leaveTo: vi.fn() }))
 
 afterEach(() => {
+  discount = null
   vi.unstubAllGlobals()
   vi.mocked(leaveTo).mockReset()
   localStorage.clear()
@@ -52,11 +53,11 @@ const program = {
   sample: { week: 1, day: 1, title: 'Squat day', content: 'Five sets of five squats.', videoUrl: null },
 }
 
-// A signed-in customer: enough of MSAL for getAccessToken.
-const signedIn = {
-  getActiveAccount: () => ({ username: 'customer' }),
-  acquireTokenSilent: async () => ({ accessToken: 'token' }),
-} as unknown as PublicClientApplication
+// The code the coach shows on the program (design §2.4), if a test sets one.
+let discount: { code: string; percentOff: number; expiresAt: string | null } | null = null
+
+// A signed-in customer.
+const signedIn = signedInAs('customer')
 
 function renderPage(checkout: (request: Request) => Response, owned: string[] = [], workspaces: string[] = []) {
   const requests: Request[] = []
@@ -85,13 +86,13 @@ function renderPage(checkout: (request: Request) => Response, owned: string[] = 
       if (new URL(request.url).pathname === '/api/v1/me/memberships') {
         return Response.json(workspaces.map((slug) => ({ tenantId: 't', slug, displayName: slug, role: 'Owner', status: 'Active' })))
       }
-      return Response.json(program)
+      return Response.json({ ...program, discount })
     }),
   )
 
   const config = { entraClientId: 'client', entraAuthority: 'https://login.example', apiScope: 'api://athlos/access', version: 'test' }
   render(
-    <AppContext.Provider value={{ config, msal: signedIn, api: createApi(signedIn, config.apiScope) }}>
+    <AppContext.Provider value={{ config, auth: signedIn, api: createApi(signedIn) }}>
       <QueryClientProvider client={new QueryClient()}>
         <CartProvider>
           <MemoryRouter initialEntries={['/c/anna/programs/strong-start']}>
@@ -139,6 +140,14 @@ test('a customer who already owns the program gets Open program instead of Buy',
   expect(await screen.findByRole('link', { name: 'Open program' })).toHaveAttribute('href', `/me/programs/${program.id}`)
   expect(screen.queryByRole('button', { name: 'Buy now' })).toBeNull()
   expect(screen.queryByRole('button', { name: /Add to cart/ })).toBeNull()
+})
+
+test('the code the coach shows is on the page, with the price it gives', async () => {
+  discount = { code: 'SUMMER', percentOff: 20, expiresAt: null }
+  renderPage(() => Response.json({}))
+
+  const code = await screen.findByText('SUMMER')
+  expect(code.closest('p')).toHaveTextContent(/20% off with code SUMMER: €39\.20/)
 })
 
 test("a coach sees their own workspace's program as theirs, not for sale", async () => {

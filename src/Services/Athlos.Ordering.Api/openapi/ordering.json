@@ -160,6 +160,54 @@
         }
       }
     },
+    "/api/v1/me/cart": {
+      "get": {
+        "tags": [
+          "Cart"
+        ],
+        "operationId": "GetMyCart",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCartResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Cart"
+        ],
+        "operationId": "PutMyCart",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MyCartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCartResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/studio/{tenantSlug}/sales": {
       "get": {
         "tags": [
@@ -701,6 +749,95 @@
                 "type": "string"
               }
             }
+          }
+        }
+      },
+      "MyCartLine": {
+        "required": [
+          "programId",
+          "coachSlug",
+          "slug",
+          "title",
+          "priceAmount",
+          "currency",
+          "category"
+        ],
+        "type": "object",
+        "properties": {
+          "programId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "coachSlug": {
+            "maxLength": 63,
+            "type": "string"
+          },
+          "slug": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "priceAmount": {
+            "maximum": 9223372036854776000,
+            "minimum": 0,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "maxLength": 3,
+            "minLength": 3,
+            "type": "string"
+          },
+          "category": {
+            "maxLength": 40,
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "MyCartRequest": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyCartLine"
+            }
+          }
+        }
+      },
+      "MyCartResponse": {
+        "required": [
+          "items",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyCartLine"
+            }
+          },
+          "updatedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -1249,6 +1386,10 @@
               "string"
             ],
             "format": "int32"
+          },
+          "isPublic": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -1261,6 +1402,7 @@
           "expiresAt",
           "maxRedemptions",
           "isActive",
+          "isPublic",
           "redemptions",
           "createdAt"
         ],
@@ -1305,6 +1447,9 @@
             "format": "int32"
           },
           "isActive": {
+            "type": "boolean"
+          },
+          "isPublic": {
             "type": "boolean"
           },
           "redemptions": {
@@ -1368,6 +1513,10 @@
           },
           "isActive": {
             "type": "boolean"
+          },
+          "isPublic": {
+            "type": "boolean",
+            "default": false
           }
         }
       }
@@ -1376,6 +1525,9 @@
   "tags": [
     {
       "name": "Orders"
+    },
+    {
+      "name": "Cart"
     },
     {
       "name": "Sales"

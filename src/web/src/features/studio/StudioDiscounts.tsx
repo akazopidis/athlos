@@ -16,7 +16,8 @@ type Code = components['schemas']['StudioDiscountsItem']
 
 // The workspace's discount codes (design §2.4, ordering-api): a percentage off one program or all of
 // them, optionally until a date and for a number of uses. Customers enter the code in their cart; it
-// takes nothing off other coaches' programs. The fee is taken from what the customer pays.
+// takes nothing off other coaches' programs. The fee is taken from what the customer pays. One code
+// without a use limit can be shown in the shop, on the programs it applies to.
 export function StudioDiscounts() {
   const { slug } = useStudio()
   const { api } = useApp()
@@ -68,11 +69,12 @@ function CodeRow({ code: c, slug, programTitle }: { code: Code; slug: string; pr
   const uses = Number(c.redemptions)
   const max = c.maxRedemptions == null ? null : Number(c.maxRedemptions)
 
-  const toggle = useMutation({
-    mutationFn: async () => {
+  // Everything but the code itself is sent back, changed or not.
+  const change = useMutation({
+    mutationFn: async (changes: { isActive?: boolean; isPublic?: boolean }) => {
       const { error, response } = await api.PUT('/api/v1/studio/{tenantSlug}/discounts/{discountId}', {
         ...path,
-        body: { percentOff: Number(c.percentOff), programId: c.programId, expiresAt: c.expiresAt, maxRedemptions: max, isActive: !c.isActive },
+        body: { percentOff: Number(c.percentOff), programId: c.programId, expiresAt: c.expiresAt, maxRedemptions: max, isActive: c.isActive, isPublic: c.isPublic, ...changes },
       })
       if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not change the code.')
     },
@@ -85,7 +87,8 @@ function CodeRow({ code: c, slug, programTitle }: { code: Code; slug: string; pr
     },
     onSuccess: refresh,
   })
-  const error = toggle.error ?? remove.error
+  const error = change.error ?? remove.error
+  const showable = max === null && c.isActive && !expired
 
   return (
     <li className="space-y-2 rounded-2xl border bg-card p-4">
@@ -93,6 +96,7 @@ function CodeRow({ code: c, slug, programTitle }: { code: Code; slug: string; pr
         <span className="font-mono text-lg font-bold tracking-wide">{c.code}</span>
         <Badge>−{Number(c.percentOff)}%</Badge>
         {!c.isActive ? <Badge variant="outline">Off</Badge> : expired ? <Badge variant="outline">Ended</Badge> : max !== null && uses >= max ? <Badge variant="outline">Used up</Badge> : null}
+        {c.isPublic && showable && <Badge variant="secondary">Shown in the shop</Badge>}
       </div>
       <p className="text-sm text-muted-foreground">
         {programTitle} · {uses} {uses === 1 ? 'use' : 'uses'}
@@ -100,9 +104,14 @@ function CodeRow({ code: c, slug, programTitle }: { code: Code; slug: string; pr
         {c.expiresAt && ` · ${expired ? 'ended' : 'until'} ${new Date(c.expiresAt).toLocaleDateString()}`}
       </p>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => toggle.mutate()} disabled={toggle.isPending}>
+        <Button size="sm" variant="outline" onClick={() => change.mutate({ isActive: !c.isActive })} disabled={change.isPending}>
           {c.isActive ? 'Switch off' : 'Switch on'}
         </Button>
+        {(c.isPublic || showable) && (
+          <Button size="sm" variant="outline" onClick={() => change.mutate({ isPublic: !c.isPublic })} disabled={change.isPending}>
+            {c.isPublic ? 'Stop showing' : 'Show in the shop'}
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={() => remove.mutate()} disabled={remove.isPending} aria-label={`Delete the code ${c.code}`}>
           <Trash2 aria-hidden /> Delete
         </Button>
@@ -124,6 +133,7 @@ function NewCode({ slug, programs }: { slug: string; programs: { id: string; tit
   const [programId, setProgramId] = useState('')
   const [until, setUntil] = useState('')
   const [maxUses, setMaxUses] = useState('')
+  const [shown, setShown] = useState(false)
 
   const create = useMutation({
     mutationFn: async () => {
@@ -136,6 +146,7 @@ function NewCode({ slug, programs }: { slug: string; programs: { id: string; tit
           // The end of the chosen day, in the coach's time zone.
           expiresAt: until ? new Date(`${until}T23:59:59`).toISOString() : null,
           maxRedemptions: maxUses ? Number(maxUses) : null,
+          isPublic: shown && !maxUses,
         },
       })
       if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not create the code.')
@@ -144,6 +155,7 @@ function NewCode({ slug, programs }: { slug: string; programs: { id: string; tit
       setCode('')
       setUntil('')
       setMaxUses('')
+      setShown(false)
       return queryClient.invalidateQueries({ queryKey: ['discounts', slug] })
     },
   })
@@ -192,6 +204,21 @@ function NewCode({ slug, programs }: { slug: string; programs: { id: string; tit
       <Field id="max-uses" label="Number of uses (optional)" hint="Leave empty for no limit.">
         <Input id="max-uses" type="number" min={1} value={maxUses} onChange={(e) => setMaxUses(e.target.value)} />
       </Field>
+      <label className="flex items-start gap-3 text-sm">
+        <input
+          type="checkbox"
+          checked={shown && !maxUses}
+          disabled={Boolean(maxUses)}
+          onChange={(e) => setShown(e.target.checked)}
+          className="mt-0.5 size-4 accent-primary"
+        />
+        <span>
+          <span className="font-medium">Show in the shop</span>
+          <span className="block text-muted-foreground">
+            {maxUses ? 'Only a code without a use limit can be shown.' : 'On the programs it applies to: "20% off with SUMMER". Replaces the code shown now.'}
+          </span>
+        </span>
+      </label>
       {create.error && (
         <Alert variant="destructive" role="alert">
           <AlertDescription>{create.error.message}</AlertDescription>

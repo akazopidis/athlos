@@ -17,14 +17,14 @@ const AccountPages = [
 ] as const
 
 export function Me() {
-  const { msal, config } = useApp()
-  const account = msal?.getActiveAccount()
+  const { auth } = useApp()
+  const account = auth?.account
 
   if (!account) {
     return (
       <Notice
         title="Sign in to see your programs"
-        action={msal && <Button onClick={() => msal.loginRedirect({ scopes: [config.apiScope!] })}>Sign in</Button>}
+        action={auth && <Button onClick={() => auth.signIn()}>Sign in</Button>}
       >
         Your programs, orders and workspaces are here once you sign in.
       </Notice>

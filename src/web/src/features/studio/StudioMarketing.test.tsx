@@ -1,4 +1,3 @@
-import type { PublicClientApplication } from '@azure/msal-browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
@@ -6,16 +5,14 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApi } from '@/api/client'
 import { AppContext } from '@/lib/AppContext'
+import { signedInAs } from '@/test-auth'
 import { StudioDiscounts } from './StudioDiscounts.tsx'
 import { StudioReviews } from './StudioReviews.tsx'
 
 // The studio's Discounts and Reviews tabs (design §2.4).
 afterEach(() => vi.unstubAllGlobals())
 
-const signedIn = {
-  getActiveAccount: () => ({ username: 'coach' }),
-  acquireTokenSilent: async () => ({ accessToken: 'token' }),
-} as unknown as PublicClientApplication
+const signedIn = signedInAs('coach')
 
 function renderTab(path: string, page: ReactElement, answer: (request: Request, path: string) => Response | undefined) {
   const requests: Request[] = []
@@ -33,7 +30,7 @@ function renderTab(path: string, page: ReactElement, answer: (request: Request, 
   )
   const config = { entraClientId: 'client', entraAuthority: 'https://login.example', apiScope: 'api://athlos/access', version: 'test' }
   render(
-    <AppContext.Provider value={{ config, msal: signedIn, api: createApi(signedIn, config.apiScope) }}>
+    <AppContext.Provider value={{ config, auth: signedIn, api: createApi(signedIn) }}>
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter initialEntries={[`/studio/anna/${path}`]}>
           <Routes>
@@ -67,7 +64,35 @@ test('a coach creates a code for one program and sees its uses', async () => {
 
   await waitFor(() => expect(requests.some((r) => r.method === 'POST')).toBe(true))
   const post = requests.find((r) => r.method === 'POST')!
-  expect(await post.json()).toEqual({ code: 'summer-20', percentOff: 20, programId: 'p1', expiresAt: null, maxRedemptions: 50 })
+  expect(await post.json()).toEqual({ code: 'summer-20', percentOff: 20, programId: 'p1', expiresAt: null, maxRedemptions: 50, isPublic: false })
+})
+
+// One code without a use limit can be shown in the shop (design §2.4); every change sends the flag back.
+test('a coach shows a code in the shop, and switching it off keeps it shown', async () => {
+  const requests = renderTab('discounts', <StudioDiscounts />, (request, path) => {
+    if (path === '/api/v1/studio/anna/discounts' && request.method === 'GET') {
+      return Response.json([
+        { id: 'd1', code: 'SUMMER', percentOff: 20, programId: null, expiresAt: null, maxRedemptions: null, isActive: true, isPublic: true, redemptions: 0, createdAt: '2026-10-01T00:00:00Z' },
+        { id: 'd2', code: 'FEW', percentOff: 30, programId: null, expiresAt: null, maxRedemptions: 5, isActive: true, isPublic: false, redemptions: 0, createdAt: '2026-10-02T00:00:00Z' },
+      ])
+    }
+    if (path.startsWith('/api/v1/studio/anna/discounts')) return Response.json({}, { status: request.method === 'POST' ? 201 : 200 })
+    return undefined
+  })
+
+  const summer = (await screen.findByText('SUMMER')).closest('li')!
+  expect(summer).toHaveTextContent('Shown in the shop')
+  expect(within(screen.getByText('FEW').closest('li')!).queryByRole('button', { name: 'Show in the shop' })).toBeNull()
+  fireEvent.click(within(summer).getByRole('button', { name: 'Switch off' }))
+  fireEvent.change(screen.getByLabelText('Code', { exact: true }), { target: { value: 'AUTUMN' } })
+  fireEvent.click(screen.getByRole('checkbox', { name: /Show in the shop/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Create code' }))
+
+  await waitFor(() => expect(requests.filter((r) => r.method !== 'GET')).toHaveLength(2))
+  const put = requests.find((r) => r.method === 'PUT')!
+  const post = requests.find((r) => r.method === 'POST')!
+  expect(await put.json()).toMatchObject({ isActive: false, isPublic: true })
+  expect(await post.json()).toMatchObject({ code: 'AUTUMN', isPublic: true })
 })
 
 test('a coach replies to a review publicly, and a hidden review is marked', async () => {

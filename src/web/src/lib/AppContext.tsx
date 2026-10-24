@@ -1,11 +1,12 @@
-import type { PublicClientApplication } from '@azure/msal-browser'
 import { createContext, useContext } from 'react'
 import type { Api } from '@/api/client'
+import type { Auth } from './auth.ts'
 import type { AppConfig } from './config.ts'
 
 export interface AppServices {
   config: AppConfig
-  msal: PublicClientApplication | null
+  // null when sign-in is not configured (the app runs signed out).
+  auth: Auth | null
   api: Api
 }
 

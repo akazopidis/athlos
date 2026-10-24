@@ -30,7 +30,8 @@ test('the marketplace lists programs and filters them by category', async ({ pag
 
   await expect(page.getByRole('heading', { name: 'All programs' })).toBeVisible()
   await expect(products(page).first()).toBeVisible()
-  await expect(page.getByText(/^\d+ programs?$/)).toBeVisible()
+  // The result count (announced to screen readers); the featured coaches show "N programs" too.
+  await expect(page.locator('p[aria-live="polite"]').getByText(/^\d+ programs?$/)).toBeVisible()
 
   await pickCategory(page, 'Running')
 

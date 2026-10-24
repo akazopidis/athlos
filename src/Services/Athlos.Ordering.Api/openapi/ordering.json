@@ -1249,6 +1249,10 @@
               "string"
             ],
             "format": "int32"
+          },
+          "isPublic": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -1261,6 +1265,7 @@
           "expiresAt",
           "maxRedemptions",
           "isActive",
+          "isPublic",
           "redemptions",
           "createdAt"
         ],
@@ -1305,6 +1310,9 @@
             "format": "int32"
           },
           "isActive": {
+            "type": "boolean"
+          },
+          "isPublic": {
             "type": "boolean"
           },
           "redemptions": {
@@ -1368,6 +1376,10 @@
           },
           "isActive": {
             "type": "boolean"
+          },
+          "isPublic": {
+            "type": "boolean",
+            "default": false
           }
         }
       }

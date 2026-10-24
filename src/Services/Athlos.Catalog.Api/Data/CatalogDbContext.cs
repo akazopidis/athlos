@@ -13,6 +13,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options,
 
     public DbSet<SavedProgram> SavedPrograms => Set<SavedProgram>();
 
+    public DbSet<PublicDiscount> PublicDiscounts => Set<PublicDiscount>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<TrainingProgram>(program =>
@@ -48,6 +50,13 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options,
             saved.ToTable("saved_programs");
             saved.HasIndex(s => new { s.CustomerId, s.ProgramId }).IsUnique();
             saved.HasOne<TrainingProgram>().WithMany().HasForeignKey(s => s.ProgramId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PublicDiscount>(discount =>
+        {
+            discount.ToTable("public_discounts");
+            discount.HasKey(d => d.TenantId);
+            discount.Property(d => d.Code).HasMaxLength(20);
         });
 
         base.OnModelCreating(modelBuilder);

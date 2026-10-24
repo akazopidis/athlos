@@ -891,6 +891,34 @@
           }
         }
       },
+      "DiscountOffer": {
+        "required": [
+          "code",
+          "percentOff",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "percentOff": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
       "GetPublishedProgramOutlineItem": {
         "required": [
           "week",
@@ -979,7 +1007,8 @@
           "outline",
           "sample",
           "ratingAverage",
-          "ratingCount"
+          "ratingCount",
+          "discount"
         ],
         "type": "object",
         "properties": {
@@ -1058,6 +1087,16 @@
               "string"
             ],
             "format": "int32"
+          },
+          "discount": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DiscountOffer"
+              }
+            ]
           }
         }
       },
@@ -1187,7 +1226,8 @@
           "currency",
           "coverImageUrl",
           "ratingAverage",
-          "ratingCount"
+          "ratingCount",
+          "discount"
         ],
         "type": "object",
         "properties": {
@@ -1247,6 +1287,16 @@
               "string"
             ],
             "format": "int32"
+          },
+          "discount": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DiscountOffer"
+              }
+            ]
           }
         }
       },

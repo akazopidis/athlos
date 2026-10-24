@@ -133,6 +133,48 @@ public sealed class DiscountTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Empty(list);
     }
 
+    // A code shown in the shop (design §2.4): after every change catalog-api gets the one shown code, or
+    // none. One at a time (showing another takes the first off), never one with a use limit, and a
+    // switched-off code is not shown. Other workspaces are not touched.
+    [Fact]
+    public async Task One_code_is_shown_in_the_shop_and_catalog_follows_every_change()
+    {
+        await CreateCode(_coach, new { code = "SUMMER", percentOff = 20, isPublic = true });
+        var shownFirst = _api.PublicDiscounts.Shown[_coach.TenantId];
+        var autumn = await Read<CodeRow>(await CreateCode(_coach, new { code = "AUTUMN", percentOff = 15, isPublic = true }));
+        var shownSecond = _api.PublicDiscounts.Shown[_coach.TenantId];
+        var limited = await CreateCode(_coach, new { code = "FEW", percentOff = 30, maxRedemptions = 5, isPublic = true });
+        await AsCoach(_coach, HttpMethod.Put, $"/discounts/{autumn.Id}", new { percentOff = 15, isActive = false, isPublic = true });
+        var shownWhenOff = _api.PublicDiscounts.Shown[_coach.TenantId];
+        var list = await Read<List<CodeRow>>(await AsCoach(_coach, HttpMethod.Get, "/discounts"));
+
+        Assert.Equal(("SUMMER", 20, (Guid?)null), (shownFirst!.Code, shownFirst.PercentOff, shownFirst.ProgramId));
+        Assert.Equal("AUTUMN", shownSecond!.Code);
+        Assert.Equal(HttpStatusCode.BadRequest, limited.StatusCode);
+        Assert.Null(shownWhenOff);
+        Assert.Equal([("AUTUMN", true), ("SUMMER", false)], list.Select(c => (c.Code, c.IsPublic)).Order().ToList());
+        Assert.False(_api.PublicDiscounts.Shown.ContainsKey(_other.TenantId));
+    }
+
+    // Deleting the shown code takes it off the shop; if catalog-api cannot be reached, the change is not
+    // kept (502), so the shop never shows a code that is gone.
+    [Fact]
+    public async Task Deleting_the_shown_code_takes_it_off_and_an_unreachable_shop_undoes_the_change()
+    {
+        var code = await Read<CodeRow>(await CreateCode(_coach, new { code = "SPRING", percentOff = 10, isPublic = true }));
+
+        _api.PublicDiscounts.Unreachable = true;
+        var failed = await AsCoach(_coach, HttpMethod.Delete, $"/discounts/{code.Id}");
+        var kept = await Read<List<CodeRow>>(await AsCoach(_coach, HttpMethod.Get, "/discounts"));
+        _api.PublicDiscounts.Unreachable = false;
+        var deleted = await AsCoach(_coach, HttpMethod.Delete, $"/discounts/{code.Id}");
+
+        Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
+        Assert.Equal("SPRING", Assert.Single(kept).Code);
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Null(_api.PublicDiscounts.Shown[_coach.TenantId]);
+    }
+
     private Task<HttpResponseMessage> CreateCode(Coach coach, object body) => AsCoach(coach, HttpMethod.Post, "/discounts", body);
 
     private Task<HttpResponseMessage> AsCoach(Coach coach, HttpMethod method, string path, object? body = null) =>
@@ -163,7 +205,7 @@ public sealed class DiscountTests(AthlosDatabases databases) : IAsyncLifetime
 
     private sealed record CheckResult(string Code, List<CheckLine> Lines);
 
-    private sealed record CodeRow(Guid Id, string Code, int PercentOff, Guid? ProgramId, int? MaxRedemptions, bool IsActive, int Redemptions);
+    private sealed record CodeRow(Guid Id, string Code, int PercentOff, Guid? ProgramId, int? MaxRedemptions, bool IsActive, bool IsPublic, int Redemptions);
 
     private sealed record SaleRow(long Amount, string? DiscountCode);
 

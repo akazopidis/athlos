@@ -83,6 +83,8 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         { "GET", $"/internal/tenants/{Guid.Empty}/programs/{Guid.Empty}/content" },
         { "DELETE", $"/internal/tenants/{Guid.Empty}" },
         { "PUT", $"/internal/tenants/{Guid.Empty}/suspension" },
+        { "PUT", $"/internal/tenants/{Guid.Empty}/public-discount" },
+        { "DELETE", $"/internal/tenants/{Guid.Empty}/public-discount" },
     };
 
     [Theory]
@@ -118,6 +120,8 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Equal(HttpStatusCode.OK, (await _api.UploadCover(_a, _aPublished.Id, Png())).StatusCode);
         var bProgram = await _api.CreateProgram(_b, publish: true);
         Assert.Equal(HttpStatusCode.OK, (await _api.UploadCover(_b, bProgram.Id, Png())).StatusCode);
+        await ShowDiscount(_a.TenantId, "ALPHA");
+        await ShowDiscount(_b.TenantId, "BRAVO");
 
         var erased = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/tenants/{_a.TenantId}"));
         var again = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/tenants/{_a.TenantId}"));
@@ -125,6 +129,7 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (erased.StatusCode, again.StatusCode));
         Assert.Equal((0L, 0L), (await RowsOf("programs", _a.TenantId), await RowsOf("workouts", _a.TenantId)));
         Assert.Equal((1L, 1L), (await RowsOf("programs", _b.TenantId), await RowsOf("workouts", _b.TenantId)));
+        Assert.Equal((0L, 1L), (await RowsOf("public_discounts", _a.TenantId), await RowsOf("public_discounts", _b.TenantId)));
         Assert.Equal((0, 1), (await BlobsOf(_a.TenantId), await BlobsOf(_b.TenantId)));
     }
 
@@ -400,6 +405,57 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Contains("\"ratingAverage\":4.5", page, StringComparison.Ordinal);
         Assert.Contains("\"ratingCount\":2", page, StringComparison.Ordinal);
     }
+
+    // The shown discount code (design §2.4) is written inside the tenant ordering-api names: a code sent
+    // under B shows on B's programs and never on A's.
+    [Fact]
+    public async Task A_discount_sent_under_Bs_tenant_never_shows_on_As_programs()
+    {
+        var bProgram = await _api.CreateProgram(_b, publish: true);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await ShowDiscount(_b.TenantId, "BRAVO")).StatusCode);
+        var aPage = await ProgramPage(_a, _aPublished.Slug);
+        var bPage = await ProgramPage(_b, bProgram.Slug);
+
+        Assert.DoesNotContain("BRAVO", aPage, StringComparison.Ordinal);
+        Assert.Contains("\"discount\":null", aPage, StringComparison.Ordinal);
+        Assert.Contains("\"code\":\"BRAVO\"", bPage, StringComparison.Ordinal);
+    }
+
+    // The shown code is readable by everyone in the public-read scope, but that widening is for SELECT
+    // only (a split policy): B cannot change, delete or plant A's code.
+    [Theory]
+    [InlineData("UPDATE public_discounts SET percent_off = 90 WHERE tenant_id = '{0}'")]
+    [InlineData("DELETE FROM public_discounts WHERE tenant_id = '{0}'")]
+    public async Task RLS_public_read_does_not_allow_changing_As_shown_discount(string sql)
+    {
+        await ShowDiscount(_a.TenantId, "ALPHA");
+
+        var visible = await AsAppRole(_b.TenantId, scope: "public-read", connection => Count(connection, $"SELECT count(*) FROM public_discounts WHERE tenant_id = '{_a.TenantId}'"));
+        var changed = await AsAppRole(_b.TenantId, scope: "public-read", async connection =>
+        {
+            await using var command = new NpgsqlCommand(string.Format(System.Globalization.CultureInfo.InvariantCulture, sql, _a.TenantId), connection);
+            return await command.ExecuteNonQueryAsync(Cancel);
+        });
+        var planted = await Assert.ThrowsAsync<PostgresException>(() => AsAppRole(_b.TenantId, scope: "public-read", async connection =>
+        {
+            await using var command = new NpgsqlCommand($"INSERT INTO public_discounts (tenant_id, code, percent_off) VALUES ('{Guid.CreateVersion7()}', 'FAKE', 90)", connection);
+            return await command.ExecuteNonQueryAsync(Cancel);
+        }));
+
+        Assert.Equal((1L, 0), (visible, changed));
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, planted.SqlState);
+    }
+
+    private Task<HttpResponseMessage> ShowDiscount(Guid tenantId, string code) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{tenantId}/public-discount")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new { code, percentOff = 20 }),
+        });
+
+    private async Task<string> ProgramPage(Coach coach, string programSlug) =>
+        await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{coach.Slug}/programs/{programSlug}")))
+            .Content.ReadAsStringAsync(Cancel);
 
     // A data export (design §5.4) lists the customer's own saved programs, with titles of programs on sale.
     [Fact]

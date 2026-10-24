@@ -359,6 +359,8 @@ export interface components {
             expiresAt: null | string;
             /** Format: int32 */
             maxRedemptions: null | number | string;
+            /** @default false */
+            isPublic: boolean;
         };
         StudioDiscountsItem: {
             /** Format: uuid */
@@ -373,6 +375,7 @@ export interface components {
             /** Format: int32 */
             maxRedemptions: null | number | string;
             isActive: boolean;
+            isPublic: boolean;
             /** Format: int32 */
             redemptions: number | string;
             /** Format: date-time */
@@ -388,6 +391,8 @@ export interface components {
             /** Format: int32 */
             maxRedemptions: null | number | string;
             isActive: boolean;
+            /** @default false */
+            isPublic: boolean;
         };
     };
     responses: never;

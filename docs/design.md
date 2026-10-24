@@ -4,6 +4,10 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17.3, built; v1.14.0 in production (2026-10-24)
 
+**Changes in v17.4 (v1.15.0):** MSAL loads only when sign-in has work (§5); a coach can show one discount code on their programs, copied to catalog's `public_discounts` (§2.3, §2.4); `WithTenantTransaction` now sees the status inside a handler's `Results<...>` union, so an error result is never committed (it committed before, which no slice relied on).
+
+**Changes in v17.3 (v1.14.0):** built assets cached for a year, font and config preloads, uploaded images shrunk in the browser, Lighthouse before and after (§8.1).
+
 **Changes in v17.2 (v1.13.0):** catalog's public reads cached for 10 seconds (§4); cover links stable for 10 minutes (§2.3); robots.txt and a sitemap (§8.1); "Rate this program" in My programs and the latest reviews on the studio overview (§8).
 
 **Changes in v17.1 (v1.12.0):** legal pages and accepting the Terms at checkout, receipts, and "Download my data" (§5.4); reporting reviews and the admin's moderation, reviews public only while their program is on sale (§2.4); a per-customer limit on writes (§4); an error boundary in the SPA (§8); emails to customers about review replies and new workouts (§5.3).
@@ -195,7 +199,8 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 | enrollment | `reviews` **T** | `enrollment_id` (unique), `customer_id`, `program_id`, `rating` (1 to 5), `comment`, `author_name`, `reply`, `replied_at`, `hidden_at` (§2.4) |
 | enrollment | `review_reports` | `review_id`, `reporter_id` (unique together), `reason`, copies for the admin, `resolved_at`. A work queue of the service (allow-all policy, like `payout_retries`, §2.4) |
 | catalog | `saved_programs` | `customer_id`, `program_id` (unique together). The customer's: RLS `customer_id = app.user_id` (§2.4) |
-| ordering | `discount_codes` **T** | `code` (unique per tenant), `percent_off`, `program_id`, `expires_at`, `max_redemptions`, `is_active` (§2.4) |
+| catalog | `public_discounts` **T** | `tenant_id` (the key: one per workspace), `code`, `percent_off`, `program_id`, `expires_at`: a copy of the code the coach shows in the shop, from ordering-api; public-read for SELECT, written only in its tenant (§2.4) |
+| ordering | `discount_codes` **T** | `code` (unique per tenant), `percent_off`, `program_id`, `expires_at`, `max_redemptions`, `is_active`, `is_public` (§2.4) |
 
 Catalog notes (phase 3):
 - `programs.coach_slug` is a copy of the owning workspace's slug, taken from the gateway-verified route when the program is created. Marketplace results link to `/c/{slug}` without catalog reading tenancy's database; slugs never change, so the copy cannot go stale.
@@ -257,6 +262,7 @@ Three things every e-shop has. Each lives in the service that already owns the d
 - *Data.* `discount_codes` **T** (`code`, unique per workspace, 3 to 20 capital letters, digits or dashes; `percent_off` 5 to 90; an optional `program_id`, otherwise every program of the workspace; optional `expires_at` and `max_redemptions`; `is_active`). Standard tenant isolation, no widened reads. Orders keep what was applied: `discount_code` and `discount_amount`; `amount` stays what the customer paid, so fees, transfers, refunds and the coach's numbers are all on the discounted price.
 - *Coach.* `GET`/`POST /api/v1/studio/{slug}/discounts`, `PUT`/`DELETE .../discounts/{id}` (owners and staff, like prices), at most 50 codes per workspace. The list shows each code's paid uses.
 - *Customer.* The cart takes one code. `POST /api/v1/orders/discount` (`{ code, programIds }`) prices the cart with it: the code is looked up inside each coach's tenant in the cart, so a code applies only to the programs of coaches who created it (two coaches may both have `SUMMER`), and the answer lists the discount on each program; a code that applies to nothing is `404`. Checkout takes the same `discountCode` and applies it the same way, again inside each tenant. The discount is the percentage of the price rounded down; the platform fee is taken from what is paid.
+- *Shown in the shop (v1.15.0).* A coach can show one code on their programs (`is_public`): cards, saved programs and the program page say "20% off with SUMMER", and the program page gives the price with it. Only a code without a use limit can be shown, so it never runs out between changes; showing another takes the first off. ordering-api owns the codes; after every change to a workspace's codes, inside its tenant and before the change commits, it sends the shown code (or none) to catalog-api by a signed `PUT`/`DELETE /internal/tenants/{id}/public-discount`, like the rating copy. If catalog cannot be reached the change fails with 502 and is not committed. catalog keeps the copy in `public_discounts` (one row per workspace, split RLS policy: readable in the public-read scope, written only inside its tenant). The marketplace reads, the saved list and the program page read it within their listed cross-tenant slices and drop it once `expires_at` passes. It is only an advert: the customer still enters the code in the cart, and checkout applies it as above.
 - *Limits.* A code is used when its order is Paid or still Pending (an open payment page), so `max_redemptions` cannot be passed by opening many pages; two customers paying at the same moment for the last use can both get it (accepted and documented). Checking codes counts toward the per-customer checkout limit at the gateway (§4), so codes cannot be guessed quickly.
 
 ---

@@ -38,7 +38,9 @@ test('a customer saves a program for later and removes it', async ({ page }, tes
   await signIn(page)
 
   await page.goto('/')
-  const first = page.locator('main article h3 a').first()
+  // A program the test customer does not own: owned programs offer "Open", not saving (the purchase
+  // spec buys one), and their cards say "Owned".
+  const first = page.locator('main article').filter({ hasNot: page.getByText('Owned', { exact: true }) }).locator('h3 a').first()
   const title = (await first.innerText()).trim()
   await first.click()
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()

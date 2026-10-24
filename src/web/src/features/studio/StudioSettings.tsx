@@ -9,6 +9,7 @@ import { StorefrontBanner } from '@/components/brand'
 import { Field } from '@/components/field'
 import { Section } from '@/components/page'
 import { useApp } from '@/lib/AppContext'
+import { LogoWidth, shrinkImage } from '@/lib/image'
 import { problemTitle } from '@/lib/problem'
 import { DeleteWorkspace } from './DeleteWorkspace.tsx'
 import { StudioTeam } from './StudioTeam.tsx'
@@ -170,11 +171,12 @@ function LogoUpload({ slug, uploadedLogoUrl }: { slug: string; uploadedLogoUrl: 
 
   const upload = useMutation({
     mutationFn: async (file: File) => {
+      const image = await shrinkImage(file, LogoWidth)
       const { error, response } = await api.PUT('/api/v1/studio/{tenantSlug}/workspace/logo', {
         params: { path: { tenantSlug: slug } },
-        body: file as unknown as never,
+        body: image as unknown as never,
         bodySerializer: (body: unknown) => body as BodyInit,
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        headers: { 'Content-Type': image.type || 'application/octet-stream' },
       })
       if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not upload the image.')
     },

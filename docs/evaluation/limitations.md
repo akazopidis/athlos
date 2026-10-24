@@ -203,11 +203,10 @@ Each of these is ordinary product work with no new multi-tenancy question:
 
 ### 22. Gaps in automated testing
 - **Missing:** some kinds of automated test. The backend has 462 tests on every PR, 195 of them in the isolation suite. Playwright covers, after every staging deploy, the shop, the cart, layouts on three screen sizes, the account pages and saved programs, a studio's lifecycle (with a discount code) on a throwaway workspace, axe accessibility checks on the public pages, and a signed-in checkout up to Stripe's page.
-  - *Not covered end to end:* refunds and the platform admin. A whole purchase with Stripe's test card, then a review, runs once `E2E_PURCHASE_PROGRAM_PATH` names a second program of an onboarded coach on staging (v1.12.0); until then it is skipped.
+  - *Not covered end to end:* refunds and the platform admin. A whole purchase with Stripe's test card, then a review, runs after every staging deploy since v1.15.0 (`E2E_PURCHASE_PROGRAM_PATH`); it pays once, and later runs go straight to the review.
   - *No load test of checkout or webhooks:* reads are load- and stress-tested on staging (k6, `stress.md`); writes are covered by concurrency tests (concurrent reviews leave an exact rating, concurrent saves keep one row) and contract tests between the services (v1.12.0), not by load.
 - **Why:** time. The isolation suite was the priority, because isolation is the subject of the thesis.
 - **Solution:**
-  - the second staging program for the purchase test;
   - many test accounts, to load-test writes past the per-customer write limit;
   - a k6 scenario against Stripe's test mode for checkout, within Stripe's rate limits.
 

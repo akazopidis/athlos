@@ -379,6 +379,7 @@ export interface components {
         CreateTenantRequest: {
             slug: string;
             displayName: string;
+            termsVersion?: null | string;
         };
         CreateTenantResponse: {
             /** Format: uuid */
@@ -410,6 +411,9 @@ export interface components {
             role: components["schemas"]["TenantRole"];
             /** Format: date-time */
             since: string;
+            coachTermsVersion: null | string;
+            /** Format: date-time */
+            coachTermsAcceptedAt: null | string;
         };
         GetPlatformMetricsResponse: {
             /** Format: int32 */

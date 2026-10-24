@@ -3,6 +3,8 @@
 // writes it as WebP (JPEG where the browser cannot write WebP). Small images go up unchanged; images the
 // browser cannot read go up as they are, and the service answers for them.
 export const CoverWidth = 1600
+// The shop's cards: about 400 px wide on a desktop grid, twice that on a sharp screen (design §8).
+export const CardCoverWidth = 800
 export const LogoWidth = 512
 const SmallEnough = 300 * 1024
 

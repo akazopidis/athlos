@@ -19,6 +19,9 @@ public static class TenancyArrange
     public static string NewSlug(string prefix = "coach") => $"{prefix}-{Guid.NewGuid():N}"[..24];
 
     // A workspace created through the API, the way a coach signs up.
+    // The Terms for coaches a new workspace must accept (design §5.4).
+    public const string CoachTermsVersion = Athlos.Tenancy.Api.Features.Tenants.CreateTenant.CurrentCoachTermsVersion;
+
     public static async Task<Workspace> CreateWorkspace(this TenancyApiFactory api, string? slug = null)
     {
         var ownerId = Guid.CreateVersion7();
@@ -27,7 +30,7 @@ public static class TenancyArrange
         var response = await api.SendAsGateway(
             new HttpRequestMessage(HttpMethod.Post, "/api/v1/tenants")
             {
-                Content = JsonContent.Create(new { slug, displayName = $"Coach {slug}" }),
+                Content = JsonContent.Create(new { slug, displayName = $"Coach {slug}", termsVersion = CoachTermsVersion }),
             },
             userId: ownerId);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);

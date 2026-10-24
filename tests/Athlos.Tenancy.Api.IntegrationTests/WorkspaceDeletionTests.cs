@@ -33,7 +33,7 @@ public sealed class WorkspaceDeletionTests(AthlosDatabases databases) : IAsyncLi
         var storefront = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{workspace.Slug}"));
         var membership = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{workspace.Slug}/members/{workspace.OwnerId}"));
         var reused = await _api.SendAsGateway(
-            new HttpRequestMessage(HttpMethod.Post, "/api/v1/tenants") { Content = JsonContent.Create(new { slug = workspace.Slug, displayName = "Copycat" }) },
+            new HttpRequestMessage(HttpMethod.Post, "/api/v1/tenants") { Content = JsonContent.Create(new { slug = workspace.Slug, displayName = "Copycat", termsVersion = TenancyArrange.CoachTermsVersion }) },
             userId: Guid.CreateVersion7());
         Assert.Equal(HttpStatusCode.NotFound, storefront.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, membership.StatusCode);

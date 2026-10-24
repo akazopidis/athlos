@@ -20,12 +20,13 @@ public static class CatalogArrange
     // Minimal files that pass the upload's first-bytes check; the content is not decoded.
     public static byte[] Png(int size = 64) => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, .. new byte[Math.Max(0, size - 8)]];
 
-    public static Task<HttpResponseMessage> UploadCover(this CatalogApiFactory api, Coach coach, Guid programId, byte[] image, string contentType = "image/png")
+    // size: "card" for the card-size version (design §8).
+    public static Task<HttpResponseMessage> UploadCover(this CatalogApiFactory api, Coach coach, Guid programId, byte[] image, string contentType = "image/png", string? size = null)
     {
         var content = new ByteArrayContent(image);
         content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
         return api.SendAsGateway(
-            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/studio/{coach.Slug}/programs/{programId}/cover") { Content = content },
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/studio/{coach.Slug}/programs/{programId}/cover{(size is null ? "" : $"?size={size}")}") { Content = content },
             coach.OwnerId, coach.TenantId, TenantRole.Owner);
     }
 

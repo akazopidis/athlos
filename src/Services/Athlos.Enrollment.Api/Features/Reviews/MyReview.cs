@@ -34,7 +34,7 @@ public static class MyReview
 
     private static async Task<Results<Ok<Response>, NotFound, ProblemHttpResult>> Write(
         Guid programId, Request request, ClaimsPrincipal user, TenantContext tenant, EnrollmentDbContext db, IProgramRatings ratings,
-        IConfiguration configuration, CancellationToken cancellationToken)
+        IConfiguration configuration, TimeProvider time, CancellationToken cancellationToken)
     {
         if (await FindOwnAsync(tenant.UserId, db, programId, cancellationToken) is not { } enrollment)
         {
@@ -47,6 +47,8 @@ public static class MyReview
 
         var review = await db.Reviews.SingleOrDefaultAsync(r => r.EnrollmentId == enrollment.Id, cancellationToken);
         var comment = string.IsNullOrWhiteSpace(request.Comment) ? null : request.Comment.Trim();
+        // The automatic check (ReviewFilter); a review it holds back emails nobody.
+        var heldBack = ReviewFilter.Check(comment, ReviewFilter.BlockedWords(configuration));
         if (review is null)
         {
             review = new Review
@@ -57,11 +59,19 @@ public static class MyReview
                 AuthorName = AuthorName(user),
             };
             db.Reviews.Add(review);
-            db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, ReviewEmail(enrollment, request.Rating, comment, configuration)));
+            if (heldBack is null)
+            {
+                db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, ReviewEmail(enrollment, request.Rating, comment, configuration)));
+            }
         }
 
         review.Rating = request.Rating;
         review.Comment = comment;
+        if (heldBack is { } reason && review.HiddenAt is null)
+        {
+            await HoldBackAsync(db, review, enrollment, reason, time.GetUtcNow(), cancellationToken);
+        }
+
         await db.SaveChangesAsync(cancellationToken);
 
         if (await PublishAsync(db, ratings, enrollment, cancellationToken) is { } failed)
@@ -110,6 +120,41 @@ public static class MyReview
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway, title: "Your review could not be saved just now. Try again in a moment.");
         }
+    }
+
+    // The automatic check caught the comment (ReviewFilter): the review is hidden, and waits in the admin's
+    // queue as a report from Athlos. An earlier decision on the filter's report (the admin kept the old
+    // text) is replaced by this one; a report still open is enough.
+    private static async Task HoldBackAsync(
+        EnrollmentDbContext db, Review review, ProgramEnrollment enrollment, ReportReason reason, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        review.HiddenAt = now;
+        var earlier = await db.ReviewReports.SingleOrDefaultAsync(r => r.ReviewId == review.Id && r.ReporterId == ReviewFilter.ReporterId, cancellationToken);
+        if (earlier is { ResolvedAt: null })
+        {
+            return;
+        }
+
+        if (earlier is not null)
+        {
+            db.ReviewReports.Remove(earlier);
+        }
+
+        db.ReviewReports.Add(new ReviewReport
+        {
+            ReviewId = review.Id,
+            TenantId = enrollment.TenantId,
+            ProgramId = enrollment.ProgramId,
+            ProgramTitle = enrollment.ProgramTitle,
+            CoachSlug = enrollment.CoachSlug,
+            AuthorName = review.AuthorName,
+            Rating = review.Rating,
+            Comment = review.Comment,
+            ReporterId = ReviewFilter.ReporterId,
+            Reason = reason,
+            Note = ReviewFilter.Note,
+            ReportedAt = now,
+        });
     }
 
     // "Maria Kostas" becomes "Maria K."; no name in the token, "Customer".

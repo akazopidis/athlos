@@ -14,7 +14,7 @@ The limitations fall into three kinds:
 | # | Limitation | Kind | Area |
 |---|---|---|---|
 | 1 | No VAT or invoices | Scope | Legal, payments |
-| 2 | Legal pages are drafts; coaches accept no terms | Scope | Legal |
+| 2 | Legal pages are drafts, reviewed by no lawyer | Scope | Legal |
 | 3 | The data export is one synchronous JSON file | Trade-off | Legal, GDPR |
 | 4 | Customers lose bought programs when a coach deletes their workspace | Trade-off | Tenant lifecycle |
 | 5 | No program versioning | Scope | Product |
@@ -45,12 +45,13 @@ The limitations fall into three kinds:
 - **Impact:** with separate charges and transfers (§2.2), the platform is the merchant of record. Under EU rules for marketplaces selling digital services, it would owe VAT at the customer's country rate and report it through the OSS (One-Stop Shop) scheme. Selling without this is not legal in the EU.
 - **Solution:** Stripe Tax on Checkout (automatic tax calculation, plus customer address collection) and Stripe invoices or receipts. Stripe Tax costs about 0.5% per transaction. Prices would need to be stored as VAT-inclusive or exclusive, and each order's tax amount recorded in ordering-api.
 
-### 2. Legal pages are drafts; coaches accept no terms
+### 2. Legal pages are drafts, reviewed by no lawyer
 - **Built (v1.12.0, design §5.4):** Terms, Privacy and Refund policy pages linked from the footer; customers accept the Terms at checkout, and each checkout keeps the accepted version.
-- **Missing:** a lawyer's review of the texts, an imprint naming the operator, and terms for coaches: a coach opens a workspace without accepting platform terms.
+- **Built (v1.16.0):** Terms for coaches (`/legal/coaches`), accepted when a workspace is opened; tenancy-api records the version, the time and who accepted.
+- **Missing:** a lawyer's review of the texts, an imprint naming the operator, and asking existing workspaces to accept a new version of the coach terms (only new workspaces accept the current one).
 - **Why:** these are legal texts, not engineering; the pages describe what the platform does, as a starting point.
 - **Impact:** required before any public launch with real payments (GDPR transparency, EU consumer law, the platform's terms with coaches).
-- **Solution:** a reviewed text, and the same version check for coaches when they open a workspace, with the accepted version recorded in tenancy-api.
+- **Solution:** a reviewed text, and a prompt in the studio when the coach terms change, recording the new acceptance like the first.
 
 ### 3. The data export is one synchronous JSON file
 - **Built (v1.12.0, design §5.4):** "Download my data" (`GET /api/v1/me/export` on tenancy-api) gathers the user's own rows from every service through signed internal routes and hands back one JSON file: the rights of access and portability (GDPR articles 15 and 20) next to erasure (§5.2).
@@ -189,7 +190,7 @@ The limitations fall into three kinds:
 ### 21. Shop features of a mature marketplace are missing
 Each of these is ordinary product work with no new multi-tenancy question:
 - **Reviews (since v1.11.0, design §2.4):** only buyers review, and a refund takes the review away. Still missing:
-  - *Moderation (since v1.12.0) is by hand.* Reports reach the platform admin, who hides or keeps each review; there is no automatic filter for abusive words, and a hidden review can be shown again only while it is reported again.
+  - *Moderation (since v1.12.0) is mostly by hand.* Reports reach the platform admin, who hides or keeps each review. Since v1.16.0 an automatic check holds back comments with contact details, links or listed abusive words for the admin; it is a word list and patterns, not a language model, so it misses insults it does not list and can hold back an innocent comment until the admin keeps it. A hidden review can be shown again only while it is reported again.
   - *Two copies of the rating.* enrollment-api owns the reviews and catalog keeps the count and average for cards and sorting. The copy is written before the review commits, so the two can only differ if that commit fails after catalog took the new values; the next review of the program sets it right.
 - **Discount codes (since v1.11.0):** percentages only, one code per cart, no "once per customer" rule, and two customers paying at the same moment for a code's last use can both get it (the use count is read, not locked).
 - **Saved programs (since v1.11.0):** no email when a saved program's price drops.
@@ -215,4 +216,4 @@ Each of these is ordinary product work with no new multi-tenancy question:
 - **Why:** the SPA renders in the browser only. Nothing shows until about 160 kB of compressed JavaScript has run and `/config.json` has arrived. v1.14.0 and v1.15.0 removed the avoidable delays: fonts and `/config.json` are preloaded, built files are cached for a year, uploaded images are shrunk, and MSAL (62 kB) loads only for visitors who sign in.
 - **Solution:**
   - server-side rendering, or a static shell for the public pages, served by the gateway;
-  - sized image variants (`srcset`), and resizing the covers uploaded before v1.14.0.
+  - resizing the covers uploaded before v1.16.0, which have no card-size version (since v1.16.0 the studio uploads one, and the shop's cards use it).

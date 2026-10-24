@@ -7,13 +7,19 @@ using Npgsql;
 
 namespace Athlos.Tenancy.Api.Features.Tenants;
 
-// Becoming a coach (design §5): a signed-in user creates a workspace and becomes its Owner.
+// Becoming a coach (design §5): a signed-in user creates a workspace and becomes its Owner, accepting
+// the Terms for coaches (design §5.4): TermsVersion must be the current one (Legal:CoachTermsVersion),
+// or nothing is created (409), and the workspace keeps the version, the time and who accepted it.
 // The tenant does not exist yet, so the slice enters it itself instead of getting it from the gateway.
 public static class CreateTenant
 {
+    // The Terms for coaches in force (the SPA's lib/legal.ts shows the same version); Legal:CoachTermsVersion overrides it.
+    public const string CurrentCoachTermsVersion = "2026-10-24";
+
     public sealed record Request(
         [property: Required, RegularExpression(Slugs.Pattern), StringLength(40, MinimumLength = 3)] string Slug,
-        [property: Required, StringLength(100, MinimumLength = 1)] string DisplayName);
+        [property: Required, StringLength(100, MinimumLength = 1)] string DisplayName,
+        [property: MaxLength(20)] string? TermsVersion = null);
 
     public sealed record Response(Guid Id, string Slug, string DisplayName);
 
@@ -24,11 +30,18 @@ public static class CreateTenant
             .WithTags("Tenants");
 
     private static async Task<Results<Created<Response>, ProblemHttpResult>> Handle(
-        Request request, TenantContext tenant, TenancyDbContext db, IConfiguration configuration, CancellationToken cancellationToken)
+        Request request, TenantContext tenant, TenancyDbContext db, IConfiguration configuration, TimeProvider time, CancellationToken cancellationToken)
     {
         if (tenant.UserId is not { } userId)
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        var terms = configuration["Legal:CoachTermsVersion"] ?? CurrentCoachTermsVersion;
+        if (request.TermsVersion != terms)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Read and accept the current Terms for coaches to open a workspace.",
+                extensions: new Dictionary<string, object?> { ["reason"] = "terms" });
         }
 
         if (Slugs.IsReserved(request.Slug))
@@ -36,7 +49,14 @@ public static class CreateTenant
             return SlugTaken();
         }
 
-        var created = new Tenant { Slug = request.Slug, DisplayName = request.DisplayName.Trim() };
+        var created = new Tenant
+        {
+            Slug = request.Slug,
+            DisplayName = request.DisplayName.Trim(),
+            CoachTermsVersion = terms,
+            CoachTermsAcceptedAt = time.GetUtcNow(),
+            CoachTermsAcceptedBy = userId,
+        };
         tenant.EnterTenant(created.Id, TenantRole.Owner);
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);

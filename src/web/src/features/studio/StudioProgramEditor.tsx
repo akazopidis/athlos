@@ -14,7 +14,7 @@ import { CopyLink } from '@/components/copy-link'
 import { ProgramCover } from '@/components/program-cover'
 import { useApp } from '@/lib/AppContext'
 import { Categories, type Category } from '@/lib/categories'
-import { CoverWidth, shrinkImage } from '@/lib/image'
+import { CardCoverWidth, CoverWidth, shrinkImage } from '@/lib/image'
 import { problemTitle } from '@/lib/problem'
 import { useStudio } from './useStudio.ts'
 
@@ -243,6 +243,18 @@ function CoverCard({ slug, programId, coverImageUrl, onChanged }: { slug: string
         headers: { 'Content-Type': image.type || 'application/octet-stream' },
       })
       if (!data) throw new Error(problemTitle(error) ?? 'Could not upload the image. Use a JPEG, PNG or WebP file.')
+
+      // The same image at card size, for the shop's cards. Only when the browser could make a smaller
+      // one; without it the cards show the full cover, so a failure here is not the coach's problem.
+      const card = await shrinkImage(file, CardCoverWidth)
+      if (card !== file && card.size < image.size) {
+        await api.PUT('/api/v1/studio/{tenantSlug}/programs/{programId}/cover', {
+          params: { path, query: { size: 'card' } },
+          body: card as never,
+          bodySerializer: (body: unknown) => body as BodyInit,
+          headers: { 'Content-Type': card.type || 'application/octet-stream' },
+        })
+      }
     },
     onSuccess: onChanged,
   })

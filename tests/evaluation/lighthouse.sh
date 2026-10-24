@@ -21,8 +21,14 @@ for page in $PAGES; do
     preset=()
     [ "$form" = desktop ] && preset=(--preset=desktop)
     for run in $(seq 1 "$RUNS"); do
-      npx -y lighthouse@12.8.2 "$BASE$path" "${preset[@]}" --chrome-flags="--headless=new" \
-        --output=json --output=html --output-path="$OUT/$name-$form-$run" --quiet
+      report="$OUT/$name-$form-$run"
+      # Reports already there are kept, so an interrupted round resumes; Chrome occasionally fails
+      # to start, so a run is tried up to three times.
+      for attempt in 1 2 3; do
+        [ -f "$report.report.json" ] && break
+        npx -y lighthouse@12.8.2 "$BASE$path" "${preset[@]}" --chrome-flags="--headless=new" \
+          --output=json --output=html --output-path="$report" --quiet || echo "run $report failed (attempt $attempt)" >&2
+      done
     done
   done
 done

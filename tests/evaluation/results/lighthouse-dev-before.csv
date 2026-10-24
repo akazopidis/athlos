@@ -1,0 +1,11 @@
+page,form,runs,performance,accessibility,best_practices,seo,fcp_ms,lcp_ms,tbt_ms,cls,speed_index_ms,requests,transfer_kb
+coaches,desktop,3,79,100,100,100,1053,1053,0,0.347,1053,60,1295
+coaches,mobile,3,62,100,100,100,5379,8031,33,0,5379,60,1295
+home,desktop,3,96,100,100,100,1070,1103,0,0.006,1070,63,2114
+home,mobile,3,61,100,100,100,5380,9205,42,0,5968,63,2114
+program,desktop,3,72,100,100,100,1056,1096,0,0.754,1056,60,865
+program,mobile,3,66,100,100,100,5381,5531,0,0,5589,60,865
+sell,desktop,3,79,100,100,100,1059,1059,0,0.349,1059,59,874
+sell,mobile,3,66,100,100,100,5384,5384,0,0,5491,59,874
+storefront,desktop,3,89,100,100,100,1057,1097,0,0.164,1057,58,867
+storefront,mobile,3,65,100,100,100,5386,5536,0,0,5784,58,867

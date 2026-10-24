@@ -8,6 +8,9 @@
     <meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0d0f14" media="(prefers-color-scheme: dark)" />
     <title>Athlos</title>
+    <!-- main.tsx waits for it before the first render; fetched alongside the JavaScript instead of after it. -->
+    <link rel="preload" href="/config.json" as="fetch" crossorigin />
+    <!-- Font preloads are added by vite.config.ts (the file names carry a hash). -->
   </head>
   <body>
     <div id="root"></div>

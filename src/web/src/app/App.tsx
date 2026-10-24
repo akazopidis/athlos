@@ -51,7 +51,9 @@ export default function App() {
   return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
       <SiteHeader />
-      <main className="flex-1">
+      {/* At least a screen tall, so the footer starts below the fold instead of jumping down when the
+          page's data arrives. */}
+      <main className="min-h-dvh flex-1">
         <ErrorBoundary key={pathname}>
           <Suspense fallback={<div className="container-page py-12"><Loading lines={4} /></div>}>
             <Routes>

@@ -24,12 +24,12 @@ public sealed class GatewayTests(GatewayFactory factory) : IClassFixture<Gateway
     }
 
     [Fact]
-    public async Task Spa_config_is_not_cached()
+    public async Task Spa_config_is_revalidated_on_every_load()
     {
         var response = await _client.GetAsync("/config.json", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(response.Headers.CacheControl?.NoStore);
+        Assert.True(response.Headers.CacheControl?.NoCache);
         // The refund window shown to customers defaults to ordering-api's 14 days.
         var config = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(TestContext.Current.CancellationToken);
         Assert.Equal((14, 10), (config.GetProperty("refundWindowDays").GetInt32(), config.GetProperty("platformFeePercent").GetInt32()));
@@ -79,6 +79,32 @@ public sealed class GatewayTests(GatewayFactory factory) : IClassFixture<Gateway
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
+        // A deploy reaches the next visit: the shell names the current release's assets.
+        Assert.True(response.Headers.CacheControl?.NoCache);
+    }
+
+    [Fact]
+    public async Task A_missing_asset_is_a_404_not_the_spa_shell()
+    {
+        var response = await _client.GetAsync("/assets/index-0ld0ld0l.js", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.NotEqual("text/html", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task Built_assets_are_cached_for_a_year()
+    {
+        // Needs src/web's build in the gateway's wwwroot (CI's backend job does not build the SPA).
+        var shell = await _client.GetStringAsync("/index.html", TestContext.Current.CancellationToken);
+        var asset = System.Text.RegularExpressions.Regex.Match(shell, "/assets/[^\"]+\\.js");
+        Assert.SkipUnless(asset.Success, "src/web has not been built into the gateway's wwwroot.");
+
+        var response = await _client.GetAsync(asset.Value, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(TimeSpan.FromDays(365), response.Headers.CacheControl?.MaxAge);
+        Assert.Contains("immutable", response.Headers.CacheControl?.Extensions.Select(e => e.Name) ?? []);
     }
 
     private sealed record VersionResponse(string Version);

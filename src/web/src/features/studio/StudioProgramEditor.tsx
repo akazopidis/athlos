@@ -14,6 +14,7 @@ import { CopyLink } from '@/components/copy-link'
 import { ProgramCover } from '@/components/program-cover'
 import { useApp } from '@/lib/AppContext'
 import { Categories, type Category } from '@/lib/categories'
+import { CoverWidth, shrinkImage } from '@/lib/image'
 import { problemTitle } from '@/lib/problem'
 import { useStudio } from './useStudio.ts'
 
@@ -232,13 +233,14 @@ function CoverCard({ slug, programId, coverImageUrl, onChanged }: { slug: string
 
   const upload = useMutation({
     mutationFn: async (file: File) => {
-      if (file.size > 2 * 1024 * 1024) throw new Error('The image must be 2 MB or smaller.')
+      const image = await shrinkImage(file, CoverWidth)
+      if (image.size > 2 * 1024 * 1024) throw new Error('The image must be 2 MB or smaller.')
       const { data, error } = await api.PUT('/api/v1/studio/{tenantSlug}/programs/{programId}/cover', {
         params: { path },
         // The raw image is the body; catalog reads its type from the first bytes.
-        body: file as never,
+        body: image as never,
         bodySerializer: (body: unknown) => body as BodyInit,
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        headers: { 'Content-Type': image.type || 'application/octet-stream' },
       })
       if (!data) throw new Error(problemTitle(error) ?? 'Could not upload the image. Use a JPEG, PNG or WebP file.')
     },

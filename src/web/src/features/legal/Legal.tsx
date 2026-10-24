@@ -1,21 +1,23 @@
 import type { ReactNode } from 'react'
 import { Link, NavLink } from 'react-router'
 import { useApp } from '@/lib/AppContext'
-import { TermsDate } from '@/lib/legal'
+import { CoachTermsDate, TermsDate } from '@/lib/legal'
 import { useTitle } from '@/lib/useTitle'
 import { cn } from '@/lib/utils'
 
 // The shop's legal pages (design §5.4): Terms, Privacy and Refunds, linked from the footer and from
-// checkout, where the customer accepts the Terms. Athlos is a master's thesis project: the texts say
+// checkout, where the customer accepts the Terms; and the Terms for coaches, accepted when a workspace
+// is opened. Athlos is a master's thesis project: the texts say
 // what the platform actually does (who sells, who is paid, what data goes where), but they are a
 // starting point a lawyer would review before real money is taken, not legal advice.
 const Pages = [
   { to: '/legal/terms', label: 'Terms' },
   { to: '/legal/privacy', label: 'Privacy' },
   { to: '/legal/refunds', label: 'Refunds' },
+  { to: '/legal/coaches', label: 'For coaches' },
 ] as const
 
-function LegalPage({ title, children }: { title: string; children: ReactNode }) {
+function LegalPage({ title, date = TermsDate, children }: { title: string; date?: string; children: ReactNode }) {
   useTitle(title)
   return (
     <div className="grid gap-10 lg:grid-cols-[12rem_minmax(0,1fr)]">
@@ -38,7 +40,7 @@ function LegalPage({ title, children }: { title: string; children: ReactNode }) 
       <article className="max-w-prose space-y-6 [&_h2]:pt-2 [&_h2]:text-xl [&_h2]:font-bold [&_li]:ml-5 [&_li]:list-disc [&_p]:text-muted-foreground [&_ul]:space-y-1 [&_ul]:text-muted-foreground">
         <header className="space-y-2">
           <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{title}</h1>
-          <p className="text-sm">Last updated {TermsDate}.</p>
+          <p className="text-sm">Last updated {date}.</p>
         </header>
         {children}
       </article>
@@ -83,6 +85,58 @@ export function Terms() {
       </p>
       <h2>Changes</h2>
       <p>If these terms change, the date above changes and you are asked to accept the new version at your next checkout.</p>
+    </LegalPage>
+  )
+}
+
+export function CoachTerms() {
+  const { config } = useApp()
+  const days = config.refundWindowDays ?? 14
+  const fee = config.platformFeePercent ?? 10
+  return (
+    <LegalPage title="Terms for coaches" date={CoachTermsDate}>
+      <p>
+        These terms apply when you open a workspace on Athlos and sell programs from it, in addition to the{' '}
+        <Link to="/legal/terms" className="underline underline-offset-4">
+          terms of use
+        </Link>
+        . You accept them when you open a workspace. Athlos is run as a master's thesis project; payments run in Stripe's test mode unless stated otherwise.
+      </p>
+      <h2>Your workspace</h2>
+      <ul>
+        <li>The person who opens a workspace is its owner and answers for it, including for the staff they invite.</li>
+        <li>Your storefront, programs, prices, discount codes and replies to reviews are yours to set, within these terms.</li>
+        <li>Athlos may suspend a workspace that breaks these terms. Its programs then leave the shop; customers keep what they bought.</li>
+      </ul>
+      <h2>Selling and payouts</h2>
+      <ul>
+        <li>Programs are priced in euros, at least €10. Customers pay Athlos, and Athlos keeps a {fee}% platform fee of what each customer pays, after any discount.</li>
+        <li>Your share is paid to your own Stripe account. You give Stripe correct details about who you are; Stripe's terms apply to that account, and a payout that fails is tried again.</li>
+        <li>You are responsible for the taxes on your income from Athlos.</li>
+      </ul>
+      <h2>Refunds and disputes</h2>
+      <ul>
+        <li>You may refund a sale from your studio within {days} days of payment. The customer loses access, and your share of that sale is taken back.</li>
+        <li>A refund made at Stripe, or a payment dispute the customer wins, also takes your share of that sale back.</li>
+      </ul>
+      <h2>Your programs</h2>
+      <ul>
+        <li>You keep the rights to your programs. You allow Athlos to show them in the shop and to deliver them to the customers who buy them.</li>
+        <li>Your programs must be your own work or yours to sell, accurate, and safe to follow. Do not promise medical results.</li>
+        <li>A program that was on sale cannot be deleted while customers may own it; you can take it off sale.</li>
+      </ul>
+      <h2>Customers and reviews</h2>
+      <ul>
+        <li>Use your customers' names and email addresses only to support their purchases, never for anything else.</li>
+        <li>Customers who bought a program can review it. You can reply publicly; you cannot remove a review, but you can report one to the Athlos team.</li>
+      </ul>
+      <h2>Leaving</h2>
+      <p>
+        You can delete your workspace once no sale can still be refunded. Its programs, images and team go with it, and customers lose access to its
+        programs. The sales stay in Athlos' records for accounting.
+      </p>
+      <h2>Changes</h2>
+      <p>If these terms change, the date above changes, and the new version is the one accepted when a workspace is opened.</p>
     </LegalPage>
   )
 }

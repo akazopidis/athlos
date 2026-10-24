@@ -978,6 +978,13 @@
             "maxLength": 100,
             "minLength": 1,
             "type": "string"
+          },
+          "termsVersion": {
+            "maxLength": 20,
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -1078,7 +1085,9 @@
           "slug",
           "displayName",
           "role",
-          "since"
+          "since",
+          "coachTermsVersion",
+          "coachTermsAcceptedAt"
         ],
         "type": "object",
         "properties": {
@@ -1093,6 +1102,19 @@
           },
           "since": {
             "type": "string",
+            "format": "date-time"
+          },
+          "coachTermsVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "coachTermsAcceptedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "date-time"
           }
         }

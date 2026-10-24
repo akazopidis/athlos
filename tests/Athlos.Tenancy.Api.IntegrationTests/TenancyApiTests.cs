@@ -51,6 +51,28 @@ public sealed class TenancyApiTests(AthlosDatabases database) : IAsyncLifetime
         Assert.Equal(expected, response.StatusCode);
     }
 
+    // Opening a workspace accepts the Terms for coaches (design §5.4): without the current version
+    // nothing is created; with it, the workspace keeps the version, the time and who accepted it.
+    [Fact]
+    public async Task Opening_a_workspace_requires_the_current_terms_for_coaches_and_records_them()
+    {
+        var owner = Guid.CreateVersion7();
+        var slug = TenancyArrange.NewSlug();
+        Task<HttpResponseMessage> Open(string? termsVersion) => _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, "/api/v1/tenants") { Content = JsonContent.Create(new { slug, displayName = "Coach", termsVersion }) }, owner);
+
+        var without = await Open(null);
+        var outdated = await Open("2020-01-01");
+        var accepted = await Open(TenancyArrange.CoachTermsVersion);
+
+        Assert.Equal((HttpStatusCode.Conflict, HttpStatusCode.Conflict, HttpStatusCode.Created), (without.StatusCode, outdated.StatusCode, accepted.StatusCode));
+        Assert.Contains("\"reason\":\"terms\"", await without.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        // The owner's data export shows what they accepted (design §5.4).
+        var export = await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/me/export"), owner)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains($"\"coachTermsVersion\":\"{TenancyArrange.CoachTermsVersion}\"", export, StringComparison.Ordinal);
+        Assert.Contains("\"coachTermsAcceptedAt\":\"20", export, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Creating_a_workspace_requires_sign_in()
     {
@@ -162,7 +184,7 @@ public sealed class TenancyApiTests(AthlosDatabases database) : IAsyncLifetime
         _api.SendAsGateway(
             new HttpRequestMessage(HttpMethod.Post, "/api/v1/tenants")
             {
-                Content = JsonContent.Create(new { slug, displayName = "Coach" }),
+                Content = JsonContent.Create(new { slug, displayName = "Coach", termsVersion = TenancyArrange.CoachTermsVersion }),
             },
             userId);
 

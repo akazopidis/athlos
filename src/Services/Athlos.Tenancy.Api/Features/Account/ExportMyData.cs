@@ -19,7 +19,8 @@ public static class ExportMyData
 {
     public sealed record Profile(Guid UserId, string? Email, string? DisplayName);
 
-    public sealed record Workspace(string Slug, string DisplayName, TenantRole Role, DateTimeOffset Since);
+    // CoachTermsVersion and CoachTermsAcceptedAt: the Terms for coaches this user accepted when opening the workspace, if they did.
+    public sealed record Workspace(string Slug, string DisplayName, TenantRole Role, DateTimeOffset Since, string? CoachTermsVersion, DateTimeOffset? CoachTermsAcceptedAt);
 
     public sealed record Response(
         DateTimeOffset ExportedAt, Profile Account, List<Workspace> Workspaces, JsonElement Orders, JsonElement Programs, JsonElement Saved);
@@ -49,7 +50,8 @@ public static class ExportMyData
                     from t in db.Tenants
                     where t.Id == m.TenantId && t.Status != TenantStatus.Deleted
                     orderby m.CreatedAt
-                    select new Workspace(t.Slug, t.DisplayName, m.Role, m.CreatedAt))
+                    select new Workspace(t.Slug, t.DisplayName, m.Role, m.CreatedAt,
+                        t.CoachTermsAcceptedBy == userId ? t.CoachTermsVersion : null, t.CoachTermsAcceptedBy == userId ? t.CoachTermsAcceptedAt : null))
                 .ToListAsync(cancellationToken);
         }
 

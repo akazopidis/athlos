@@ -17,6 +17,7 @@ test('a coach opens a workspace, creates a program, and deletes the workspace', 
   await page.goto('/studio/new')
   await page.getByLabel('Name').fill('E2E Studio')
   await page.getByLabel('Address').fill(slug)
+  await page.getByRole('checkbox', { name: /I accept the Terms for coaches/ }).check()
   await page.getByRole('button', { name: 'Create workspace' }).click()
   await page.waitForURL(new RegExp(`/studio/${slug}$`))
 

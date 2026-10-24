@@ -53,6 +53,9 @@ export function Footer() {
             <Link to="/legal/refunds" className="hover:text-foreground">
               Refunds
             </Link>
+            <Link to="/legal/coaches" className="hover:text-foreground">
+              For coaches
+            </Link>
           </nav>
         </div>
       </div>

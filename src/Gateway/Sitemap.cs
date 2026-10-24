@@ -49,7 +49,7 @@ public sealed partial class Sitemap(IHttpClientFactory clients, GatewaySignature
             LogSitemapFailed(logger, e);
         }
 
-        var urls = new List<string> { "/", "/coaches", "/sell", "/legal/terms", "/legal/privacy", "/legal/refunds" };
+        var urls = new List<string> { "/", "/coaches", "/sell", "/legal/terms", "/legal/privacy", "/legal/refunds", "/legal/coaches" };
         urls.AddRange(programs.Select(p => p.CoachSlug).Distinct().Order().Select(slug => $"/c/{slug}"));
         urls.AddRange(programs.Select(p => $"/c/{p.CoachSlug}/programs/{p.Slug}"));
 

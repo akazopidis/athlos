@@ -23,6 +23,14 @@ public sealed class Tenant : IHasTimestamps
 
     public bool StripeOnboardingComplete { get; set; }
 
+    // The Terms for coaches accepted when the workspace was opened (design §5.4): which version, when,
+    // and by whom. Null for workspaces opened before v1.16.0.
+    public string? CoachTermsVersion { get; set; }
+
+    public DateTimeOffset? CoachTermsAcceptedAt { get; set; }
+
+    public Guid? CoachTermsAcceptedBy { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

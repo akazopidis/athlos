@@ -20,7 +20,7 @@ test('the sell page shows the fee, the refund window and the plans from the API'
   )
   const config = { entraClientId: null, entraAuthority: null, apiScope: null, version: 'test', refundWindowDays: 14, platformFeePercent: 10 }
   render(
-    <AppContext.Provider value={{ config, msal: null, api: createApi(null, null) }}>
+    <AppContext.Provider value={{ config, auth: null, api: createApi(null) }}>
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter>
           <Sell />

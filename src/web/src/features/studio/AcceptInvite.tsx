@@ -28,9 +28,9 @@ function readToken(): string | null {
 
 export function AcceptInvite() {
   const { slug = '' } = useParams()
-  const { api, msal, config } = useApp()
+  const { api, auth } = useApp()
   const [token] = useState(readToken)
-  const signedIn = Boolean(msal?.getActiveAccount())
+  const signedIn = Boolean(auth?.account)
   useTitle('Join a workspace')
 
   const accept = useMutation({
@@ -63,7 +63,7 @@ export function AcceptInvite() {
         ) : !signedIn ? (
           <>
             <p className="text-sm text-muted-foreground">Sign in, or sign up, with the email address the invite was sent to.</p>
-            {msal && <Button onClick={() => msal.loginRedirect({ scopes: [config.apiScope!] })}>Sign in to accept</Button>}
+            {auth && <Button onClick={() => auth.signIn()}>Sign in to accept</Button>}
           </>
         ) : accept.data ? (
           <>

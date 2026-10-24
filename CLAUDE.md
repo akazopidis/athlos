@@ -5,7 +5,7 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
 ## Stack
 
 - .NET 10, ASP.NET Core Minimal APIs, EF Core 10 + Npgsql, C# latest
-- React 19 + TypeScript (strict) + Vite, TanStack Query, React Router, MSAL React, Tailwind + shadcn/ui
+- React 19 + TypeScript (strict) + Vite, TanStack Query, React Router, MSAL (`@azure/msal-browser`, loaded on demand), Tailwind + shadcn/ui
 - Aspire for local orchestration (`aspire run`)
 - PostgreSQL 17, Azure Service Bus (Basic, queues only), Azure Blob Storage, Azure Communication Services Email
 - Azure Container Apps (Consumption), Bicep, GitHub Actions with OIDC

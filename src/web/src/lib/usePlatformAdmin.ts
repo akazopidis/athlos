@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { useApp } from './AppContext.tsx'
-import { getAccessToken } from './auth.ts'
 
 export const PlatformAdminRole = 'Platform.Admin'
 
@@ -19,12 +18,12 @@ export function appRolesOf(accessToken: string): string[] {
 
 // Whether the signed-in user holds the Platform.Admin app role (design §1).
 export function usePlatformAdmin(): boolean {
-  const { msal, config } = useApp()
-  const account = msal?.getActiveAccount()
+  const { auth } = useApp()
+  const account = auth?.account
   const admin = useQuery({
     queryKey: ['platform-admin', account?.localAccountId],
     queryFn: async () => {
-      const token = await getAccessToken(msal, config.apiScope)
+      const token = await auth?.token()
       return token ? appRolesOf(token).includes(PlatformAdminRole) : false
     },
     enabled: Boolean(account),

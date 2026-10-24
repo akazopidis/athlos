@@ -9,9 +9,9 @@ import { DownloadMyData } from './DownloadMyData.tsx'
 // "/me/account": signing out, downloading your data (design §5.4), and deleting the account (§5.2). Sign-in details (password,
 // email) belong to Entra External ID, not to Athlos.
 export function AccountSettings() {
-  const { msal } = useApp()
+  const { auth } = useApp()
   useTitle('Account settings')
-  const name = msal?.getActiveAccount()?.name
+  const name = auth?.account?.name
 
   return (
     <div className="space-y-10">
@@ -21,7 +21,7 @@ export function AccountSettings() {
             {name && <p className="truncate font-semibold">{name}</p>}
             <p className="text-sm text-muted-foreground">Your password and email are managed by your Athlos sign-in.</p>
           </div>
-          <Button variant="outline" onClick={() => msal?.logoutRedirect()}>
+          <Button variant="outline" onClick={() => auth?.signOut()}>
             <LogOut aria-hidden /> Sign out
           </Button>
         </div>

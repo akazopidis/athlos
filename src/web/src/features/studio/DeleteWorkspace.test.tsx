@@ -1,18 +1,15 @@
-import type { PublicClientApplication } from '@azure/msal-browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApi } from '@/api/client'
 import { AppContext } from '@/lib/AppContext'
+import { signedInAs } from '@/test-auth'
 import { DeleteWorkspace } from './DeleteWorkspace.tsx'
 
 afterEach(() => vi.unstubAllGlobals())
 
-const signedIn = {
-  getActiveAccount: () => ({ username: 'owner' }),
-  acquireTokenSilent: async () => ({ accessToken: 'token' }),
-} as unknown as PublicClientApplication
+const signedIn = signedInAs('owner')
 
 test('the owner must type the address, then the workspace is deleted and they land on My account', async () => {
   const requests: Request[] = []
@@ -26,7 +23,7 @@ test('the owner must type the address, then the workspace is deleted and they la
 
   const config = { entraClientId: 'client', entraAuthority: 'https://login.example', apiScope: 'api://athlos/access', version: 'test' }
   render(
-    <AppContext.Provider value={{ config, msal: signedIn, api: createApi(signedIn, config.apiScope) }}>
+    <AppContext.Provider value={{ config, auth: signedIn, api: createApi(signedIn) }}>
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter initialEntries={['/studio/anna/settings']}>
           <Routes>

@@ -13,7 +13,7 @@ import { slugFrom } from '@/lib/slug'
 
 // Becoming a coach (design §5): the signed-in user creates a workspace and becomes its owner.
 export function CreateWorkspace() {
-  const { msal, config, api } = useApp()
+  const { auth, api } = useApp()
   const navigate = useNavigate()
   useTitle('Open your workspace')
   const [displayName, setDisplayName] = useState('')
@@ -63,11 +63,11 @@ export function CreateWorkspace() {
           <CardDescription>A name for your storefront and its address on Athlos.</CardDescription>
         </CardHeader>
         <CardContent>
-          {!msal?.getActiveAccount() ? (
+          {!auth?.account ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">Sign in or create an account first.</p>
-              {msal && (
-                <Button onClick={() => msal.loginRedirect({ scopes: [config.apiScope!], redirectStartPage: '/studio/new' })}>Sign in</Button>
+              {auth && (
+                <Button onClick={() => auth.signIn('/studio/new')}>Sign in</Button>
               )}
             </div>
           ) : (

@@ -34,8 +34,8 @@ import { useStorefront } from './useStorefront.ts'
 // Checkout sends the customer to Stripe; Stripe returns them to /me (paid) or to /cart (cancelled).
 export function ProgramPage() {
   const { slug = '', programSlug = '' } = useParams()
-  const { api, msal, config } = useApp()
-  const signedIn = Boolean(msal?.getActiveAccount())
+  const { api, auth, config } = useApp()
+  const signedIn = Boolean(auth?.account)
   const coach = useStorefront(slug)
   const cart = useCart()
 
@@ -249,8 +249,8 @@ export function ProgramPage() {
                     <Button className="flex-1" size="lg" variant="outline" onClick={() => buy.mutate(p.id)} disabled={buy.isPending || buy.isSuccess}>
                       {buy.isPending || buy.isSuccess ? 'Opening checkout…' : 'Buy now'}
                     </Button>
-                  ) : msal ? (
-                    <Button className="flex-1" size="lg" variant="outline" onClick={() => msal.loginRedirect({ scopes: [config.apiScope!] })}>
+                  ) : auth ? (
+                    <Button className="flex-1" size="lg" variant="outline" onClick={() => auth.signIn()}>
                       Sign in to buy
                     </Button>
                   ) : null}

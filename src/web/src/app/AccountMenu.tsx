@@ -10,8 +10,8 @@ import { useDisclosure } from './useDisclosure.ts'
 // The signed-in user's menu: every account page directly (design §8, "/me/..."), the studio of each
 // workspace they coach in, the platform admin for admins, and signing out.
 export function AccountMenu() {
-  const { msal, config, api } = useApp()
-  const account = msal?.getActiveAccount()
+  const { auth, api } = useApp()
+  const account = auth?.account
   const container = useRef<HTMLDivElement>(null)
   const menu = useDisclosure(container)
   const isAdmin = usePlatformAdmin()
@@ -30,11 +30,11 @@ export function AccountMenu() {
     enabled: Boolean(account),
   })
 
-  if (!msal) return null
+  if (!auth) return null
 
   if (!account) {
     return (
-      <Button size="sm" onClick={() => msal.loginRedirect({ scopes: [config.apiScope!] })}>
+      <Button size="sm" onClick={() => auth.signIn()}>
         Sign in
       </Button>
     )
@@ -104,7 +104,7 @@ export function AccountMenu() {
           <Divider />
           <button
             type="button"
-            onClick={() => msal.logoutRedirect()}
+            onClick={() => auth.signOut()}
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium hover:bg-muted"
           >
             <LogOut className="size-4" aria-hidden /> Sign out

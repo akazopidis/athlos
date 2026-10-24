@@ -1,4 +1,3 @@
-import type { PublicClientApplication } from '@azure/msal-browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
@@ -6,16 +5,14 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
 import { createApi } from '@/api/client'
 import { AppContext } from '@/lib/AppContext'
+import { signedInAs } from '@/test-auth'
 import { StudioDiscounts } from './StudioDiscounts.tsx'
 import { StudioReviews } from './StudioReviews.tsx'
 
 // The studio's Discounts and Reviews tabs (design §2.4).
 afterEach(() => vi.unstubAllGlobals())
 
-const signedIn = {
-  getActiveAccount: () => ({ username: 'coach' }),
-  acquireTokenSilent: async () => ({ accessToken: 'token' }),
-} as unknown as PublicClientApplication
+const signedIn = signedInAs('coach')
 
 function renderTab(path: string, page: ReactElement, answer: (request: Request, path: string) => Response | undefined) {
   const requests: Request[] = []
@@ -33,7 +30,7 @@ function renderTab(path: string, page: ReactElement, answer: (request: Request, 
   )
   const config = { entraClientId: 'client', entraAuthority: 'https://login.example', apiScope: 'api://athlos/access', version: 'test' }
   render(
-    <AppContext.Provider value={{ config, msal: signedIn, api: createApi(signedIn, config.apiScope) }}>
+    <AppContext.Provider value={{ config, auth: signedIn, api: createApi(signedIn) }}>
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter initialEntries={[`/studio/anna/${path}`]}>
           <Routes>

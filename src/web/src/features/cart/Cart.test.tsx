@@ -1,4 +1,3 @@
-import type { PublicClientApplication } from '@azure/msal-browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
@@ -8,6 +7,7 @@ import { AppContext } from '@/lib/AppContext'
 import { CartProvider } from '@/lib/CartProvider'
 import { TermsVersion } from '@/lib/legal'
 import { leaveTo } from '@/lib/navigation'
+import { signedInAs } from '@/test-auth'
 import { Cart } from './Cart.tsx'
 
 vi.mock('@/lib/navigation', () => ({ leaveTo: vi.fn() }))
@@ -32,10 +32,7 @@ afterEach(() => {
   localStorage.clear()
 })
 
-const signedIn = {
-  getActiveAccount: () => ({ username: 'customer', localAccountId: 'customer' }),
-  acquireTokenSilent: async () => ({ accessToken: 'token' }),
-} as unknown as PublicClientApplication
+const signedIn = signedInAs('customer')
 
 // prices: the current price of a program by slug (its public page); unlisted programs answer 404.
 function renderCart(checkout: (path: string) => Response, prices: Record<string, number> = {}) {
@@ -60,7 +57,7 @@ function renderCart(checkout: (path: string) => Response, prices: Record<string,
   )
   const config = { entraClientId: 'client', entraAuthority: 'https://login.example', apiScope: 'api://athlos/access', version: 'test' }
   render(
-    <AppContext.Provider value={{ config, msal: signedIn, api: createApi(signedIn, config.apiScope) }}>
+    <AppContext.Provider value={{ config, auth: signedIn, api: createApi(signedIn) }}>
       <QueryClientProvider client={new QueryClient()}>
         <CartProvider>
           <MemoryRouter initialEntries={['/cart']}>

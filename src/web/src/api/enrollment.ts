@@ -232,6 +232,7 @@ export interface components {
             enrolledAt: string;
             /** Format: int32 */
             completedWorkouts: number | string;
+            reviewed: boolean;
         };
         MyEnrollmentsMyProgramsPage: {
             items: components["schemas"]["MyEnrollmentsMyProgram"][];
@@ -344,6 +345,10 @@ export interface components {
             pageSize: number | string;
             /** Format: int32 */
             totalCount: number | string;
+            /** Format: double */
+            average: number | string;
+            /** Format: int32 */
+            reviewCount: number | string;
         };
         StudioReviewsReplyRequest: {
             text: string;

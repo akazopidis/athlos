@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Circle, CircleCheck, Wallet } from 'lucide-react'
+import { Link } from 'react-router'
 import type { components } from '@/api/ordering'
 import { CopyLink } from '@/components/copy-link'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -7,14 +8,17 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Section } from '@/components/page'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Stars } from '@/components/stars'
 import { useApp } from '@/lib/AppContext'
 import { formatMoney } from '@/lib/money'
 import { problemTitle } from '@/lib/problem'
+import { formatRating } from '@/lib/rating'
 import { StudioPrograms } from './StudioPrograms.tsx'
 import { useStudio } from './useStudio.ts'
 
 // The studio's first tab: a setup checklist until the first program is on sale, the storefront's link
-// to share, payout setup (needed before publishing, design §3.4) and the programs.
+// to share, the numbers and the latest reviews once there are some, payout setup (needed before
+// publishing, design §3.4) and the programs.
 export function StudioOverview() {
   const { slug, workspace } = useStudio()
   const { api } = useApp()
@@ -77,6 +81,7 @@ export function StudioOverview() {
         </Section>
       )}
       {summary.data && Number(summary.data.sales) > 0 && <Numbers summary={summary.data} />}
+      <LatestReviews slug={slug} />
       <Section title="Your storefront">
         <p className="text-sm text-muted-foreground">Share this link on your website and social media: customers see your published programs in your colors.</p>
         <CopyLink path={`/c/${slug}`} />
@@ -114,6 +119,51 @@ export function StudioOverview() {
       </Section>
       <StudioPrograms slug={slug} plan={workspace.data?.plan} />
     </div>
+  )
+}
+
+// The workspace's rating and its two newest reviews (enrollment-api, design §2.4), once there are any.
+function LatestReviews({ slug }: { slug: string }) {
+  const { api } = useApp()
+  const reviews = useQuery({
+    queryKey: ['studio-reviews', slug, 'latest'],
+    queryFn: async () =>
+      (await api.GET('/api/v1/studio/{tenantSlug}/reviews', { params: { path: { tenantSlug: slug }, query: { Page: 1, PageSize: 2 } } })).data ?? null,
+  })
+  const data = reviews.data
+  if (!data || Number(data.reviewCount) === 0) return null
+
+  const count = Number(data.reviewCount)
+  return (
+    <Section
+      title="Your reviews"
+      action={
+        <Button asChild variant="outline" size="sm">
+          <Link to={`/studio/${slug}/reviews`}>All reviews</Link>
+        </Button>
+      }
+    >
+      <div className="flex items-center gap-3">
+        <span className="font-heading text-3xl font-black tabular-nums">{formatRating(Number(data.average))}</span>
+        <Stars value={Number(data.average)} />
+        <span className="text-sm text-muted-foreground">
+          {count} {count === 1 ? 'review' : 'reviews'}
+        </span>
+      </div>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {data.items.map((r) => (
+          <li key={r.id} className="space-y-1 rounded-2xl border bg-card p-4">
+            <div className="flex items-center gap-2">
+              <Stars value={Number(r.rating)} className="size-3.5" />
+              <span className="text-sm font-semibold">{r.authorName}</span>
+              <span className="ml-auto truncate text-xs text-muted-foreground">{r.programTitle}</span>
+            </div>
+            <p className="line-clamp-2 text-sm text-muted-foreground">{r.comment ?? 'No comment, just stars.'}</p>
+            {!r.reply && <p className="text-xs font-medium">Not answered yet</p>}
+          </li>
+        ))}
+      </ul>
+    </Section>
   )
 }
 

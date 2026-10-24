@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Dumbbell, Loader2 } from 'lucide-react'
+import { Dumbbell, Loader2, Star } from 'lucide-react'
 import { Link } from 'react-router'
 import { CardGridSkeleton, Empty, Section } from '@/components/page'
 import { ProgramCover } from '@/components/program-cover'
@@ -10,7 +10,8 @@ import { useTitle } from '@/lib/useTitle'
 import { CheckoutConfirmation } from './CheckoutConfirmation.tsx'
 import { useMyOrders } from './useMyOrders.ts'
 
-// The programs the customer bought (design §8, "/me": purchased programs and progress).
+// The programs the customer bought (design §8, "/me": purchased programs and progress), with a
+// "Rate this program" link under those they have not reviewed yet (design §2.4).
 // Access follows payment: enrollment-api creates it from OrderPaid, a few seconds after the order is
 // Paid (longer if enrollment-api is starting from zero). Until then the list is re-read.
 export function MyPrograms() {
@@ -57,6 +58,11 @@ export function MyPrograms() {
                     </p>
                   </div>
                 </Link>
+                {!p.reviewed && (
+                  <Link to={`/me/programs/${p.programId}#review`} className="mt-2 inline-flex items-center gap-1.5 px-1 text-sm font-medium underline-offset-4 hover:underline">
+                    <Star className="size-4 fill-amber-400 text-amber-400" aria-hidden /> Rate this program
+                  </Link>
+                )}
               </li>
             )
           })}

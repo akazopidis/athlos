@@ -116,7 +116,7 @@ test('a coach replies to a review publicly, and a hidden review is marked', asyn
   })
 
   const first = (await screen.findByText('Comment r1')).closest('li')!
-  expect((await screen.findByText('Comment r2')).closest('li')).toHaveTextContent('Hidden by Athlos after a report')
+  expect((await screen.findByText('Comment r2')).closest('li')).toHaveTextContent('Hidden by Athlos (after a report')
   fireEvent.click(within(first).getByRole('button', { name: /^Reply$/ }))
   fireEvent.change(within(first).getByLabelText('Your public reply'), { target: { value: 'Thank you!' } })
   fireEvent.click(within(first).getByRole('button', { name: 'Post reply' }))

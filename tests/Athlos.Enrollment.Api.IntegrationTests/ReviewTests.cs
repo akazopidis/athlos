@@ -250,6 +250,51 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal((2, 3m), _api.Ratings.For(_coach.TenantId, program.ProgramId));
     }
 
+    // The automatic check (design §2.4): a comment with contact details is hidden at once, waits in the
+    // admin's queue as a report from Athlos, and emails the coach nothing; "keep" shows it again, and a
+    // later edit the check catches holds it back again.
+    [Fact]
+    public async Task A_comment_the_automatic_check_catches_waits_hidden_for_the_admin()
+    {
+        var program = await _api.Enroll(_customer, _coach);
+
+        var written = await Read<ReviewRow>(await WriteReview(_customer, program.ProgramId, 2, "Write to me at maria@example.com"));
+        var page = await Read<PublicReviews>(await PublicList(program.ProgramId));
+        var queue = await Read<List<OpenReportRow>>(await AsAdmin(HttpMethod.Get, "/api/v1/admin/reviews/reports"));
+        await _api.PublishOutbox();
+        var emails = Emails().Where(e => e.Template == EmailTemplates.ReviewReceived && e.Data["programTitle"] == program.Title).ToList();
+        var reviewId = Assert.Single(queue, r => r.ProgramTitle == program.Title).ReviewId;
+        await AsAdmin(HttpMethod.Post, $"/api/v1/admin/reviews/{reviewId}/keep");
+        var kept = await Read<PublicReviews>(await PublicList(program.ProgramId));
+        var again = await Read<ReviewRow>(await WriteReview(_customer, program.ProgramId, 2, "Better on www.example.gr"));
+        var queueAgain = await Read<List<OpenReportRow>>(await AsAdmin(HttpMethod.Get, "/api/v1/admin/reviews/reports"));
+
+        Assert.NotNull(written.HiddenAt);
+        Assert.Empty(page.Items);
+        Assert.Empty(emails);
+        Assert.Single(kept.Items);
+        Assert.NotNull(again.HiddenAt);
+        Assert.Equal("Better on www.example.gr", Assert.Single(queueAgain, r => r.ReviewId == reviewId).Comment);
+    }
+
+    [Theory]
+    [InlineData("Email me at anna.k@example.com", "PersonalData")]
+    [InlineData("Call me on +30 691 234 5678", "PersonalData")]
+    [InlineData("Started 01.09.2026: 12 weeks of 3x5 and 2026-10-24 was the last day", null)]
+    [InlineData("All my programs are on www.mycoaching.gr", "Spam")]
+    [InlineData("https://bit.ly/abc", "Spam")]
+    [InlineData("Great for beginners, built on Node.js knowledge", null)]
+    [InlineData("This program is shit", "Abusive")]
+    [InlineData("Shiitake mushrooms after training", null)]
+    [InlineData("Τι μαλακια ήταν αυτή", "Abusive")]
+    [InlineData("Πολύ καλό πρόγραμμα, ευχαριστώ!", null)]
+    public void The_automatic_check_catches_contact_details_links_and_listed_words(string comment, string? reason)
+    {
+        var blocked = Athlos.Enrollment.Api.Features.Reviews.ReviewFilter.BlockedWords(_api.Services.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>());
+
+        Assert.Equal(reason, Athlos.Enrollment.Api.Features.Reviews.ReviewFilter.Check(comment, blocked)?.ToString());
+    }
+
     // The coach's first reply emails the customer (design §5.3); changing the reply sends nothing more.
     [Fact]
     public async Task The_first_reply_emails_the_customer()

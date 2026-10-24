@@ -98,7 +98,7 @@ function ReviewCard({ review: r, slug }: { review: Review; slug: string }) {
         <span className="ml-auto truncate text-sm text-muted-foreground">{r.programTitle}</span>
       </div>
       {r.hiddenAt ? (
-        <p className="text-xs font-medium text-muted-foreground">Hidden by Athlos after a report: it no longer shows on your program's page or in its rating.</p>
+        <p className="text-xs font-medium text-muted-foreground">Hidden by Athlos (after a report, or held back by the automatic check): it no longer shows on your program's page or in its rating.</p>
       ) : (
         <ReportReview programId={r.programId} reviewId={r.id} />
       )}

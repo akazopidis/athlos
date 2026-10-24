@@ -95,7 +95,8 @@ export function MyReview({ programId, review }: { programId: string; review: Rev
             <Stars value={Number(review.rating)} />
             {review.hiddenAt && (
               <p className="text-sm text-muted-foreground">
-                Athlos hid this review after a report, so it no longer shows on the program's page. You can edit it or delete it.
+                Athlos hid this review, after a report or because it may contain contact details, a link or abusive words, so it no longer shows on
+                the program's page. The Athlos team looks at every hidden review. You can edit it or delete it.
               </p>
             )}
             {review.comment && <p className="text-sm whitespace-pre-line">{review.comment}</p>}

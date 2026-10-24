@@ -1,8 +1,8 @@
 import { createContext, useContext } from 'react'
 
 // The shopping cart (design §2.2, §8): programs from any coach, paid together in one Stripe
-// checkout. It lives in this browser only. The prices here are what the visitor saw; checkout asks
-// catalog again and charges the current price.
+// checkout. It lives in this browser, and with the account once signed in (CartProvider). The prices
+// here are what the visitor saw; checkout asks catalog again and charges the current price.
 export interface CartItem {
   programId: string
   coachSlug: string

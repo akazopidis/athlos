@@ -124,6 +124,27 @@ namespace Athlos.Ordering.Api.Data.Migrations
                     b.ToTable("checkouts", (string)null);
                 });
 
+            modelBuilder.Entity("Athlos.Ordering.Api.Data.CustomerCart", b =>
+                {
+                    b.Property<Guid>("CustomerId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("CustomerId")
+                        .HasName("pk_carts");
+
+                    b.ToTable("carts", (string)null);
+                });
+
             modelBuilder.Entity("Athlos.Ordering.Api.Data.DiscountCode", b =>
                 {
                     b.Property<Guid>("Id")
@@ -399,6 +420,49 @@ namespace Athlos.Ordering.Api.Data.Migrations
                         .HasName("pk_processed_stripe_events");
 
                     b.ToTable("processed_stripe_events", (string)null);
+                });
+
+            modelBuilder.Entity("Athlos.Ordering.Api.Data.CustomerCart", b =>
+                {
+                    b.OwnsMany("Athlos.Ordering.Api.Data.CartLine", "Lines", b1 =>
+                        {
+                            b1.Property<Guid>("CustomerCartCustomerId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<string>("Category");
+
+                            b1.Property<string>("CoachSlug")
+                                .IsRequired();
+
+                            b1.Property<string>("Currency")
+                                .IsRequired();
+
+                            b1.Property<long>("PriceAmount");
+
+                            b1.Property<Guid>("ProgramId");
+
+                            b1.Property<string>("Slug")
+                                .IsRequired();
+
+                            b1.Property<string>("Title")
+                                .IsRequired();
+
+                            b1.HasKey("CustomerCartCustomerId", "__synthesizedOrdinal");
+
+                            b1.ToTable("carts");
+
+                            b1
+                                .ToJson("lines")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("CustomerCartCustomerId")
+                                .HasConstraintName("fk_carts_carts_customer_cart_customer_id");
+                        });
+
+                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }

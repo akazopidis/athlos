@@ -12,6 +12,8 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
 
     public DbSet<Checkout> Checkouts => Set<Checkout>();
 
+    public DbSet<CustomerCart> Carts => Set<CustomerCart>();
+
     public DbSet<DiscountCode> DiscountCodes => Set<DiscountCode>();
 
     public DbSet<PayoutRetry> PayoutRetries => Set<PayoutRetry>();
@@ -50,6 +52,13 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
         {
             code.HasIndex(d => new { d.TenantId, d.Code }).IsUnique();
             code.Property(d => d.Code).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<CustomerCart>(cart =>
+        {
+            cart.ToTable("carts");
+            cart.HasKey(c => c.CustomerId);
+            cart.OwnsMany(c => c.Lines, lines => lines.ToJson());
         });
 
         modelBuilder.Entity<Checkout>(checkout =>

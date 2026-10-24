@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Ordering.Api.Features.Customers;
 
 // Deleting a customer's account (design §5.2), called by tenancy-api: their orders stay, because the
-// coaches need them for accounting, but the email address goes, and so do their cart checkouts. The
+// coaches need them for accounting, but the email address goes, and so do their cart checkouts and
+// their cart. The
 // customer id stays too: it is the Entra object id of an account that no longer exists, so it names
 // nobody. Their open Stripe payment pages are closed, so the deleted account cannot be charged; one
 // paid anyway (in the moment before) is refunded by the webhook, because its order has no address left.
@@ -48,6 +49,7 @@ public static class EraseCustomer
 
             // The customer's own checkouts (RLS: customer_id = app.user_id) only link their orders.
             await db.Checkouts.Where(c => c.CustomerId == customerId).ExecuteDeleteAsync(cancellationToken);
+            await db.Carts.Where(c => c.CustomerId == customerId).ExecuteDeleteAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
 

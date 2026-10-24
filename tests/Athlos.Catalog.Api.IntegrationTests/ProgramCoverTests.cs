@@ -29,6 +29,30 @@ public sealed class ProgramCoverTests(AthlosDatabases databases, AthlosStorage s
         Assert.Contains("se=", details.CoverImageUrl, StringComparison.Ordinal); // expiry in the SAS
     }
 
+    // The same link for everyone within a 10-minute window (the expiry is rounded), so browsers cache the
+    // image instead of downloading it under a new address on every page; it stays valid 10 to 20 minutes.
+    [Fact]
+    public async Task Reading_a_cover_twice_gives_the_same_link()
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach);
+        await _api.UploadCover(coach, program.Id, Png(256));
+
+        var first = await Read(await _api.AsCoach(coach, HttpMethod.Get, $"/programs/{program.Id}"));
+        var second = await Read(await _api.AsCoach(coach, HttpMethod.Get, $"/programs/{program.Id}"));
+        if (first.CoverImageUrl != second.CoverImageUrl)
+        {
+            // The two reads straddled a window boundary; the next one is in the same window as the second.
+            first = second;
+            second = await Read(await _api.AsCoach(coach, HttpMethod.Get, $"/programs/{program.Id}"));
+        }
+
+        var expiry = DateTimeOffset.Parse(Uri.UnescapeDataString(System.Web.HttpUtility.ParseQueryString(new Uri(second.CoverImageUrl!).Query)["se"]!),
+            System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Equal(first.CoverImageUrl, second.CoverImageUrl);
+        Assert.InRange(expiry - DateTimeOffset.UtcNow, TimeSpan.FromMinutes(9.5), TimeSpan.FromMinutes(20));
+    }
+
     [Fact]
     public async Task Anything_but_JPEG_PNG_or_WebP_is_rejected_whatever_the_content_type_says()
     {

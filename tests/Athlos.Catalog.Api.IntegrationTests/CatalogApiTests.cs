@@ -450,6 +450,32 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Single(saved);
     }
 
+    // The marketplace's public reads are cached for a few seconds (design §4): a second read of the same
+    // address within the window is the cached answer, a studio read never is, and other addresses are
+    // their own entries.
+    [Fact]
+    public async Task Public_marketplace_reads_are_cached_briefly_and_studio_reads_never()
+    {
+        await using var cached = new CatalogApiFactory(databases, storage) { CacheSeconds = 30 };
+        var coach = NewCoach();
+        var program = await cached.CreateProgram(coach, title: "Before", publish: true);
+        var page = $"/api/v1/marketplace/coaches/{coach.Slug}/programs/{program.Slug}";
+
+        var first = await (await cached.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, page))).Content.ReadAsStringAsync(Cancel);
+        await cached.AsCoach(coach, HttpMethod.Put, $"/programs/{program.Id}", new
+        {
+            slug = program.Slug, title = "After", description = "x", category = "Powerlifting", durationWeeks = 12, priceAmount = 4900, currency = "EUR",
+        });
+        var again = await (await cached.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, page), Guid.CreateVersion7())).Content.ReadAsStringAsync(Cancel);
+        var otherAddress = await (await cached.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/programs?coach={coach.Slug}"))).Content.ReadAsStringAsync(Cancel);
+        var studio = await (await cached.AsCoach(coach, HttpMethod.Get, $"/programs/{program.Id}")).Content.ReadAsStringAsync(Cancel);
+
+        Assert.Contains("\"Before\"", first, StringComparison.Ordinal);
+        Assert.Equal(first, again); // Cached, even for a signed-in visitor.
+        Assert.Contains("\"After\"", otherAddress, StringComparison.Ordinal);
+        Assert.Contains("\"After\"", studio, StringComparison.Ordinal);
+    }
+
     // Ratings come from enrollment-api (design §2.4): cards carry them and "Top rated" sorts by the
     // average, then the number of reviews; programs without reviews come last.
     [Fact]

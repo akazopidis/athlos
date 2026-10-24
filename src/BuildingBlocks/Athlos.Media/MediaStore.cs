@@ -8,14 +8,17 @@ namespace Athlos.Media;
 // tenancy-api's coach logos, in one private container. Each service builds its own paths.
 // - Every path starts with tenants/{tenantId}/, and the tenant always comes from ITenantContext, so
 //   one tenant can never write into another's prefix, and a tenant's media can be deleted by prefix.
-// - The container is private. Readers get read-only SAS links for one blob, valid 15 minutes.
+// - The container is private. Readers get read-only SAS links for one blob, valid 10 to 20 minutes:
+//   the expiry is rounded to a 10-minute window, so everyone in a window gets the same link and the
+//   browser's cache (Cache-Control max-age=900 on the blob) serves the image again instead of
+//   downloading it under a new address on every page.
 //   In Azure they are user-delegation SAS signed with a key from the app's managed identity (no
 //   account keys exist: shared-key access is disabled). Locally Azurite has only shared keys.
 public sealed class MediaStore(BlobServiceClient blobs, TimeProvider time) : IDisposable
 {
     public const string ContainerName = "media";
     public const long MaxImageBytes = 2 * 1024 * 1024;
-    public static readonly TimeSpan ReadLinkLifetime = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan ReadLinkWindow = TimeSpan.FromMinutes(10);
 
     private readonly BlobContainerClient _container = blobs.GetBlobContainerClient(ContainerName);
     private readonly SemaphoreSlim _keyLock = new(1, 1);
@@ -65,7 +68,9 @@ public sealed class MediaStore(BlobServiceClient blobs, TimeProvider time) : IDi
         }
 
         var blob = _container.GetBlobClient(path);
-        var expiresOn = time.GetUtcNow() + ReadLinkLifetime;
+        var now = time.GetUtcNow();
+        var windowStart = new DateTimeOffset(now.UtcTicks - now.UtcTicks % ReadLinkWindow.Ticks, TimeSpan.Zero);
+        var expiresOn = windowStart + 2 * ReadLinkWindow;
 
         if (blob.CanGenerateSasUri)
         {

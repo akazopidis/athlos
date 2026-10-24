@@ -38,6 +38,9 @@ builder.Services.AddHttpClient<IProgramQuota, TenancyProgramQuota>(http => http.
 // A program on sale got a new workout: enrollment-api emails its customers (design §5.3).
 builder.Services.AddHttpClient<IProgramUpdates, EnrollmentProgramUpdates>(http => http.BaseAddress = new Uri("https+http://enrollment-api"))
     .AddSignedRequests();
+// The public marketplace reads are cached for 10 seconds (PublicReadCache, design §4).
+builder.Services.AddOutputCache(options => options.AddPolicy(PublicReadCache.Name,
+    new PublicReadCache(TimeSpan.FromSeconds(builder.Configuration.GetValue("Marketplace:CacheSeconds", 10)))));
 builder.Services.AddValidation();
 builder.Services.AddOpenApi(options =>
 {
@@ -60,6 +63,7 @@ app.UseGatewayOnly();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseTenantContext();
+app.UseOutputCache();
 
 if (app.Environment.IsDevelopment())
 {
@@ -71,6 +75,7 @@ app.MapDefaultEndpoints();
 
 // Public marketplace: every coach's published programs (a cross-tenant slice, design §3.2)
 var marketplace = app.MapGroup("/api/v1/marketplace")
+    .CacheOutput(PublicReadCache.Name)
     .UsePublicReadScope()
     .WithTenantTransaction<CatalogDbContext>();
 marketplace.MapSearchPrograms();

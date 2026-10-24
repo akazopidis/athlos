@@ -4,6 +4,8 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17.1, built; v1.12.0 in production (2026-10-24)
 
+**Changes in v17.2 (v1.13.0):** catalog's public reads cached for 10 seconds (§4); cover links stable for 10 minutes (§2.3).
+
 **Changes in v17.1 (v1.12.0):** legal pages and accepting the Terms at checkout, receipts, and "Download my data" (§5.4); reporting reviews and the admin's moderation, reviews public only while their program is on sale (§2.4); a per-customer limit on writes (§4); an error boundary in the SPA (§8); emails to customers about review replies and new workouts (§5.3).
 
 **Changes in v17 (v1.11.0):** saved programs, reviews and ratings, and discount codes (§2.4); new tables in §2.3; the `review-received` email (§5.3); the saved-programs list is a listed cross-tenant slice (§3.2).
@@ -394,6 +396,7 @@ Goal: one tenant's spike must not degrade others. Layered, cheapest first:
 
 **As built (phase 7):**
 - *Whose budget a request spends.* A coach's studio routes count once the caller is confirmed a member; their storefront (`/api/v1/marketplace/coaches/{slug}/...`, and the program list with `?coach={slug}`) counts for everyone. Both share one token bucket per coach, sized by the plan's requests per second. The cross-coach marketplace search and unknown addresses are limited per client IP instead (`RateLimits:PerClientRequestsPerSecond`, 20). Signed-in customers' reads (`/me`, orders) are not rate limited. Starting a checkout, which opens a Stripe payment page and writes pending orders, is limited to `RateLimits:CheckoutsPerMinute` (10) per signed-in customer (per client IP without a sign-in), and checking a discount code shares that bucket. Since v1.12.0 a customer's other writes (anything but a read under `/api/v1/me`: reviews, saved programs, progress; and reporting a review) share `RateLimits:CustomerWritesPerMinute` (60) per customer, so one account cannot flood the services with writes.
+- *Public reads cached (v1.13.0).* catalog-api caches its public marketplace reads (search, program pages) for 10 seconds in each replica's memory (`PublicReadCache`, `Marketplace:CacheSeconds`), keyed by the full address. They depend on no tenant or user, so a burst of visitors costs one database read per address per 10 seconds; studio and internal routes are never cached, and a change shows in the shop within 10 seconds. The stress test found catalog-api's single replica running out of CPU on this work (`evaluation/stress.md`).
 - *How the gateway knows the plan.* `GET /internal/tenants/{slug}/plan` on tenancy-api (signed, like the membership lookup), cached for 60 s, so plan limits live only in tenancy's `Plans`.
 - *Concurrency.* Cover uploads and text searches also take one of `RateLimits:ConcurrentHeavyRequests` (4) slots per coach or client.
 - *Rejections.* 429 with `Retry-After` and a ProblemDetails body, counted by `athlos.ratelimit.rejected` (tags: `scope`, `tenant`, `plan`, `reason`). `RateLimits:Enabled=false` turns the limits off for the experiment's "limits off" run.

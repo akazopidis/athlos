@@ -116,12 +116,17 @@ public sealed class CatalogApiFactory(AthlosDatabases databases, AthlosStorage s
 
     public FakeProgramQuota Quota { get; } = new();
 
+    // The marketplace output cache (design §4), off unless a test sets it.
+    public int CacheSeconds { get; init; }
+
     // Workouts added to programs that have been on sale, as enrollment-api would hear of them (design §5.3).
     public FakeProgramUpdates Updates { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
+        // Tests read a program right after changing it; CatalogCacheTests turns the cache back on.
+        builder.UseSetting("Marketplace:CacheSeconds", CacheSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<Athlos.Catalog.Api.Features.Programs.IPayoutReadiness>(Payouts);

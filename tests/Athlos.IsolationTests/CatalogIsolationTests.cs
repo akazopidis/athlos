@@ -85,6 +85,7 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         { "PUT", $"/internal/tenants/{Guid.Empty}/suspension" },
         { "PUT", $"/internal/tenants/{Guid.Empty}/public-discount" },
         { "DELETE", $"/internal/tenants/{Guid.Empty}/public-discount" },
+        { "GET", $"/internal/tenants/{Guid.Empty}/export" },
     };
 
     [Theory]
@@ -404,6 +405,21 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent, HttpStatusCode.Unauthorized), (wrong.StatusCode, right.StatusCode, unsigned.StatusCode));
         Assert.Contains("\"ratingAverage\":4.5", page, StringComparison.Ordinal);
         Assert.Contains("\"ratingCount\":2", page, StringComparison.Ordinal);
+    }
+
+    // A workspace export (design §5.4) holds that tenant's programs, drafts and paid content included,
+    // and nothing of another tenant's.
+    [Fact]
+    public async Task As_workspace_export_holds_As_programs_only()
+    {
+        var bProgram = await _api.CreateProgram(_b, title: "Bravo program", publish: true);
+
+        var export = await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{_a.TenantId}/export"))).Content.ReadAsStringAsync(Cancel);
+
+        Assert.Contains(_aDraft.Id.ToString(), export, StringComparison.Ordinal);
+        Assert.Contains(_aPublished.Id.ToString(), export, StringComparison.Ordinal);
+        Assert.DoesNotContain(bProgram.Id.ToString(), export, StringComparison.Ordinal);
+        Assert.DoesNotContain("Bravo program", export, StringComparison.Ordinal);
     }
 
     // The shown discount code (design §2.4) is written inside the tenant ordering-api names: a code sent

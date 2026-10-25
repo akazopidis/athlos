@@ -346,6 +346,75 @@
         }
       }
     },
+    "/api/v1/studio/{tenantSlug}/workspace/coach-terms": {
+      "post": {
+        "tags": [
+          "Workspace"
+        ],
+        "operationId": "AcceptCoachTerms",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptCoachTermsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/studio/{tenantSlug}/workspace/export": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "operationId": "ExportWorkspace",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportWorkspaceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/v1/studio/{tenantSlug}/workspace/logo": {
       "put": {
         "tags": [
@@ -877,6 +946,18 @@
   },
   "components": {
     "schemas": {
+      "AcceptCoachTermsRequest": {
+        "required": [
+          "termsVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "termsVersion": {
+            "maxLength": 20,
+            "type": "string"
+          }
+        }
+      },
       "AcceptInviteRequest": {
         "required": [
           "token"
@@ -902,6 +983,59 @@
           },
           "displayName": {
             "type": "string"
+          }
+        }
+      },
+      "Branding": {
+        "type": "object",
+        "properties": {
+          "logoUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "logoPath": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "primaryColor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "contactEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bio": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instagramUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "youTubeUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "websiteUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -1119,6 +1253,118 @@
           }
         }
       },
+      "ExportWorkspaceMember": {
+        "required": [
+          "displayName",
+          "email",
+          "role",
+          "since"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/TenantRole"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ExportWorkspaceResponse": {
+        "required": [
+          "exportedAt",
+          "workspace",
+          "team",
+          "programs",
+          "sales",
+          "customers"
+        ],
+        "type": "object",
+        "properties": {
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "workspace": {
+            "$ref": "#/components/schemas/ExportWorkspaceWorkspace"
+          },
+          "team": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportWorkspaceMember"
+            }
+          },
+          "programs": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "sales": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "customers": {
+            "$ref": "#/components/schemas/JsonElement"
+          }
+        }
+      },
+      "ExportWorkspaceWorkspace": {
+        "required": [
+          "slug",
+          "displayName",
+          "status",
+          "plan",
+          "branding",
+          "createdAt",
+          "coachTermsVersion",
+          "coachTermsAcceptedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantStatus"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanName"
+          },
+          "branding": {
+            "$ref": "#/components/schemas/Branding"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "coachTermsVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "coachTermsAcceptedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
       "GetPlatformMetricsResponse": {
         "required": [
           "workspaces",
@@ -1225,7 +1471,9 @@
           "status",
           "plan",
           "branding",
-          "stripeOnboardingComplete"
+          "stripeOnboardingComplete",
+          "coachTermsVersion",
+          "coachTermsCurrent"
         ],
         "type": "object",
         "properties": {
@@ -1249,6 +1497,15 @@
             "$ref": "#/components/schemas/GetWorkspaceSettings"
           },
           "stripeOnboardingComplete": {
+            "type": "boolean"
+          },
+          "coachTermsVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "coachTermsCurrent": {
             "type": "boolean"
           }
         }

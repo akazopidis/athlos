@@ -12,6 +12,7 @@ import { useApp } from '@/lib/AppContext'
 import { LogoWidth, shrinkImage } from '@/lib/image'
 import { problemTitle } from '@/lib/problem'
 import { DeleteWorkspace } from './DeleteWorkspace.tsx'
+import { DownloadWorkspaceData } from './DownloadWorkspaceData.tsx'
 import { StudioTeam } from './StudioTeam.tsx'
 import { useStudio } from './useStudio.ts'
 
@@ -152,6 +153,11 @@ export function StudioSettings() {
       </Section>
       <StudioTeam slug={slug} isOwner={isOwner} />
       {isOwner && <LogoUpload slug={slug} uploadedLogoUrl={current.branding.uploadedLogoUrl ?? null} />}
+      {isOwner && (
+        <Section title="Your data">
+          <DownloadWorkspaceData slug={slug} />
+        </Section>
+      )}
       {isOwner && <DeleteWorkspace slug={slug} />}
     </div>
   )

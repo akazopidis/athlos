@@ -46,6 +46,8 @@ builder.Services.AddHttpClient(ServiceCustomerErasure.Catalog, http => http.Base
 builder.Services.AddScoped<ICustomerErasure, ServiceCustomerErasure>();
 // "Download my data" reads the same services' signed export endpoints (design §5.4).
 builder.Services.AddScoped<ICustomerExport, ServiceCustomerExport>();
+// A workspace's export: each service's part through the erasure clients' signed connections (design §5.4).
+builder.Services.AddScoped<ITenantExport, ServiceTenantExport>();
 builder.Services.Configure<EntraAccountDeletionOptions>(builder.Configuration.GetSection("EntraAccountDeletion"));
 builder.Services.AddHttpClient<IEntraUsers, GraphEntraUsers>();
 // The staff invite email leaves through the outbox to the notifications queue (design §5.2, §5.3).
@@ -110,6 +112,8 @@ var studio = app.MapGroup("/api/v1/studio/{tenantSlug}")
     .WithTenantTransaction<TenancyDbContext>();
 studio.MapGetWorkspace();
 studio.MapUpdateWorkspace();
+studio.MapAcceptCoachTerms();
+studio.MapExportWorkspace();
 studio.MapWorkspaceLogo();
 studio.MapPayouts();
 studio.MapStaffInvites();

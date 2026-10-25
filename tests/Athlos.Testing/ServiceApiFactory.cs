@@ -75,7 +75,13 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
     // The other services' parts of a data export (design §5.4).
     public FakeCustomerExport CustomerExport { get; } = new();
 
+    // The other services' parts of a workspace export (design §5.4).
+    public FakeTenantExport TenantExport { get; } = new();
+
     public FakeEntraUsers EntraUsers { get; } = new();
+
+    // Extra configuration, set before the first request (for example a newer Legal:CoachTermsVersion).
+    public Dictionary<string, string> Settings { get; } = [];
 
     // What suspending a workspace asks catalog-api to do (design §3.4).
     public FakeTenantSuspension Suspension { get; } = new();
@@ -85,6 +91,10 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
         base.ConfigureWebHost(builder);
         builder.UseSetting("App:PublicUrl", PublicUrl);
         builder.UseSetting("Stripe:ConnectWebhookSecret", StripeEvents.SigningSecret);
+        foreach (var (key, value) in Settings)
+        {
+            builder.UseSetting(key, value);
+        }
         if (Storage is null)
         {
             builder.UseSetting("ConnectionStrings:media", "UseDevelopmentStorage=true");
@@ -98,6 +108,7 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
             services.AddSingleton<Athlos.Tenancy.Api.Features.Workspace.ITenantErasure>(Erasure);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Account.ICustomerErasure>(CustomerErasure);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Account.ICustomerExport>(CustomerExport);
+            services.AddSingleton<Athlos.Tenancy.Api.Features.Workspace.ITenantExport>(TenantExport);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Account.IEntraUsers>(EntraUsers);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Admin.ITenantSuspension>(Suspension);
         });

@@ -73,6 +73,54 @@ public sealed class TenancyApiTests(AthlosDatabases database) : IAsyncLifetime
         Assert.Contains("\"coachTermsAcceptedAt\":\"20", export, StringComparison.Ordinal);
     }
 
+    // New Terms for coaches (design §5.4): the studio shows that the workspace has not accepted them;
+    // only the owner accepts, only the version in force, and the workspace then counts as current.
+    [Fact]
+    public async Task The_owner_accepts_new_terms_for_coaches_for_an_existing_workspace()
+    {
+        var workspace = await _api.CreateWorkspace();
+        await using var later = new TenancyApiFactory(database);
+        later.Settings["Legal:CoachTermsVersion"] = "2026-12-01";
+        Task<HttpResponseMessage> Accept(string version, TenantRole role) => later.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/v1/studio/{workspace.Slug}/workspace/coach-terms") { Content = JsonContent.Create(new { termsVersion = version }) },
+            workspace.OwnerId, workspace.TenantId, role);
+        async Task<JsonElement> Read() => await (await later.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/studio/{workspace.Slug}/workspace"),
+            workspace.OwnerId, workspace.TenantId, TenantRole.Owner)).Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+
+        var before = await Read();
+        var asStaff = await Accept("2026-12-01", TenantRole.Staff);
+        var old = await Accept(TenancyArrange.CoachTermsVersion, TenantRole.Owner);
+        var accepted = await Accept("2026-12-01", TenantRole.Owner);
+        var after = await Read();
+
+        Assert.Equal((TenancyArrange.CoachTermsVersion, false), (before.GetProperty("coachTermsVersion").GetString(), before.GetProperty("coachTermsCurrent").GetBoolean()));
+        Assert.Equal((HttpStatusCode.Forbidden, HttpStatusCode.Conflict, HttpStatusCode.NoContent), (asStaff.StatusCode, old.StatusCode, accepted.StatusCode));
+        Assert.Equal(("2026-12-01", true), (after.GetProperty("coachTermsVersion").GetString(), after.GetProperty("coachTermsCurrent").GetBoolean()));
+    }
+
+    // The owner's workspace export (design §5.4): one file with the workspace, its team and each
+    // service's part; staff cannot download it, and a service that cannot answer gives 502, not a part.
+    [Fact]
+    public async Task The_owner_downloads_the_workspace_data_and_staff_cannot()
+    {
+        var workspace = await _api.CreateWorkspace();
+        Task<HttpResponseMessage> Export(TenantRole role) => _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Get, $"/api/v1/studio/{workspace.Slug}/workspace/export"), workspace.OwnerId, workspace.TenantId, role);
+
+        var owner = await Export(TenantRole.Owner);
+        var body = await owner.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        var staff = await Export(TenantRole.Staff);
+        _api.TenantExport.Failing = true;
+        var failing = await Export(TenantRole.Owner);
+
+        Assert.Equal(HttpStatusCode.OK, owner.StatusCode);
+        Assert.StartsWith($"attachment; filename=\"athlos-{workspace.Slug}-", owner.Content.Headers.ContentDisposition?.ToString(), StringComparison.Ordinal);
+        Assert.Equal((workspace.Slug, TenancyArrange.CoachTermsVersion), (body.GetProperty("workspace").GetProperty("slug").GetString(), body.GetProperty("workspace").GetProperty("coachTermsVersion").GetString()));
+        Assert.Equal("Owner", body.GetProperty("team")[0].GetProperty("role").GetString());
+        Assert.Equal(workspace.TenantId.ToString(), body.GetProperty("programs").GetProperty("programs")[0].GetProperty("tenantId").GetString());
+        Assert.Equal((HttpStatusCode.Forbidden, HttpStatusCode.BadGateway), (staff.StatusCode, failing.StatusCode));
+    }
+
     [Fact]
     public async Task Creating_a_workspace_requires_sign_in()
     {

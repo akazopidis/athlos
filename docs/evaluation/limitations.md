@@ -48,15 +48,17 @@ The limitations fall into three kinds:
 ### 2. Legal pages are drafts, reviewed by no lawyer
 - **Built (v1.12.0, design §5.4):** Terms, Privacy and Refund policy pages linked from the footer; customers accept the Terms at checkout, and each checkout keeps the accepted version.
 - **Built (v1.16.0):** Terms for coaches (`/legal/coaches`), accepted when a workspace is opened; tenancy-api records the version, the time and who accepted.
-- **Missing:** a lawyer's review of the texts, an imprint naming the operator, and asking existing workspaces to accept a new version of the coach terms (only new workspaces accept the current one).
+- **Built (v1.17.0):** a workspace that has not accepted the coach terms in force (opened earlier, or the terms changed) gets a notice in the studio; the owner accepts there, recorded the same way.
+- **Missing:** a lawyer's review of the texts, an imprint naming the operator, and enforcement: a workspace that never accepts the new coach terms can still sell.
 - **Why:** these are legal texts, not engineering; the pages describe what the platform does, as a starting point.
 - **Impact:** required before any public launch with real payments (GDPR transparency, EU consumer law, the platform's terms with coaches).
-- **Solution:** a reviewed text, and a prompt in the studio when the coach terms change, recording the new acceptance like the first.
+- **Solution:** a reviewed text, and a deadline after which a workspace that has not accepted the coach terms in force stops selling (tenancy-api's "ready to sell" answer, which checkout already asks).
 
 ### 3. The data export is one synchronous JSON file
 - **Built (v1.12.0, design §5.4):** "Download my data" (`GET /api/v1/me/export` on tenancy-api) gathers the user's own rows from every service through signed internal routes and hands back one JSON file: the rights of access and portability (GDPR articles 15 and 20) next to erasure (§5.2).
-- **Missing:** an asynchronous export for large accounts, and a coach's export of their workspace (programs, sales).
-- **Why:** a customer's data is small; one request is enough.
+- **Built (v1.17.0):** the owner's workspace export (`GET /api/v1/studio/{slug}/workspace/export`): the workspace and team, programs with their workouts, sales and discount codes, customers per program and reviews, gathered the same way from each service's signed `/internal/tenants/{id}/export`.
+- **Missing:** an asynchronous export for large accounts and large workspaces.
+- **Why:** a customer's data is small, and a thesis-sized workspace too; one request is enough.
 - **Impact:** the export waits for the slowest service, and a cold start can make the first try time out (it answers 502 and the user tries again).
 - **Solution:** a queued export job writing the file to Blob Storage and emailing a short-lived link.
 
@@ -203,11 +205,10 @@ Each of these is ordinary product work with no new multi-tenancy question:
 
 ### 22. Gaps in automated testing
 - **Missing:** some kinds of automated test. The backend has 462 tests on every PR, 195 of them in the isolation suite. Playwright covers, after every staging deploy, the shop, the cart, layouts on three screen sizes, the account pages and saved programs, a studio's lifecycle (with a discount code) on a throwaway workspace, axe accessibility checks on the public pages, and a signed-in checkout up to Stripe's page.
-  - *Not covered end to end:* refunds and the platform admin. A whole purchase with Stripe's test card, then a review, runs once `E2E_PURCHASE_PROGRAM_PATH` names a second program of an onboarded coach on staging (v1.12.0); until then it is skipped.
+  - *Not covered end to end:* refunds and the platform admin. A whole purchase with Stripe's test card, then a review, runs after every staging deploy since v1.15.0 (`E2E_PURCHASE_PROGRAM_PATH`); it pays once, and later runs go straight to the review.
   - *No load test of checkout or webhooks:* reads are load- and stress-tested on staging (k6, `stress.md`); writes are covered by concurrency tests (concurrent reviews leave an exact rating, concurrent saves keep one row) and contract tests between the services (v1.12.0), not by load.
 - **Why:** time. The isolation suite was the priority, because isolation is the subject of the thesis.
 - **Solution:**
-  - the second staging program for the purchase test;
   - many test accounts, to load-test writes past the per-customer write limit;
   - a k6 scenario against Stripe's test mode for checkout, within Stripe's rate limits.
 

@@ -1,6 +1,7 @@
 using Athlos.Media;
 using Athlos.Tenancy.Api.Data;
 using Athlos.Tenancy.Api.Features.Plans;
+using Athlos.Tenancy.Api.Features.Tenants;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,8 +11,11 @@ namespace Athlos.Tenancy.Api.Features.Workspace;
 // slug and checked membership); the slug in the route must match it, or it is someone else's: 404.
 public static class GetWorkspace
 {
+    // CoachTermsVersion: the Terms for coaches the workspace accepted (null if none, design §5.4);
+    // CoachTermsCurrent: whether that is the version in force (Legal:CoachTermsVersion).
     public sealed record Response(
-        Guid Id, string Slug, string DisplayName, TenantStatus Status, PlanName Plan, Settings Branding, bool StripeOnboardingComplete);
+        Guid Id, string Slug, string DisplayName, TenantStatus Status, PlanName Plan, Settings Branding, bool StripeOnboardingComplete,
+        string? CoachTermsVersion, bool CoachTermsCurrent);
 
     // What the owner edits: the linked logo as typed, and the uploaded one's read link separately.
     public sealed record Settings(
@@ -24,7 +28,7 @@ public static class GetWorkspace
             .WithTags("Workspace");
 
     private static async Task<Results<Ok<Response>, NotFound>> Handle(
-        string tenantSlug, ITenantContext tenant, TenancyDbContext db, MediaStore media, CancellationToken cancellationToken)
+        string tenantSlug, ITenantContext tenant, TenancyDbContext db, MediaStore media, IConfiguration configuration, CancellationToken cancellationToken)
     {
         var workspace = await db.Tenants
             .AsNoTracking()
@@ -38,6 +42,6 @@ public static class GetWorkspace
         var settings = new Settings(b.LogoUrl, await media.ReadLinkAsync(b.LogoPath, cancellationToken), b.PrimaryColor, b.ContactEmail, b.Bio,
             b.InstagramUrl, b.YouTubeUrl, b.WebsiteUrl);
         return TypedResults.Ok(new Response(workspace.Id, workspace.Slug, workspace.DisplayName, workspace.Status, workspace.Plan, settings,
-            workspace.StripeOnboardingComplete));
+            workspace.StripeOnboardingComplete, workspace.CoachTermsVersion, workspace.CoachTermsVersion == CreateTenant.CoachTermsInForce(configuration)));
     }
 }

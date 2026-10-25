@@ -93,6 +93,8 @@ app.MapGroup("/api/v1/studio/{tenantSlug}")
 
 // Tenancy-api only (signed): erase one deleted workspace's enrollments (design §3.4)
 app.MapEraseTenant();
+// Tenancy-api only (signed): one workspace's customers per program and reviews for its owner's export (design §5.4)
+app.MapExportTenant();
 // Tenancy-api only (signed): erase a deleted account's enrollments (design §5.2)
 app.MapEraseCustomer();
 // Tenancy-api only (signed): a customer's programs, progress and reviews for their data export (design §5.4)

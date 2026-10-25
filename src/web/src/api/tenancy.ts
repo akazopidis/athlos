@@ -164,6 +164,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/studio/{tenantSlug}/workspace/coach-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AcceptCoachTerms"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/studio/{tenantSlug}/workspace/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ExportWorkspace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/studio/{tenantSlug}/workspace/logo": {
         parameters: {
             query?: never;
@@ -360,12 +392,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AcceptCoachTermsRequest: {
+            termsVersion: string;
+        };
         AcceptInviteRequest: {
             token: string;
         };
         AcceptInviteResponse: {
             slug: string;
             displayName: string;
+        };
+        Branding: {
+            logoUrl?: null | string;
+            logoPath?: null | string;
+            primaryColor?: null | string;
+            contactEmail?: null | string;
+            bio?: null | string;
+            instagramUrl?: null | string;
+            youTubeUrl?: null | string;
+            websiteUrl?: null | string;
         };
         CoachProfile: {
             logoUrl: null | string;
@@ -415,6 +460,34 @@ export interface components {
             /** Format: date-time */
             coachTermsAcceptedAt: null | string;
         };
+        ExportWorkspaceMember: {
+            displayName: null | string;
+            email: null | string;
+            role: components["schemas"]["TenantRole"];
+            /** Format: date-time */
+            since: string;
+        };
+        ExportWorkspaceResponse: {
+            /** Format: date-time */
+            exportedAt: string;
+            workspace: components["schemas"]["ExportWorkspaceWorkspace"];
+            team: components["schemas"]["ExportWorkspaceMember"][];
+            programs: components["schemas"]["JsonElement"];
+            sales: components["schemas"]["JsonElement"];
+            customers: components["schemas"]["JsonElement"];
+        };
+        ExportWorkspaceWorkspace: {
+            slug: string;
+            displayName: string;
+            status: components["schemas"]["TenantStatus"];
+            plan: components["schemas"]["PlanName"];
+            branding: components["schemas"]["Branding"];
+            /** Format: date-time */
+            createdAt: string;
+            coachTermsVersion: null | string;
+            /** Format: date-time */
+            coachTermsAcceptedAt: null | string;
+        };
         GetPlatformMetricsResponse: {
             /** Format: int32 */
             workspaces: number | string;
@@ -447,6 +520,8 @@ export interface components {
             plan: components["schemas"]["PlanName"];
             branding: components["schemas"]["GetWorkspaceSettings"];
             stripeOnboardingComplete: boolean;
+            coachTermsVersion: null | string;
+            coachTermsCurrent: boolean;
         };
         GetWorkspaceSettings: {
             logoUrl: null | string;
@@ -853,6 +928,66 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AcceptCoachTerms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptCoachTermsRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ExportWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportWorkspaceResponse"];
+                };
             };
             /** @description Not Found */
             404: {

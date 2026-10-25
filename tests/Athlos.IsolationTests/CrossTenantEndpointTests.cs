@@ -42,6 +42,29 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
         Assert.DoesNotContain("Hijacked", await storefront.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 
+    // The Terms for coaches (design §5.4): B's owner cannot accept them on A's behalf.
+    [Fact]
+    public async Task B_cannot_accept_the_coach_terms_for_A()
+    {
+        var response = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/v1/studio/{_a.Slug}/workspace/coach-terms")
+            {
+                Content = JsonContent.Create(new { termsVersion = TenancyArrange.CoachTermsVersion }),
+            },
+            _b.OwnerId, _b.TenantId, TenantRole.Owner);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // The workspace export (design §5.4): B's owner cannot download A's.
+    [Fact]
+    public async Task B_cannot_download_As_workspace_data()
+    {
+        var response = await AsOwnerOfB(HttpMethod.Get, $"/api/v1/studio/{_a.Slug}/workspace/export");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     // The coach's logo (design §8): B's owner can neither replace nor remove A's.
     [Theory]
     [InlineData("PUT")]

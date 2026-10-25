@@ -77,6 +77,9 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
 
     public FakeEntraUsers EntraUsers { get; } = new();
 
+    // Extra configuration, set before the first request (for example a newer Legal:CoachTermsVersion).
+    public Dictionary<string, string> Settings { get; } = [];
+
     // What suspending a workspace asks catalog-api to do (design §3.4).
     public FakeTenantSuspension Suspension { get; } = new();
 
@@ -85,6 +88,10 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
         base.ConfigureWebHost(builder);
         builder.UseSetting("App:PublicUrl", PublicUrl);
         builder.UseSetting("Stripe:ConnectWebhookSecret", StripeEvents.SigningSecret);
+        foreach (var (key, value) in Settings)
+        {
+            builder.UseSetting(key, value);
+        }
         if (Storage is null)
         {
             builder.UseSetting("ConnectionStrings:media", "UseDevelopmentStorage=true");

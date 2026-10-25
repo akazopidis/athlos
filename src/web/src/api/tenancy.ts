@@ -164,6 +164,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/studio/{tenantSlug}/workspace/coach-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AcceptCoachTerms"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/studio/{tenantSlug}/workspace/logo": {
         parameters: {
             query?: never;
@@ -360,6 +376,9 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AcceptCoachTermsRequest: {
+            termsVersion: string;
+        };
         AcceptInviteRequest: {
             token: string;
         };
@@ -447,6 +466,8 @@ export interface components {
             plan: components["schemas"]["PlanName"];
             branding: components["schemas"]["GetWorkspaceSettings"];
             stripeOnboardingComplete: boolean;
+            coachTermsVersion: null | string;
+            coachTermsCurrent: boolean;
         };
         GetWorkspaceSettings: {
             logoUrl: null | string;
@@ -844,6 +865,37 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["DeleteWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AcceptCoachTerms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptCoachTermsRequest"];
             };
         };
         responses: {

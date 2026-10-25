@@ -110,6 +110,7 @@ var studio = app.MapGroup("/api/v1/studio/{tenantSlug}")
     .WithTenantTransaction<TenancyDbContext>();
 studio.MapGetWorkspace();
 studio.MapUpdateWorkspace();
+studio.MapAcceptCoachTerms();
 studio.MapWorkspaceLogo();
 studio.MapPayouts();
 studio.MapStaffInvites();

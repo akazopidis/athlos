@@ -346,6 +346,42 @@
         }
       }
     },
+    "/api/v1/studio/{tenantSlug}/workspace/coach-terms": {
+      "post": {
+        "tags": [
+          "Workspace"
+        ],
+        "operationId": "AcceptCoachTerms",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptCoachTermsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/v1/studio/{tenantSlug}/workspace/logo": {
       "put": {
         "tags": [
@@ -877,6 +913,18 @@
   },
   "components": {
     "schemas": {
+      "AcceptCoachTermsRequest": {
+        "required": [
+          "termsVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "termsVersion": {
+            "maxLength": 20,
+            "type": "string"
+          }
+        }
+      },
       "AcceptInviteRequest": {
         "required": [
           "token"
@@ -1225,7 +1273,9 @@
           "status",
           "plan",
           "branding",
-          "stripeOnboardingComplete"
+          "stripeOnboardingComplete",
+          "coachTermsVersion",
+          "coachTermsCurrent"
         ],
         "type": "object",
         "properties": {
@@ -1249,6 +1299,15 @@
             "$ref": "#/components/schemas/GetWorkspaceSettings"
           },
           "stripeOnboardingComplete": {
+            "type": "boolean"
+          },
+          "coachTermsVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "coachTermsCurrent": {
             "type": "boolean"
           }
         }

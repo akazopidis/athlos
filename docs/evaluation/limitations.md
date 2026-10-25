@@ -4,6 +4,8 @@ What Athlos (v1.6.0, October 2026) does not do, or does only partly, collected i
 
 The list comes from the design (`docs/design.md`; section numbers below refer to it), the evaluation (`targets.md`, `noisy-neighbor.md`) and a review of edge cases on 16 October 2026. Edge cases that review found and fixed in v1.5.1 and v1.6.0 are not repeated here; they are in the design's §2.2.
 
+[`backlog.md`](backlog.md) turns these limitations, with the other gaps a review of the whole project found on 25 October 2026, into one ranked list of work; its items name the limitation they come from (#n).
+
 The limitations fall into three kinds:
 - **Scope.** Needed for a commercial launch, but outside a thesis about multi-tenant architecture. Most are product and legal work.
 - **Budget.** The fix exists and is known, but costs more than the €100-for-12-months budget allows.

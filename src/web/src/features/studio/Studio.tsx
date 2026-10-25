@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { readableOn } from '@/lib/color'
 import { useTitle } from '@/lib/useTitle'
 import { cn } from '@/lib/utils'
+import { CoachTermsNotice } from './CoachTermsNotice.tsx'
 import { useStudio } from './useStudio.ts'
 
 const tabs = [
@@ -70,6 +71,7 @@ export function Studio() {
           ))}
         </div>
       </nav>
+      <CoachTermsNotice />
       <Outlet />
     </div>
   )

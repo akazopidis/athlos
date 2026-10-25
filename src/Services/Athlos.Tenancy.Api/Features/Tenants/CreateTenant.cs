@@ -16,6 +16,8 @@ public static class CreateTenant
     // The Terms for coaches in force (the SPA's lib/legal.ts shows the same version); Legal:CoachTermsVersion overrides it.
     public const string CurrentCoachTermsVersion = "2026-10-24";
 
+    public static string CoachTermsInForce(IConfiguration configuration) => configuration["Legal:CoachTermsVersion"] ?? CurrentCoachTermsVersion;
+
     public sealed record Request(
         [property: Required, RegularExpression(Slugs.Pattern), StringLength(40, MinimumLength = 3)] string Slug,
         [property: Required, StringLength(100, MinimumLength = 1)] string DisplayName,
@@ -37,7 +39,7 @@ public static class CreateTenant
             return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized);
         }
 
-        var terms = configuration["Legal:CoachTermsVersion"] ?? CurrentCoachTermsVersion;
+        var terms = CoachTermsInForce(configuration);
         if (request.TermsVersion != terms)
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Read and accept the current Terms for coaches to open a workspace.",

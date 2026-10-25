@@ -126,5 +126,7 @@ app.MapEraseCustomer();
 app.MapExportCustomer();
 // Tenancy-api only (signed): before a workspace is erased, no refundable sales or open checkouts (design §3.4)
 app.MapPrepareTenantDeletion();
+// Tenancy-api only (signed): one workspace's sales and discount codes for its owner's export (design §5.4)
+app.MapExportTenant();
 
 app.Run();

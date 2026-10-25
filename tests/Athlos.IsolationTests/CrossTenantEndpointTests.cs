@@ -56,6 +56,15 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    // The workspace export (design §5.4): B's owner cannot download A's.
+    [Fact]
+    public async Task B_cannot_download_As_workspace_data()
+    {
+        var response = await AsOwnerOfB(HttpMethod.Get, $"/api/v1/studio/{_a.Slug}/workspace/export");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     // The coach's logo (design §8): B's owner can neither replace nor remove A's.
     [Theory]
     [InlineData("PUT")]

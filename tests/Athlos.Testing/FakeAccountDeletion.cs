@@ -69,3 +69,22 @@ public sealed class FakeCustomerExport : ICustomerExport
             System.Text.Json.JsonSerializer.SerializeToElement(new { saved = Array.Empty<object>() })));
     }
 }
+
+// The other services' workspace export endpoints, as tenancy sees them: fixed parts, or a failure.
+public sealed class FakeTenantExport : Athlos.Tenancy.Api.Features.Workspace.ITenantExport
+{
+    public bool Failing { get; set; }
+
+    public Task<Athlos.Tenancy.Api.Features.Workspace.TenantData> GetAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        if (Failing)
+        {
+            throw new HttpRequestException("ordering-api is not reachable");
+        }
+
+        return Task.FromResult(new Athlos.Tenancy.Api.Features.Workspace.TenantData(
+            System.Text.Json.JsonSerializer.SerializeToElement(new { programs = new[] { new { title = "Strong start", tenantId } } }),
+            System.Text.Json.JsonSerializer.SerializeToElement(new { sales = Array.Empty<object>() }),
+            System.Text.Json.JsonSerializer.SerializeToElement(new { reviews = Array.Empty<object>() })));
+    }
+}

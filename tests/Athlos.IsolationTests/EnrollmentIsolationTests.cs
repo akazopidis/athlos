@@ -49,6 +49,20 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         { "POST", $"/api/v1/admin/reviews/{Guid.Empty}/keep" },
     };
 
+    // A workspace export (design §5.4) holds that coach's programs and reviews, and none of another's;
+    // like every internal endpoint it needs the gateway signature.
+    [Fact]
+    public async Task As_workspace_export_holds_As_programs_only()
+    {
+        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{_a.TenantId}/export"));
+        var export = await response.Content.ReadAsStringAsync(Cancel);
+        var unsigned = await _api.CreateClient().GetAsync($"/internal/tenants/{_a.TenantId}/export", Cancel);
+
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.Unauthorized), (response.StatusCode, unsigned.StatusCode));
+        Assert.Contains(_alicesProgram.ProgramId.ToString(), export, StringComparison.Ordinal);
+        Assert.DoesNotContain(_bobsProgram.ProgramId.ToString(), export, StringComparison.Ordinal);
+    }
+
     [Theory]
     [MemberData(nameof(AllEndpoints))]
     public async Task Unsigned_requests_are_rejected(string method, string path)

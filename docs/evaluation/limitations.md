@@ -56,8 +56,9 @@ The limitations fall into three kinds:
 
 ### 3. The data export is one synchronous JSON file
 - **Built (v1.12.0, design §5.4):** "Download my data" (`GET /api/v1/me/export` on tenancy-api) gathers the user's own rows from every service through signed internal routes and hands back one JSON file: the rights of access and portability (GDPR articles 15 and 20) next to erasure (§5.2).
-- **Missing:** an asynchronous export for large accounts, and a coach's export of their workspace (programs, sales).
-- **Why:** a customer's data is small; one request is enough.
+- **Built (v1.17.0):** the owner's workspace export (`GET /api/v1/studio/{slug}/workspace/export`): the workspace and team, programs with their workouts, sales and discount codes, customers per program and reviews, gathered the same way from each service's signed `/internal/tenants/{id}/export`.
+- **Missing:** an asynchronous export for large accounts and large workspaces.
+- **Why:** a customer's data is small, and a thesis-sized workspace too; one request is enough.
 - **Impact:** the export waits for the slowest service, and a cold start can make the first try time out (it answers 502 and the user tries again).
 - **Solution:** a queued export job writing the file to Blob Storage and emailing a short-lived link.
 

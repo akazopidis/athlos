@@ -98,6 +98,29 @@ public sealed class TenancyApiTests(AthlosDatabases database) : IAsyncLifetime
         Assert.Equal(("2026-12-01", true), (after.GetProperty("coachTermsVersion").GetString(), after.GetProperty("coachTermsCurrent").GetBoolean()));
     }
 
+    // The owner's workspace export (design §5.4): one file with the workspace, its team and each
+    // service's part; staff cannot download it, and a service that cannot answer gives 502, not a part.
+    [Fact]
+    public async Task The_owner_downloads_the_workspace_data_and_staff_cannot()
+    {
+        var workspace = await _api.CreateWorkspace();
+        Task<HttpResponseMessage> Export(TenantRole role) => _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Get, $"/api/v1/studio/{workspace.Slug}/workspace/export"), workspace.OwnerId, workspace.TenantId, role);
+
+        var owner = await Export(TenantRole.Owner);
+        var body = await owner.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        var staff = await Export(TenantRole.Staff);
+        _api.TenantExport.Failing = true;
+        var failing = await Export(TenantRole.Owner);
+
+        Assert.Equal(HttpStatusCode.OK, owner.StatusCode);
+        Assert.StartsWith($"attachment; filename=\"athlos-{workspace.Slug}-", owner.Content.Headers.ContentDisposition?.ToString(), StringComparison.Ordinal);
+        Assert.Equal((workspace.Slug, TenancyArrange.CoachTermsVersion), (body.GetProperty("workspace").GetProperty("slug").GetString(), body.GetProperty("workspace").GetProperty("coachTermsVersion").GetString()));
+        Assert.Equal("Owner", body.GetProperty("team")[0].GetProperty("role").GetString());
+        Assert.Equal(workspace.TenantId.ToString(), body.GetProperty("programs").GetProperty("programs")[0].GetProperty("tenantId").GetString());
+        Assert.Equal((HttpStatusCode.Forbidden, HttpStatusCode.BadGateway), (staff.StatusCode, failing.StatusCode));
+    }
+
     [Fact]
     public async Task Creating_a_workspace_requires_sign_in()
     {

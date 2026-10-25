@@ -1,10 +1,9 @@
 using Athlos.Media;
 using Athlos.Tenancy.Api.Data;
 using Athlos.Tenancy.Api.Features.Plans;
+using Athlos.Tenancy.Api.Features.Tenants;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
-
-using Athlos.Tenancy.Api.Features.Tenants;
 
 namespace Athlos.Tenancy.Api.Features.Workspace;
 

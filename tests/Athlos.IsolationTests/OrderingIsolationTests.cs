@@ -79,6 +79,7 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         { "PUT", $"/api/v1/studio/some-coach/discounts/{Guid.Empty}" },
         { "DELETE", $"/api/v1/studio/some-coach/discounts/{Guid.Empty}" },
         { "GET", "/api/v1/me/cart" },
+        { "GET", $"/internal/tenants/{Guid.Empty}/export" },
         { "PUT", "/api/v1/me/cart" },
     };
 
@@ -296,6 +297,18 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         Assert.Contains(_aliceBuysFromB.ToString(), export, StringComparison.Ordinal);
         Assert.DoesNotContain(_bobBuysFromA.ToString(), export, StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.Unauthorized, unsigned.StatusCode);
+    }
+
+    // A workspace export (design §5.4) holds that coach's sales, from every customer, and none of
+    // another coach's.
+    [Fact]
+    public async Task As_workspace_export_holds_As_sales_only()
+    {
+        var export = await Body(await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{_a.TenantId}/export")));
+
+        Assert.Contains(_aliceBuysFromA.ToString(), export, StringComparison.Ordinal);
+        Assert.Contains(_bobBuysFromA.ToString(), export, StringComparison.Ordinal);
+        Assert.DoesNotContain(_aliceBuysFromB.ToString(), export, StringComparison.Ordinal);
     }
 
     // A receipt is the customer's own: Bob gets 404 for Alice's checkout (design §5.4).

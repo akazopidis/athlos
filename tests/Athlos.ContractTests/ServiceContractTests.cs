@@ -9,6 +9,7 @@ using Athlos.Ordering.Api.Features.Checkout;
 using Athlos.Ordering.Api.Features.Discounts;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Api.Features.Account;
+using Athlos.Tenancy.Api.Features.Workspace;
 using Athlos.Testing;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,7 +23,7 @@ namespace Athlos.ContractTests;
 //   ordering   -> catalog (offer, shown discount code), tenancy (payout account, membership)
 //   enrollment -> catalog (content, on sale, rating)
 //   catalog    -> tenancy (payout readiness, plan quota), enrollment (program updated)
-//   tenancy    -> ordering, enrollment, catalog (customer export and erasure)
+//   tenancy    -> ordering, enrollment, catalog (customer export and erasure, workspace export)
 public sealed class ServiceContractTests(AthlosDatabases databases, AthlosStorage storage) : IAsyncLifetime
 {
     private readonly TenancyApiFactory _tenancy = new(databases, storage: storage);
@@ -142,6 +143,22 @@ public sealed class ServiceContractTests(AthlosDatabases databases, AthlosStorag
         Assert.Equal(0, export.Orders.GetProperty("orders").GetArrayLength());
         Assert.Equal(0, export.Saved.GetProperty("saved").GetArrayLength());
         Assert.Equal(0, afterErasure.Programs.GetProperty("programs").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Tenancy_gathers_a_workspace_export_from_every_service()
+    {
+        var coach = CatalogArrange.NewCoach();
+        var program = await _catalog.CreateProgram(coach, publish: true);
+        var clients = Clients((ServiceTenantErasure.Catalog, _catalog), (ServiceTenantErasure.Ordering, _ordering), (ServiceTenantErasure.Enrollment, _enrollment));
+
+        var export = await new ServiceTenantExport(clients).GetAsync(coach.TenantId, Cancel);
+
+        var exported = export.Programs.GetProperty("programs")[0];
+        Assert.Equal((program.Id, program.Title), (exported.GetProperty("id").GetGuid(), exported.GetProperty("title").GetString()));
+        Assert.Equal("Squat day", exported.GetProperty("workouts")[0].GetProperty("title").GetString());
+        Assert.Equal((0, 0), (export.Sales.GetProperty("sales").GetArrayLength(), export.Sales.GetProperty("discountCodes").GetArrayLength()));
+        Assert.Equal((0, 0), (export.Customers.GetProperty("programs").GetArrayLength(), export.Customers.GetProperty("reviews").GetArrayLength()));
     }
 
     // An HttpClient that signs like AddSignedRequests, against a service under test.

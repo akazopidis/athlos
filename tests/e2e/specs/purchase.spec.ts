@@ -1,12 +1,16 @@
 import { expect, test, type Page } from '@playwright/test'
-import { desktopOnly, signIn, skipWithoutTestUser } from '../signIn'
+import { desktopOnly, email, signIn, skipWithoutTestUser } from '../signIn'
+import { canRefund, refundTestPurchases } from '../stripe'
 
 // A whole purchase, then a review (design §2.2, §2.4), on staging in Stripe's test mode:
 // 1. Buy now, pay on Stripe's page with Stripe's published test card (4242 4242 4242 4242), and come
 //    back to "My programs", where the program appears once the webhook is handled.
 // 2. Open the program, post a review, see it on the program's public page, and delete it again.
-// Paying happens once per stage: the test customer then owns the program and later runs skip straight
-// to the review. The program is a separate one from E2E_PROGRAM_PATH (the checkout test needs one the
+// 3. Refund the payment at Stripe with the stage's test key (E2E_STRIPE_SECRET_KEY) and wait until the
+//    program page offers "Buy now" again: Stripe's charge.refunded event reached ordering-api, which
+//    refunded the order, and enrollment removed the access. So every run pays again. Without the key
+//    the customer keeps the program, and later runs skip straight to the review.
+// The program is a separate one from E2E_PROGRAM_PATH (the checkout test needs one the
 // customer does not own): E2E_PURCHASE_PROGRAM_PATH, a program of a coach who finished Stripe
 // onboarding, for example /c/some-coach/programs/some-other-program. Without it the test is skipped.
 const programPath = process.env.E2E_PURCHASE_PROGRAM_PATH || undefined
@@ -49,6 +53,16 @@ test('a customer buys a program with a test card, then reviews it', async ({ pag
   await page.getByRole('link', { name: 'Open program' }).click()
   await page.getByRole('button', { name: 'Delete review' }).click()
   await expect(page.getByRole('button', { name: 'Post review' })).toBeVisible()
+
+  if (!canRefund) {
+    testInfo.annotations.push({ type: 'note', description: 'No Stripe test key: the customer keeps the program, so the next run will not pay.' })
+    return
+  }
+  expect(await refundTestPurchases(email!, title)).toBeGreaterThan(0)
+  await expect(async () => {
+    await page.goto(programPath!)
+    await expect(page.getByRole('button', { name: 'Buy now' })).toBeVisible({ timeout: 10_000 })
+  }).toPass({ timeout: 180_000, intervals: [5_000] })
 })
 
 // Buy now, then Stripe's hosted page in test mode, then back to Athlos until access exists.

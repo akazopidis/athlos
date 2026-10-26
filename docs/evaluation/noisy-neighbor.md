@@ -8,7 +8,7 @@ Run on 5 October 2026 against **staging** (`sha-e2f52d2`), as design §4 describ
 - **Tenant A**: `demo-stride` (Free plan, 20 req/s). The same request for its own storefront at 300 req/s, in the two flood runs.
 - **Runs**: 2 minutes each, from one machine in Greece to `italynorth`, after a warm-up that waits until both coaches answer in under a second, so cold starts are not measured.
   - *Limits off*: `RateLimits__Enabled=false` set on the staging gateway for that run only, then removed.
-- **Fixed**: catalog-api up to 3 replicas with `Maximum Pool Size=3` each; gateway up to 2 replicas.
+- **Fixed**: catalog-api up to 3 replicas with `Maximum Pool Size=3` each; gateway up to 2 replicas. Since v1.18.0 the connection budget allows staging 2 catalog replicas with a pool of 2 each (design §7), so a rerun starts from a smaller catalog-api.
 
 ## Results
 

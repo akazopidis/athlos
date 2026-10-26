@@ -30,11 +30,11 @@ These seven are cheap and urgent: a broken project rule, an unguarded isolation 
 |---|---|---|---|---|---|---|
 | 1 | Isolation cases for two endpoints | Breaks the rule that every endpoint has an isolation case: `GET /api/v1/me/export` and `POST /internal/tenants/{id}/prepare-deletion`. | Add unsigned-request and cross-tenant cases to the isolation suite. | S | Code | Done |
 | 2 | Schema-wide RLS check | RLS is tested table by table; nothing asserts that every `tenant_id` table has RLS enabled, forced and a policy, so a forgetful migration passes CI. | One test per service database after migrations, with an allow-list for customer-owned and work-queue tables. | S | Code | Done |
-| 3 | Database connection budget | 4 services × 3 replicas × pool 3 × 3 stages = 108 connections, against about 50 on the B1ms; a staging load test during prod traffic can take every stage down. | `maxReplicas: 1` on dev and a pool of 2 on dev and staging. The alert on active connections waits (item 3 below). | S | Code | Not started |
+| 3 | Database connection budget | 4 services × 3 replicas × pool 3 × 3 stages = 108 connections, against 35 for the app roles on the B1ms (50, 15 reserved); a staging load test during prod traffic can take every stage down. | Pool 2 per replica; at most 2 replicas per database service in staging, 1 in dev and prod (32 in all); the migrator caps each database at twice its share. The alert on active connections waits (item 3 below). | S | Code | Done |
 | 4 | "Yours to keep" wording | The home page ("Buy once, keep it") and program pages ("yours to keep") promise permanent access; buyers lose it when a coach deletes the workspace (#4). | Change the wording now; the real fix is item 16. | S | Code | Done |
 | 5 | Payment path re-tested on every deploy | The test customer owns the purchase program, so the e2e run no longer pays: payment, webhook and enrollment go untested after the first run. | Refund through Stripe's test API at the end of the spec (staging key from Key Vault), so every run pays again. | M | Code | In progress |
 | 6 | Audit trail for admin actions | Suspensions, plan changes, review decisions and payout retries record neither the admin nor a reason. | An admin-actions log with a required reason, shown in `/admin` and sent in the suspension email. | M | Code | Done |
-| 7 | Content in prod | The evaluation is meant to run on prod with demo data, but prod is never seeded and has no programs. | Create showcase workspaces in prod (with Stripe test onboarding), or decide that demos run on staging. | S | You | Not started |
+| 7 | Content in prod | The evaluation is meant to run on prod with demo data, but prod is never seeded and has no programs. | Create showcase workspaces in prod (with Stripe test onboarding), or decide that demos run on staging. | S | You | Done |
 
 ## Priority 2: before real customers
 
@@ -152,9 +152,9 @@ Spending so far is about €3–4 a month against the €100 credit (from the Oc
 | Decision | My recommendation | Items |
 |---|---|---|
 | What runs after the free year ends (about late September 2027): PostgreSQL ≈ €15/month, Container Registry Standard ≈ €17/month | Set an end date, or move images to GitHub's registry and keep one database; this one cannot wait if the thesis runs past September 2027 | all |
-| How long a coach has before the admin refunds | 3 working days | 9 |
-| Buyers' access after a coach leaves | Keep a read-only copy for buyers | 4, 16 |
-| Demo on prod or on staging | Prod, with showcase content, warmed up by hand before a demo | 7 |
+| How long a coach has before the admin refunds | Decided 26 October 2026: 3 working days | 9 |
+| Buyers' access after a coach leaves | Decided 26 October 2026: a read-only copy for buyers | 4, 16 |
+| Demo on prod or on staging | Decided 26 October 2026: staging, which has the demo data | 7 |
 | Which free rate limit across replicas | The plan's limit divided by `maxReplicas` (simplest) | 28 |
 | Test accounts (a coach, an admin, several customers) | Create them in the External ID tenant | 31, 32, 39 |
 | Deadline for accepting new coach terms | 30 days after a change | 47 |

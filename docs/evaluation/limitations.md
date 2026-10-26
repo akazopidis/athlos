@@ -114,10 +114,11 @@ The limitations fall into three kinds:
 - **Solution:** a scripted point-in-time restore to a temporary server, timed and recorded like the other evaluation numbers. Then longer retention, Blob soft delete, and with another region, geo-redundant backups.
 
 ### 11. One PostgreSQL server for all three stages
-- **Missing:** separate database servers per stage. Dev, staging and prod have separate databases and roles on one Burstable B1ms server (free for 12 months), with at most 3 connections per service (CLAUDE.md).
+- **Missing:** separate database servers per stage. Dev, staging and prod have separate databases and roles on one Burstable B1ms server (free for 12 months), within one connection budget: the app roles share 35 connections, so since v1.18.0 each service replica has a pool of 2, database services run at most 2 replicas in staging and 1 in dev and prod, and each database is capped (design §7).
 - **Why:** budget. A second server is about €13 a month or more.
 - **Impact:**
   - a load test on staging competes with prod for the same CPU and memory;
+  - the connection budget limits scale-out: a database service runs at most 2 replicas in staging and 1 in prod, where the stress test of v1.12.0 saw catalog-api recover by scaling to 3 (`stress.md`);
   - a server outage or upgrade takes down all three stages at once;
   - stage isolation rests on database roles, not on separate servers;
   - B1ms is a burstable tier: sustained load uses up its CPU credits.

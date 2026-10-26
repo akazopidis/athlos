@@ -23,7 +23,7 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
 
 ## Rules that must not be broken
 
-- One PostgreSQL server (B1ms) serves all environments. Keep `Maximum Pool Size=3` per service and never add a second server.
+- One PostgreSQL server (B1ms) serves all environments; never add a second server. Its app roles share 35 connections (50, of which 15 are reserved). Keep the connection budget in `infra/env.bicep`: pool 2 per service replica, at most 2 replicas per database service in staging and 1 in dev and prod (32 in all; the migrator caps each database at twice its share). Size any change to pools or replicas against it (design §7).
 
 - **Tenant isolation is the point of the thesis.**
   - Every tenant-owned entity implements `ITenantOwned` and gets the EF global query filter.

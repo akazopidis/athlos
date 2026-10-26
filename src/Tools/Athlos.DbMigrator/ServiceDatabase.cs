@@ -5,7 +5,7 @@ using Npgsql;
 namespace Athlos.DbMigrator;
 
 // Prepares one service's database (design §3.2 pitfalls, §11):
-// 1. the database exists, owned by the migrator;
+// 1. the database exists, owned by the migrator, with its stage's connection cap (design §7);
 // 2. the service's app role exists (a password role locally, the service's managed identity in
 //    Azure) and can never bypass RLS;
 // 3. migrations (tables, indexes, RLS policies) run as the owner;
@@ -21,6 +21,16 @@ public static partial class ServiceDatabase
         {
             await ExecuteAsync(admin, $"CREATE DATABASE {database};", cancellationToken);
         }
+    }
+
+    // Caps the connections to one database (ALTER DATABASE ... CONNECTION LIMIT, which the owner may
+    // set; -1 is no cap). In Azure, twice the stage's share for that service: the Bicep sizes pools and
+    // replicas to the share, and the cap keeps a stage that is set up wrong from starving the others.
+    public static async Task LimitConnectionsAsync(NpgsqlDataSource admin, string database, int limit, CancellationToken cancellationToken)
+    {
+        RequireIdentifier(database);
+        ArgumentOutOfRangeException.ThrowIfLessThan(limit, -1);
+        await ExecuteAsync(admin, $"ALTER DATABASE {database} CONNECTION LIMIT {limit};", cancellationToken);
     }
 
     // Azure only: maps the service's managed identity to a PostgreSQL role with the Athlos name

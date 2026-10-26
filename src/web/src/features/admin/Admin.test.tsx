@@ -15,6 +15,12 @@ const tokenWith = (claims: object) => `e30.${btoa(JSON.stringify(claims)).replac
 
 const workspace = { id: 'w1', slug: 'anna', displayName: 'Anna Coaching', status: 'Active', plan: 'Free', readyToSell: true, createdAt: '2026-10-01T00:00:00Z' }
 const metrics = { workspaces: 3, active: 2, suspended: 1, deleted: 0, activeFree: 1, activePro: 1, readyToSell: 1, newLast30Days: 3 }
+const action = (id: string, kind: string, subject: string, at: string) => ({ id, adminId: '0199aaaa-0000-7000-8000-000000000000', action: kind, subject, detail: null, reason: `Reason ${id}`, at })
+const logs: Record<string, object[]> = {
+  '/api/v1/admin/actions': [action('a1', 'WorkspaceSuspended', 'Ben Runs (/c/ben)', '2026-10-20T10:00:00Z')],
+  '/api/v1/admin/reviews/actions': [action('a2', 'ReviewHidden', 'Strong start (/c/anna)', '2026-10-22T10:00:00Z')],
+  '/api/v1/admin/payouts/actions': [],
+}
 
 function renderAs(claims: object) {
   const auth = signedInAs('admin', tokenWith(claims))
@@ -26,6 +32,8 @@ function renderAs(claims: object) {
       const path = new URL(request.url).pathname
       if (path === '/api/v1/admin/metrics') return Response.json(metrics)
       if (path === '/api/v1/admin/tenants') return Response.json({ items: [workspace], page: 1, pageSize: 20, totalCount: 1 })
+      if (path in logs) return Response.json(logs[path])
+      if (path === '/api/v1/admin/payouts' || path === '/api/v1/admin/reviews/reports') return Response.json([])
       return Response.json({ ...workspace, status: 'Suspended' })
     }),
   )
@@ -55,15 +63,27 @@ test('a coach or customer sees that the page is for admins only', async () => {
   expect(requests.some((r) => r.url.includes('/api/v1/admin/'))).toBe(false)
 })
 
-test('the admin sees the counts and suspends a workspace', async () => {
+test('the admin sees the counts and suspends a workspace, giving a reason', async () => {
   const requests = renderAs({ roles: ['Platform.Admin'] })
 
   expect(await screen.findByText('Anna Coaching')).toBeInTheDocument()
   expect(screen.getByText('1 Free · 1 Pro')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Suspend' })).toBeDisabled()
+  fireEvent.change(screen.getByLabelText('Reason for your next action'), { target: { value: '  Sells copied programs  ' } })
   fireEvent.click(screen.getByRole('button', { name: 'Suspend' }))
 
   await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true))
   const put = requests.find((r) => r.method === 'PUT')!
   expect(new URL(put.url).pathname).toBe('/api/v1/admin/tenants/w1/status')
-  expect(await put.json()).toEqual({ status: 'Suspended' })
+  expect(await put.json()).toEqual({ status: 'Suspended', reason: 'Sells copied programs' })
+  await waitFor(() => expect(screen.getByLabelText('Reason for your next action')).toHaveValue(''))
+})
+
+test('the log shows the admin actions of every service together, newest first', async () => {
+  renderAs({ roles: ['Platform.Admin'] })
+
+  const entries = await screen.findAllByText(/^Reason a\d$/)
+  expect(entries.map((e) => e.textContent)).toEqual(['Reason a2', 'Reason a1'])
+  expect(screen.getByText('Review hidden')).toBeInTheDocument()
+  expect(screen.getByText('Ben Runs (/c/ben)')).toBeInTheDocument()
 })

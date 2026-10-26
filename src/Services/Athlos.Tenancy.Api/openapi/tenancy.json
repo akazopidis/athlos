@@ -942,6 +942,29 @@
           }
         }
       }
+    },
+    "/api/v1/admin/actions": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminListWorkspaceActions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminActionsItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -983,6 +1006,57 @@
           },
           "displayName": {
             "type": "string"
+          }
+        }
+      },
+      "AdminActionKind": {
+        "enum": [
+          "WorkspaceSuspended",
+          "WorkspaceReactivated",
+          "PlanChanged",
+          "ReviewHidden",
+          "ReviewKept",
+          "PayoutRetried"
+        ]
+      },
+      "AdminActionsItem": {
+        "required": [
+          "id",
+          "adminId",
+          "action",
+          "subject",
+          "detail",
+          "reason",
+          "at"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "$ref": "#/components/schemas/AdminActionKind"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -1769,23 +1843,37 @@
       },
       "SetTenantPlanRequest": {
         "required": [
-          "plan"
+          "plan",
+          "reason"
         ],
         "type": "object",
         "properties": {
           "plan": {
             "$ref": "#/components/schemas/PlanName"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
       "SetTenantStatusRequest": {
         "required": [
-          "status"
+          "status",
+          "reason"
         ],
         "type": "object",
         "properties": {
           "status": {
             "$ref": "#/components/schemas/TenantStatus"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

@@ -196,8 +196,8 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
     // the gateway's tenant headers for B, is refused for any workspace (403 for every id, so nothing
     // about A leaks), and A is unchanged.
     [Theory]
-    [InlineData("/status", "{\"status\":\"Suspended\"}")]
-    [InlineData("/plan", "{\"plan\":\"Pro\"}")]
+    [InlineData("/status", "{\"status\":\"Suspended\",\"reason\":\"Spam\"}")]
+    [InlineData("/plan", "{\"plan\":\"Pro\",\"reason\":\"Upgrade\"}")]
     public async Task B_cannot_suspend_A_or_change_As_plan(string path, string body)
     {
         var response = await _api.SendAsGateway(
@@ -220,7 +220,7 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
     public async Task Suspending_A_leaves_B_active()
     {
         var response = await _api.SendAsGateway(
-            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/admin/tenants/{_a.TenantId}/status") { Content = JsonContent.Create(new { status = "Suspended" }) },
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/admin/tenants/{_a.TenantId}/status") { Content = JsonContent.Create(new { status = "Suspended", reason = "Breaks the terms" }) },
             Guid.CreateVersion7(), appRoles: ["Platform.Admin"]);
         var aStorefront = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{_a.Slug}"));
         var bStorefront = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{_b.Slug}"));

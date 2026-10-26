@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Enrollment.Api.Data;
 
 public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> options, ITenantContext tenant)
-    : TenantDbContext(options, tenant), IHasOutbox
+    : TenantDbContext(options, tenant), IHasOutbox, IHasAdminActions
 {
     public DbSet<ProgramEnrollment> Enrollments => Set<ProgramEnrollment>();
 
@@ -17,6 +17,8 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
     public DbSet<ReviewReport> ReviewReports => Set<ReviewReport>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    public DbSet<AdminAction> AdminActions => Set<AdminAction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -79,6 +81,7 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
         });
 
         modelBuilder.ConfigureOutbox();
+        modelBuilder.ConfigureAdminActions();
 
         base.OnModelCreating(modelBuilder);
     }

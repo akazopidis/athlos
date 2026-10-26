@@ -251,6 +251,36 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal((2, 3m), _api.Ratings.For(_coach.TenantId, program.ProgramId));
     }
 
+    // The audit trail (design §3.4): a decision needs a reason, and each is recorded with its admin and
+    // reason, naming the program and the rating but not the review's author or text.
+    [Fact]
+    public async Task Review_decisions_need_a_reason_and_are_recorded_without_the_authors_data()
+    {
+        var program = _api.Programs.Add(_coach.TenantId, _coach.Slug);
+        var other = Guid.CreateVersion7();
+        await _api.Deliver(Paid(_customer, _coach.TenantId, _coach.Slug, program));
+        await WriteReview(_customer, program.ProgramId, 2, "Contact me at a secret place");
+        var reviewId = (await Read<PublicReviews>(await PublicList(program.ProgramId))).Items.Single().Id;
+        await ReportReview(other, program.ProgramId, reviewId, "Spam");
+        var admin = Guid.CreateVersion7();
+
+        var withoutReason = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/reviews/{reviewId}/hide") { Content = JsonContent.Create(new { reason = "" }) },
+            admin, appRoles: ["Platform.Admin"]);
+        var hidden = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/reviews/{reviewId}/hide") { Content = JsonContent.Create(new { reason = "Shares contact details" }) },
+            admin, appRoles: ["Platform.Admin"]);
+        var log = await (await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/admin/reviews/actions"), admin, appRoles: ["Platform.Admin"]))
+            .Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var coachReads = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/admin/reviews/actions"), _coach.OwnerId, _coach.TenantId, TenantRole.Owner);
+
+        Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.NoContent, HttpStatusCode.Forbidden), (withoutReason.StatusCode, hidden.StatusCode, coachReads.StatusCode));
+        var entry = Assert.Single(System.Text.Json.JsonDocument.Parse(log).RootElement.EnumerateArray(), a => a.GetProperty("subject").GetString()!.StartsWith(program.Title, StringComparison.Ordinal));
+        Assert.Equal(("ReviewHidden", admin, "Shares contact details", "2-star review"),
+            (entry.GetProperty("action").GetString(), entry.GetProperty("adminId").GetGuid(), entry.GetProperty("reason").GetString(), entry.GetProperty("detail").GetString()));
+        Assert.DoesNotContain("secret place", log, StringComparison.Ordinal);
+    }
+
     // The automatic check (design §2.4): a comment with contact details is hidden at once, waits in the
     // admin's queue as a report from Athlos, and emails the coach nothing; "keep" shows it again, and a
     // later edit the check catches holds it back again.
@@ -353,7 +383,8 @@ public sealed class ReviewTests(AthlosDatabases databases) : IAsyncLifetime
             reporter);
 
     private Task<HttpResponseMessage> AsAdmin(HttpMethod method, string path) =>
-        _api.SendAsGateway(new HttpRequestMessage(method, path), Guid.CreateVersion7(), appRoles: ["Platform.Admin"]);
+        _api.SendAsGateway(new HttpRequestMessage(method, path) { Content = method == HttpMethod.Post ? JsonContent.Create(new { reason = "Checked against the report" }) : null },
+            Guid.CreateVersion7(), appRoles: ["Platform.Admin"]);
 
     private Task<HttpResponseMessage> WriteReview(Guid customerId, Guid programId, int rating, string? comment) =>
         _api.SendAsGateway(

@@ -72,6 +72,7 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         { "POST", "/webhooks/stripe" },
         { "GET", "/api/v1/admin/payouts" },
         { "POST", $"/api/v1/admin/payouts/{Guid.Empty}/retry" },
+        { "GET", "/api/v1/admin/payouts/actions" },
         { "POST", "/api/v1/orders/discount" },
         { "GET", $"/api/v1/me/orders/receipts/{Guid.Empty}" },
         { "GET", "/api/v1/studio/some-coach/discounts" },

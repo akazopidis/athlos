@@ -10,7 +10,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
 import { useApp } from '@/lib/AppContext'
 import { formatMoney } from '@/lib/money'
 import { problemTitle } from '@/lib/problem'
@@ -20,8 +22,15 @@ import { useTitle } from '@/lib/useTitle'
 type Workspace = components['schemas']['ListTenantsItem']
 type Status = components['schemas']['TenantStatus']
 type Plan = components['schemas']['PlanName']
+type Action = components['schemas']['AdminActionsItem']
 
 const PageSize = 20
+const MinReason = 3
+
+// Every admin action states why (design §3.4): the reason goes with the change into the service's
+// audit trail, and a suspended coach is told it. One field serves every action on the page, and is
+// cleared after each one.
+type Reason = { text: string; ready: boolean; clear: () => void }
 
 // The platform admin (design §1, §3.4): every workspace, suspending and reactivating them, and
 // assigning plans. Only for users with the Platform.Admin app role; tenancy-api enforces it.
@@ -29,6 +38,8 @@ export function Admin() {
   useTitle('Platform admin')
   const { auth } = useApp()
   const isAdmin = usePlatformAdmin()
+  const [text, setText] = useState('')
+  const reason: Reason = { text: text.trim(), ready: text.trim().length >= MinReason, clear: () => setText('') }
 
   if (!auth?.account || !isAdmin) {
     return (
@@ -42,9 +53,26 @@ export function Admin() {
     <div className="space-y-12">
       <PageHeader eyebrow="Platform admin" title="Workspaces" description="Every coach on Athlos. Suspend a workspace to take it off the marketplace; its customers keep what they bought." />
       <Metrics />
-      <Payouts />
-      <ReportedReviews />
-      <Workspaces />
+      <Card>
+        <CardContent className="space-y-2">
+          <Label htmlFor="admin-reason">Reason for your next action</Label>
+          <Textarea
+            id="admin-reason"
+            maxLength={500}
+            rows={2}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="For example: sells programs copied from another coach"
+          />
+          <p className="text-xs text-muted-foreground">
+            Every action below needs one. It is kept in the log with your admin id, and a coach whose workspace you suspend receives it by email.
+          </p>
+        </CardContent>
+      </Card>
+      <Payouts reason={reason} />
+      <ReportedReviews reason={reason} />
+      <Workspaces reason={reason} />
+      <RecentActions />
     </div>
   )
 }
@@ -86,7 +114,7 @@ function Metrics() {
 // Stripe account. Hidden while there are none.
 // Reviews someone reported (design §2.4), one entry per review: hide it (it leaves the program's page
 // and rating) or keep it. Either closes its reports.
-function ReportedReviews() {
+function ReportedReviews({ reason }: { reason: Reason }) {
   const { api } = useApp()
   const queryClient = useQueryClient()
   const reports = useQuery({
@@ -95,13 +123,14 @@ function ReportedReviews() {
   })
   const decide = useMutation({
     mutationFn: async ({ reviewId, hide }: { reviewId: string; hide: boolean }) => {
-      const params = { params: { path: { reviewId } } }
+      const params = { params: { path: { reviewId } }, body: { reason: reason.text } }
       const { error, response } = hide
         ? await api.POST('/api/v1/admin/reviews/{reviewId}/hide', params)
         : await api.POST('/api/v1/admin/reviews/{reviewId}/keep', params)
       if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not save the decision.')
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin', 'review-reports'] }),
+    onSuccess: reason.clear,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin'] }),
   })
 
   if (!reports.data?.length) return null
@@ -130,10 +159,10 @@ function ReportedReviews() {
               {r.notes.length > 0 && ` · Notes: ${r.notes.join(' / ')}`}
             </p>
             <div className="flex gap-2">
-              <Button size="sm" variant="destructive" disabled={decide.isPending} onClick={() => decide.mutate({ reviewId: r.reviewId, hide: true })}>
+              <Button size="sm" variant="destructive" disabled={decide.isPending || !reason.ready} onClick={() => decide.mutate({ reviewId: r.reviewId, hide: true })}>
                 Hide review
               </Button>
-              <Button size="sm" variant="outline" disabled={decide.isPending} onClick={() => decide.mutate({ reviewId: r.reviewId, hide: false })}>
+              <Button size="sm" variant="outline" disabled={decide.isPending || !reason.ready} onClick={() => decide.mutate({ reviewId: r.reviewId, hide: false })}>
                 Keep it
               </Button>
             </div>
@@ -144,7 +173,7 @@ function ReportedReviews() {
   )
 }
 
-function Payouts() {
+function Payouts({ reason }: { reason: Reason }) {
   const { api } = useApp()
   const queryClient = useQueryClient()
   const payouts = useQuery({
@@ -153,11 +182,12 @@ function Payouts() {
   })
   const retry = useMutation({
     mutationFn: async (orderId: string) => {
-      const { data, error } = await api.POST('/api/v1/admin/payouts/{orderId}/retry', { params: { path: { orderId } } })
+      const { data, error } = await api.POST('/api/v1/admin/payouts/{orderId}/retry', { params: { path: { orderId } }, body: { reason: reason.text } })
       if (!data) throw new Error(problemTitle(error) ?? 'Could not retry the payout.')
+      reason.clear()
       if (!data.paid) throw new Error('Stripe still refused the transfer; it stays queued.')
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin', 'payouts'] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin'] }),
   })
 
   if (!payouts.data?.length) return null
@@ -196,7 +226,7 @@ function Payouts() {
                   <TableCell className="hidden font-mono text-xs sm:table-cell">{p.lastError ?? '—'}</TableCell>
                   <TableCell className="hidden text-muted-foreground md:table-cell">{new Date(p.nextAttemptAt).toLocaleString()}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="outline" disabled={retry.isPending} onClick={() => retry.mutate(p.orderId)}>
+                    <Button size="sm" variant="outline" disabled={retry.isPending || !reason.ready} onClick={() => retry.mutate(p.orderId)}>
                       Retry now
                     </Button>
                   </TableCell>
@@ -210,7 +240,7 @@ function Payouts() {
   )
 }
 
-function Workspaces() {
+function Workspaces({ reason }: { reason: Reason }) {
   const { api } = useApp()
   const queryClient = useQueryClient()
   const [query, setQuery] = useState('')
@@ -227,20 +257,22 @@ function Workspaces() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['admin'] })
   const setTenantStatus = useMutation({
     mutationFn: async ({ id, next }: { id: string; next: Status }) => {
-      const { data, error } = await api.PUT('/api/v1/admin/tenants/{tenantId}/status', { params: { path: { tenantId: id } }, body: { status: next } })
+      const { data, error } = await api.PUT('/api/v1/admin/tenants/{tenantId}/status', { params: { path: { tenantId: id } }, body: { status: next, reason: reason.text } })
       if (!data) throw new Error(problemTitle(error) ?? 'Could not change the workspace.')
     },
+    onSuccess: reason.clear,
     onSettled: refresh,
   })
   const setTenantPlan = useMutation({
     mutationFn: async ({ id, plan }: { id: string; plan: Plan }) => {
-      const { data, error } = await api.PUT('/api/v1/admin/tenants/{tenantId}/plan', { params: { path: { tenantId: id } }, body: { plan } })
+      const { data, error } = await api.PUT('/api/v1/admin/tenants/{tenantId}/plan', { params: { path: { tenantId: id } }, body: { plan, reason: reason.text } })
       if (!data) throw new Error(problemTitle(error) ?? 'Could not change the plan.')
     },
+    onSuccess: reason.clear,
     onSettled: refresh,
   })
   const failure = setTenantStatus.error ?? setTenantPlan.error
-  const busy = setTenantStatus.isPending || setTenantPlan.isPending
+  const busy = setTenantStatus.isPending || setTenantPlan.isPending || !reason.ready
 
   const total = Number(workspaces.data?.totalCount ?? 0)
   const pages = Math.max(1, Math.ceil(total / PageSize))
@@ -333,6 +365,54 @@ function Workspaces() {
           </Button>
         </nav>
       )}
+    </Section>
+  )
+}
+
+const actionLabels: Record<Action['action'], string> = {
+  WorkspaceSuspended: 'Suspended',
+  WorkspaceReactivated: 'Reactivated',
+  PlanChanged: 'Plan changed',
+  ReviewHidden: 'Review hidden',
+  ReviewKept: 'Review kept',
+  PayoutRetried: 'Payout retried',
+}
+
+// The audit trail (design §3.4): each service keeps the admin actions it carried out (tenancy:
+// workspaces and plans, enrollment: reviews, ordering: payouts); the page shows them together, newest first.
+function RecentActions() {
+  const { api } = useApp()
+  const actions = useQuery({
+    queryKey: ['admin', 'actions'],
+    queryFn: async () => {
+      const [workspaces, reviews, payouts] = await Promise.all([
+        api.GET('/api/v1/admin/actions'),
+        api.GET('/api/v1/admin/reviews/actions'),
+        api.GET('/api/v1/admin/payouts/actions'),
+      ])
+      return [...(workspaces.data ?? []), ...(reviews.data ?? []), ...(payouts.data ?? [])].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 50)
+    },
+  })
+
+  if (!actions.data?.length) return null
+  return (
+    <Section title="Recent actions">
+      <ul className="divide-y rounded-2xl border bg-card">
+        {actions.data.map((a) => (
+          <li key={a.id} className="space-y-1 p-4 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline">{actionLabels[a.action]}</Badge>
+              <span className="font-medium">{a.subject}</span>
+              {a.detail && <span className="text-muted-foreground">{a.detail}</span>}
+              <time className="ml-auto text-xs text-muted-foreground" dateTime={a.at}>
+                {new Date(a.at).toLocaleString()}
+              </time>
+            </div>
+            <p className="whitespace-pre-line">{a.reason}</p>
+            <p className="text-xs text-muted-foreground">Admin {a.adminId.slice(0, 8)}</p>
+          </li>
+        ))}
+      </ul>
     </Section>
   )
 }

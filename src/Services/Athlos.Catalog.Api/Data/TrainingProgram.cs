@@ -43,6 +43,11 @@ public sealed class TrainingProgram : ITenantOwned, IHasTimestamps
     // Set by tenancy-api through PUT /internal/tenants/{id}/suspension.
     public bool TenantSuspended { get; set; }
 
+    // Taken off the marketplace by the platform admin after a report (design §2.4): unpublished, and
+    // the coach cannot publish it again until the admin allows it. Set by tenancy-api through
+    // PUT /internal/tenants/{id}/programs/{programId}/block.
+    public DateTimeOffset? BlockedAt { get; set; }
+
     public string? CoverImagePath { get; set; }
 
     // The same cover at card size (800 px wide), which the studio uploads after the full one: the shop's

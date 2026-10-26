@@ -67,6 +67,7 @@ public static class SetTenantStatus
             if (suspending)
             {
                 WorkspaceEmails.ToOwners(db, EmailTemplates.WorkspaceSuspended, workspace, configuration, new() { ["reason"] = reason });
+                await Reports.ContentReports.CloseCoachReportsAsync(db, workspace.Id, time.GetUtcNow(), cancellationToken);
             }
             else
             {

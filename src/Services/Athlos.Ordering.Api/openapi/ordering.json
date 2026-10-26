@@ -707,7 +707,10 @@
           "ReviewHidden",
           "ReviewKept",
           "PayoutRetried",
-          "RefundIssued"
+          "RefundIssued",
+          "ProgramUnpublished",
+          "ProgramAllowed",
+          "ReportsKept"
         ]
       },
       "AdminActionsItem": {

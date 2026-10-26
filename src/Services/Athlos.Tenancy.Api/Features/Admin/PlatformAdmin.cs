@@ -1,3 +1,4 @@
+using Athlos.Tenancy.Api.Features.Reports;
 using Athlos.Tenancy.Api.Data;
 using Athlos.Tenancy.Data;
 
@@ -18,6 +19,7 @@ public static class PlatformAdmin
         admin.MapSetTenantStatus();
         admin.MapSetTenantPlan();
         admin.MapGetPlatformMetrics();
+        admin.MapAdminReports();
         admin.MapAdminActions<TenancyDbContext>("/actions").WithName("AdminListWorkspaceActions");
         return admin;
     }

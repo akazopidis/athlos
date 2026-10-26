@@ -2,9 +2,11 @@ import { Info } from 'lucide-react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { BrandScope, StorefrontBanner } from '@/components/brand'
 import { CoachLinks } from '@/components/coach-profile'
+import { ReportContent } from '@/components/report-content'
 import { Loading, Notice, Section } from '@/components/page'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { useMyWorkspaces } from '@/lib/useMyWorkspaces'
 import { useTitle } from '@/lib/useTitle'
 import { Catalog } from './Catalog.tsx'
 import { useProgramSearch } from './useProgramSearch.ts'
@@ -17,6 +19,7 @@ export function Storefront() {
   const [params] = useSearchParams()
   const { search, update, clear } = useProgramSearch()
   const storefront = useStorefront(slug)
+  const mine = useMyWorkspaces().has(slug)
 
   useTitle(storefront.data?.displayName)
 
@@ -68,6 +71,7 @@ export function Storefront() {
         <Section title={`Programs by ${displayName}`}>
           <Catalog search={search} update={update} clear={clear} fixedCoach={slug} />
         </Section>
+        {!mine && <ReportContent target={{ kind: 'Coach', coachSlug: slug }} label="Report this coach" />}
       </div>
     </BrandScope>
   )

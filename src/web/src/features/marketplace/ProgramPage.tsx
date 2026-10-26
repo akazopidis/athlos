@@ -8,6 +8,7 @@ import type { components } from '@/api/catalog'
 import { CoachAvatar, CoachLinks } from '@/components/coach-profile'
 import { DiscountNote } from '@/components/discount-note'
 import { ProgramCover } from '@/components/program-cover'
+import { ReportContent } from '@/components/report-content'
 import { SaveButton } from '@/components/save-button'
 import { Stars } from '@/components/stars'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -207,6 +208,7 @@ export function ProgramPage() {
                 </div>
               </section>
             )}
+            {!mine && <ReportContent target={{ kind: 'Program', programId: p.id }} label="Report this program" />}
           </div>
 
           {/* The buy box: a bar pinned to the bottom of the screen on phones, a card that follows the

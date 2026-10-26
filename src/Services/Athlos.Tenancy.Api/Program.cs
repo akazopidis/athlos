@@ -8,6 +8,7 @@ using Athlos.Tenancy.Api.Features.Admin;
 using Athlos.Tenancy.Api.Features.Internal;
 using Athlos.Tenancy.Api.Features.Payouts;
 using Athlos.Tenancy.Api.Features.Plans;
+using Athlos.Tenancy.Api.Features.Reports;
 using Athlos.Tenancy.Api.Features.Storefront;
 using Athlos.Tenancy.Api.Features.Team;
 using Athlos.Tenancy.Api.Features.Tenants;
@@ -38,6 +39,8 @@ builder.Services.AddScoped<ITenantErasure, ServiceTenantErasure>();
 // Suspending a workspace asks catalog to hide its programs (design §3.4), signed.
 builder.Services.AddHttpClient(ServiceTenantSuspension.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api")).AddSignedRequests();
 builder.Services.AddScoped<ITenantSuspension, ServiceTenantSuspension>();
+builder.Services.AddHttpClient(ServiceReportedPrograms.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api")).AddSignedRequests();
+builder.Services.AddScoped<IReportedPrograms, ServiceReportedPrograms>();
 // Deleting an account asks ordering and enrollment to erase the customer's part, then Graph removes
 // the Entra user (design §5.2).
 builder.Services.AddHttpClient(ServiceCustomerErasure.Ordering, http => http.BaseAddress = new Uri("https+http://ordering-api")).AddSignedRequests();
@@ -102,6 +105,10 @@ me.MapUpsertMyProfile();
 app.MapGroup("/api/v1/me")
     .RequireAuthorization()
     .MapExportMyData();
+// Reporting a program or a coach (design §2.4): looks the program up at catalog-api, then its own transaction.
+app.MapGroup("/api/v1/me")
+    .RequireAuthorization()
+    .MapReportContent();
 // Deleting the account manages its own transactions, around the calls to other services.
 app.MapDeleteMyAccount();
 

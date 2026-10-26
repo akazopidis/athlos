@@ -1,4 +1,4 @@
-import { ArrowRight, Check, CreditCard, Infinity as Forever, TrendingUp } from 'lucide-react'
+import { ArrowRight, Check, CreditCard, TrendingUp, Wallet } from 'lucide-react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { categoryLabel } from '@/lib/categories'
@@ -63,7 +63,7 @@ export function Home() {
 }
 
 const promises = [
-  { icon: Forever, title: 'Buy once, keep it', text: 'No subscription' },
+  { icon: Wallet, title: 'Pay once', text: 'No subscription' },
   { icon: CreditCard, title: 'One secure checkout', text: 'Every coach in one payment, by Stripe' },
   { icon: TrendingUp, title: 'Track your progress', text: 'Tick off workouts week by week' },
 ]

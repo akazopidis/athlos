@@ -92,6 +92,10 @@ namespace Athlos.Catalog.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTimeOffset?>("BlockedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("blocked_at");
+
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasMaxLength(20)

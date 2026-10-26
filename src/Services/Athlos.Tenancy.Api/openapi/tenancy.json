@@ -245,6 +245,32 @@
         }
       }
     },
+    "/api/v1/me/reports": {
+      "post": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "ReportContent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentReportsReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/v1/studio/{tenantSlug}/workspace": {
       "get": {
         "tags": [
@@ -943,6 +969,174 @@
         }
       }
     },
+    "/api/v1/admin/reports": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminListReports",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentReportsReportList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/programs/{programId}/unpublish": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminUnpublishProgram",
+        "parameters": [
+          {
+            "name": "programId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentReportsDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/programs/{programId}/allow": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminAllowProgram",
+        "parameters": [
+          {
+            "name": "programId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentReportsDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/programs/{programId}/keep": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminKeepProgram",
+        "parameters": [
+          {
+            "name": "programId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentReportsDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/coaches/{tenantId}/keep": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminKeepCoach",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentReportsDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/v1/admin/actions": {
       "get": {
         "tags": [
@@ -1017,7 +1211,10 @@
           "ReviewHidden",
           "ReviewKept",
           "PayoutRetried",
-          "RefundIssued"
+          "RefundIssued",
+          "ProgramUnpublished",
+          "ProgramAllowed",
+          "ReportsKept"
         ]
       },
       "AdminActionsItem": {
@@ -1167,6 +1364,185 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "ContentReportKind": {
+        "enum": [
+          "Program",
+          "Coach"
+        ]
+      },
+      "ContentReportReason": {
+        "enum": [
+          "Illegal",
+          "Misleading",
+          "Copyright",
+          "Abusive",
+          "Other"
+        ]
+      },
+      "ContentReportsDecision": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ContentReportsOpenReport": {
+        "required": [
+          "kind",
+          "tenantId",
+          "programId",
+          "subject",
+          "coachSlug",
+          "reports",
+          "reasons",
+          "notes",
+          "firstReportedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ContentReportKind"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "programId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "coachSlug": {
+            "type": "string"
+          },
+          "reports": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentReportReason"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "firstReportedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ContentReportsReportList": {
+        "required": [
+          "open",
+          "takenDown"
+        ],
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentReportsOpenReport"
+            }
+          },
+          "takenDown": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentReportsTakenDown"
+            }
+          }
+        }
+      },
+      "ContentReportsReportRequest": {
+        "required": [
+          "kind",
+          "programId",
+          "coachSlug",
+          "reason",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ContentReportKind"
+          },
+          "programId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "coachSlug": {
+            "maxLength": 40,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/ContentReportReason"
+          },
+          "note": {
+            "maxLength": 500,
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ContentReportsTakenDown": {
+        "required": [
+          "programId",
+          "tenantId",
+          "subject",
+          "coachSlug",
+          "since"
+        ],
+        "type": "object",
+        "properties": {
+          "programId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "coachSlug": {
+            "type": "string"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -2066,6 +2442,9 @@
     },
     {
       "name": "Marketplace"
+    },
+    {
+      "name": "Reports"
     },
     {
       "name": "Workspace"

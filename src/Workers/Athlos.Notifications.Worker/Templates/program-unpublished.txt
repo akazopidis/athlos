@@ -1,0 +1,8 @@
+Subject: {{programTitle}} was taken off the marketplace
+After a report, Athlos took {{programTitle}} from {{workspaceName}} off the marketplace. Customers who bought it keep it, but it cannot be bought, and you cannot publish it again for now.
+
+Reason: {{reason}}
+
+If you think this is a mistake, reply to the Athlos team.
+
+Athlos

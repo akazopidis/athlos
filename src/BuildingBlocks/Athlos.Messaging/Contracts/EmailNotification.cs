@@ -33,6 +33,7 @@ public static class EmailTemplates
     public const string MemberLeft = "member-left";
     public const string OwnershipReceived = "ownership-received";
     public const string WorkspaceSuspended = "workspace-suspended";
+    public const string ProgramUnpublished = "program-unpublished";
     public const string WorkspaceReactivated = "workspace-reactivated";
     public const string PlanChanged = "plan-changed";
 

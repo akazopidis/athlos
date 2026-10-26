@@ -42,6 +42,9 @@ public enum AdminActionKind
     ReviewKept,
     PayoutRetried,
     RefundIssued,
+    ProgramUnpublished,
+    ProgramAllowed,
+    ReportsKept,
 }
 
 public interface IHasAdminActions

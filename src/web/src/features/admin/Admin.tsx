@@ -71,6 +71,7 @@ export function Admin() {
       </Card>
       <RefundRequests reason={reason} />
       <Payouts reason={reason} />
+      <ReportedContent reason={reason} />
       <ReportedReviews reason={reason} />
       <Workspaces reason={reason} />
       <RecentActions />
@@ -113,6 +114,123 @@ function Metrics() {
 // Coach shares whose transfer failed after payment (ordering-api's payout retries, design §2.2): they
 // are retried with backoff; the admin can retry one now, for example once the coach fixed their
 // Stripe account. Hidden while there are none.
+const contentReasons: Record<string, string> = {
+  Illegal: 'illegal or dangerous',
+  Misleading: 'misleading claims',
+  Copyright: "someone else's work",
+  Abusive: 'abusive or hateful',
+  Other: 'something else',
+}
+
+type ContentDecision = { kind: 'unpublish' | 'allow' | 'keep-program'; programId: string } | { kind: 'keep-coach' | 'suspend'; tenantId: string }
+
+// Programs and coaches someone reported (design §2.4), one entry each: take a program down (it
+// leaves the marketplace and the coach is emailed the reason), suspend a coach, or keep either. Taken
+// down programs are listed so one can be allowed back. Hidden while there is nothing.
+function ReportedContent({ reason }: { reason: Reason }) {
+  const { api } = useApp()
+  const queryClient = useQueryClient()
+  const reports = useQuery({
+    queryKey: ['admin', 'content-reports'],
+    queryFn: async () => (await api.GET('/api/v1/admin/reports')).data ?? null,
+  })
+  const decide = useMutation({
+    mutationFn: async (action: ContentDecision) => {
+      const body = { reason: reason.text }
+      const send = () => {
+        switch (action.kind) {
+          case 'unpublish':
+            return api.POST('/api/v1/admin/reports/programs/{programId}/unpublish', { params: { path: { programId: action.programId } }, body })
+          case 'allow':
+            return api.POST('/api/v1/admin/reports/programs/{programId}/allow', { params: { path: { programId: action.programId } }, body })
+          case 'keep-program':
+            return api.POST('/api/v1/admin/reports/programs/{programId}/keep', { params: { path: { programId: action.programId } }, body })
+          case 'keep-coach':
+            return api.POST('/api/v1/admin/reports/coaches/{tenantId}/keep', { params: { path: { tenantId: action.tenantId } }, body })
+          case 'suspend':
+            return api.PUT('/api/v1/admin/tenants/{tenantId}/status', { params: { path: { tenantId: action.tenantId } }, body: { status: 'Suspended', ...body } })
+        }
+      }
+      const { error, response } = await send()
+      if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not save the decision.')
+    },
+    onSuccess: reason.clear,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin'] }),
+  })
+
+  const open = reports.data?.open ?? []
+  const takenDown = reports.data?.takenDown ?? []
+  if (!open.length && !takenDown.length) return null
+  const busy = decide.isPending || !reason.ready
+  return (
+    <Section title="Reported programs and coaches">
+      {decide.error && (
+        <Alert variant="destructive">
+          <AlertDescription>{decide.error.message}</AlertDescription>
+        </Alert>
+      )}
+      {open.length > 0 && (
+        <ul className="space-y-3">
+          {open.map((r) => (
+            <li key={`${r.kind}-${r.tenantId}-${r.programId ?? ''}`} className="space-y-2 rounded-2xl border bg-card p-4">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Badge variant="outline">{r.kind === 'Program' ? 'Program' : 'Coach'}</Badge>
+                <span className="font-semibold">{r.subject}</span>
+                <span className="text-muted-foreground">/c/{r.coachSlug}</span>
+                <Badge variant="destructive" className="ml-auto">
+                  {Number(r.reports)} {Number(r.reports) === 1 ? 'report' : 'reports'}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Reasons: {r.reasons.map((x) => contentReasons[x] ?? x).join(', ')}
+                {r.notes.length > 0 && ` · Notes: ${r.notes.join(' / ')}`}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {r.kind === 'Program' ? (
+                  <>
+                    <Button size="sm" variant="destructive" disabled={busy} onClick={() => decide.mutate({ kind: 'unpublish', programId: r.programId! })}>
+                      Take down
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => decide.mutate({ kind: 'keep-program', programId: r.programId! })}>
+                      Keep it
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button size="sm" variant="destructive" disabled={busy} onClick={() => decide.mutate({ kind: 'suspend', tenantId: r.tenantId })}>
+                      Suspend workspace
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => decide.mutate({ kind: 'keep-coach', tenantId: r.tenantId })}>
+                      Keep it
+                    </Button>
+                  </>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {takenDown.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">Taken down</h3>
+          <ul className="divide-y rounded-2xl border bg-card">
+            {takenDown.map((t) => (
+              <li key={t.programId} className="flex flex-wrap items-center gap-x-4 gap-y-2 p-4 text-sm">
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="font-medium">{t.subject}</span> <span className="text-muted-foreground">/c/{t.coachSlug} · since {new Date(t.since).toLocaleDateString()}</span>
+                </span>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => decide.mutate({ kind: 'allow', programId: t.programId })}>
+                  Allow back
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Section>
+  )
+}
+
 // Reviews someone reported (design §2.4), one entry per review: hide it (it leaves the program's page
 // and rating) or keep it. Either closes its reports.
 function ReportedReviews({ reason }: { reason: Reason }) {
@@ -430,6 +548,9 @@ const actionLabels: Record<Action['action'], string> = {
   ReviewKept: 'Review kept',
   PayoutRetried: 'Payout retried',
   RefundIssued: 'Refund issued',
+  ProgramUnpublished: 'Program taken down',
+  ProgramAllowed: 'Program allowed back',
+  ReportsKept: 'Reports kept',
 }
 
 // The audit trail (design §3.4): each service keeps the admin actions it carried out (tenancy:

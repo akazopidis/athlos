@@ -101,6 +101,8 @@ public static class DeleteMyAccount
         {
             // RLS own_profile: a session reaches only the profile of app.user_id.
             var deleted = await db.UserProfiles.Where(p => p.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+            // Reports they made stay for the admin, without who made them (design §2.4).
+            await db.ContentReports.Where(r => r.ReporterId == userId).ExecuteUpdateAsync(r => r.SetProperty(x => x.ReporterId, Guid.Empty), cancellationToken);
             // Once, with the profile: a retry finds no profile and sends nothing again.
             if (deleted > 0 && email is not null)
             {

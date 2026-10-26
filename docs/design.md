@@ -4,7 +4,7 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17.7, built on dev; v1.17.0 in production (2026-10-25)
 
-**Changes in v17.7 (next release):** every platform admin action states a reason and is kept in an audit trail, and a suspended coach is told the reason (§2.3, §3.4); a schema-wide RLS check and isolation cases for the last two uncovered endpoints (§3.3); the purchase end-to-end test refunds its payment at Stripe, so every staging deploy pays again (§15.1).
+**Changes in v17.7 (next release):** a connection budget that fits the server: app roles share 35 connections, so pools are 2 per replica, database services run at most 2 replicas in staging and 1 in dev and prod, and the migrator caps each database (§7); demos and the evaluation run on staging (§15.3); every platform admin action states a reason and is kept in an audit trail, and a suspended coach is told the reason (§2.3, §3.4); a schema-wide RLS check and isolation cases for the last two uncovered endpoints (§3.3); the purchase end-to-end test refunds its payment at Stripe, so every staging deploy pays again (§15.1).
 
 **Changes in v17.6 (v1.17.0):** existing workspaces accept new Terms for coaches from a notice in the studio; the owner's workspace export (§5.4).
 
@@ -409,7 +409,7 @@ Goal: one tenant's spike must not degrade others. Layered, cheapest first:
 | 4 | Elastic scale | Container Apps | HTTP scale rule (concurrent requests) on each app, and Service Bus queue-length rules on enrollment-api and notifications-worker. Each app has `maxReplicas` set, which also caps the bill |
 | 5 | Async offloading | Service Bus | Slow work (enrollment, future emails) runs off the request path |
 | 6 | Resilience between services | all | `Microsoft.Extensions.Http.Resilience` standard handler: timeouts, retries with jitter, circuit breaker |
-| 7 | Database protection | all | Indexes leading with `tenant_id`, `statement_timeout` of 5 s per service (in the connection string, `Options=-c statement_timeout=5000`: roles created through Entra cannot be altered by the migrator), a small connection pool per service (B1ms allows about 50 connections in total), hard page-size caps (max 50) |
+| 7 | Database protection | all | Indexes leading with `tenant_id`, `statement_timeout` of 5 s per service (in the connection string, `Options=-c statement_timeout=5000`: roles created through Entra cannot be altered by the migrator), a small connection pool per service replica within a budget for the whole server (below), hard page-size caps (max 50) |
 
 **As built (phase 7):**
 - *Whose budget a request spends.* A coach's studio routes count once the caller is confirmed a member; their storefront (`/api/v1/marketplace/coaches/{slug}/...`, and the program list with `?coach={slug}`) counts for everyone. Both share one token bucket per coach, sized by the plan's requests per second. The cross-coach marketplace search and unknown addresses are limited per client IP instead (`RateLimits:PerClientRequestsPerSecond`, 20). Signed-in customers' reads (`/me`, orders) are not rate limited. Starting a checkout, which opens a Stripe payment page and writes pending orders, is limited to `RateLimits:CheckoutsPerMinute` (10) per signed-in customer (per client IP without a sign-in), and checking a discount code shares that bucket. Since v1.12.0 a customer's other writes (anything but a read under `/api/v1/me`: reviews, saved programs, progress; and reporting a review) share `RateLimits:CustomerWritesPerMinute` (60) per customer, so one account cannot flood the services with writes.
@@ -740,7 +740,7 @@ That leaves most of the €100 unused, which is a comfortable buffer for load te
 
 **Rules that keep it at that number:**
 - **Exactly one PostgreSQL server.** 750 free hours cover one B1ms running all month (730 h). A second server (for example a separate dev server) would be billed. That is why dev, staging and prod share the server with separate databases and roles.
-- **Small connection pools.** B1ms allows about 50 connections. With 4 services in 3 environments, cap each service at `Maximum Pool Size=3` in its connection string (36 in total, leaving room for the migrator and your own tools).
+- **A connection budget for the whole server.** B1ms allows 50 connections, but 10 are reserved for superusers and 5 more for reserved roles (`superuser_reserved_connections`, `reserved_connections`), so the app roles of all three stages share 35. The first plan (pool 3 per service, 36 in total) forgot replicas: at 3 replicas each, the 12 service databases could ask for 108, and prod alone for 36, so a staging load test during prod traffic could take every stage down. Since v1.18.0 the budget is set in `infra/env.bicep`: `Maximum Pool Size=2` per replica (`dbPoolSize`), and at most 2 replicas of each database service in staging, where the demos and the evaluation run, and 1 in dev and prod (`dbServiceMaxReplicas`): 16 + 8 + 8 = 32. Idle connections close after 60 seconds, so a rollout's old revision gives its connections back quickly. The db-migrator caps each database at twice its share (`ALTER DATABASE ... CONNECTION LIMIT`, `Databases:ConnectionLimit`): room for a rollout's two revisions and the migrator, while a stage set up wrong still cannot take the other stages' connections. A cap equal to the share would refuse a new revision's connections during every rollout. An alert on active connections costs money and waits until after the thesis (backlog item 3).
 - Keep storage at 32 GB and auto-grow off, or the extra GB are billed.
 - Registry must be the **Standard** SKU to match the free service; Basic is not the free one.
 - **Budget in Bicep** (`Microsoft.Consumption/budgets`): alert at €5/month actual and at 80% forecast.
@@ -928,7 +928,7 @@ The db-migrator adds demo data when `Seed:DemoData` is true: in dev and staging 
 
 Measured results (v0.7.0, 8 October 2026): [docs/evaluation/targets.md](evaluation/targets.md).
 
-Measurable targets make the evaluation honest. Suggested starting values, measured on prod with the demo data:
+Measurable targets make the evaluation honest. Suggested starting values, measured with the demo data on staging, where the demos run too (prod is not seeded and has no traffic until a launch):
 
 | Target | Value |
 |---|---|

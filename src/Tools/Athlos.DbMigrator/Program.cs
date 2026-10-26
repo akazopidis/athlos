@@ -19,6 +19,7 @@ using Npgsql;
 //   Databases:<Service>:AppPassword             local only
 //   Databases:<Service>:AppPrincipalObjectId    Azure only: the service's managed identity
 //   AZURE_CLIENT_ID                             Azure only: the migrator's managed identity
+//   Databases:ConnectionLimit                   Azure only: the cap per database (design §7); none locally
 //   Seed:DemoData                               true in dev and staging: add the demo data (design §15.2)
 var builder = Host.CreateApplicationBuilder(args);
 builder.AddServiceDefaults();
@@ -59,6 +60,11 @@ async Task Migrate<TContext>(string service, string section, Func<DbContextOptio
     await using (var admin = DataSource(new NpgsqlConnectionStringBuilder(ownerConnectionString) { Database = "postgres" }.ConnectionString))
     {
         await ServiceDatabase.EnsureDatabaseAsync(admin, database, cancellationToken);
+
+        if (configuration.GetValue<int?>("Databases:ConnectionLimit") is { } limit)
+        {
+            await ServiceDatabase.LimitConnectionsAsync(admin, database, limit, cancellationToken);
+        }
 
         if (Guid.TryParse(configuration[$"Databases:{section}:AppPrincipalObjectId"], out var principalObjectId))
         {

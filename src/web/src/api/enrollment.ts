@@ -228,6 +228,7 @@ export interface components {
             enrolledAt: string;
             workouts: components["schemas"]["GetMyProgramWorkout"][];
             review: null | components["schemas"]["MyReviewResponse"];
+            coachLeft: boolean;
         };
         GetMyProgramWorkout: {
             /** Format: uuid */

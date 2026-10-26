@@ -685,7 +685,8 @@
           "coverImageUrl",
           "enrolledAt",
           "workouts",
-          "review"
+          "review",
+          "coachLeft"
         ],
         "type": "object",
         "properties": {
@@ -738,6 +739,9 @@
                 "$ref": "#/components/schemas/MyReviewResponse"
               }
             ]
+          },
+          "coachLeft": {
+            "type": "boolean"
           }
         }
       },

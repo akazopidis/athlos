@@ -72,7 +72,7 @@ export function Terms() {
       <ul>
         <li>Each coach is responsible for their programs: their content, their safety advice and their accuracy. Athlos does not check training advice.</li>
         <li>Coaches are paid through their own Stripe account and must give Stripe correct details about who they are.</li>
-        <li>A coach may refund a sale within {days} days. If a coach deletes their workspace, customers lose access to that coach's programs.</li>
+        <li>A coach may refund a sale within {days} days. If a coach deletes their workspace, customers keep a read-only copy of the programs they bought, with their progress.</li>
       </ul>
       <h2>Training safely</h2>
       <p>Exercise carries risk. Check with a doctor before starting a new program, and stop if something hurts. Athlos and its coaches are not medical providers.</p>
@@ -135,8 +135,8 @@ export function CoachTerms() {
       </ul>
       <h2>Leaving</h2>
       <p>
-        You can delete your workspace once no sale can still be refunded. Its programs, images and team go with it, and customers lose access to its
-        programs. The sales stay in Athlos' records for accounting.
+        You can delete your workspace once no sale can still be refunded. Its storefront, programs, images and team go with it. Customers who bought a
+        program keep a read-only copy of it, with their progress. The sales stay in Athlos' records for accounting.
       </p>
       <h2>Changes</h2>
       <p>If these terms change, the date above changes, and the new version is the one accepted when a workspace is opened.</p>

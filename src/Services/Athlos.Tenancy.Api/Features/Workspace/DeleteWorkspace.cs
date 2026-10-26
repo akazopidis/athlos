@@ -14,8 +14,9 @@ namespace Athlos.Tenancy.Api.Features.Workspace;
 // 2. ordering-api checks that nothing is still owed or being paid: sales still inside the refund
 //    window refuse the deletion (409, with the date), and open Stripe payment pages for the
 //    workspace's programs are closed, so no customer pays for a program about to be erased.
-// 3. catalog-api and enrollment-api erase their rows (and catalog the media) first. If one fails,
-//    the workspace is still Active and the owner can try again: every step is idempotent.
+// 3. enrollment-api first copies each bought program for its buyers, who keep it read-only with their
+//    progress (and drops the workspace's reviews); then catalog-api erases the programs and media. If
+//    one fails, the workspace is still Active and the owner can try again: every step is idempotent.
 // 4. Then, in one transaction, tenancy removes the team and invites and marks the tenant Deleted,
 //    with its name, branding and Stripe link cleared. The slug stays taken, so no new workspace
 //    inherits the old links. The coach's Stripe account is theirs and stays at Stripe.
@@ -115,8 +116,8 @@ public sealed class ServiceTenantErasure(IHttpClientFactory clients) : ITenantEr
 
     public async Task EraseAsync(Guid tenantId, CancellationToken cancellationToken)
     {
-        // Catalog first: the programs leave the marketplace before anything else goes.
-        foreach (var service in (string[])[Catalog, Enrollment])
+        // Enrollment first: it copies the programs customers bought from catalog, before catalog erases them.
+        foreach (var service in (string[])[Enrollment, Catalog])
         {
             using var response = await clients.CreateClient(service).DeleteAsync($"/internal/tenants/{tenantId}", cancellationToken);
             response.EnsureSuccessStatusCode();

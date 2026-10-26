@@ -21,17 +21,17 @@ public static class WorkoutCompletion
     }
 
     private static async Task<Results<NoContent, NotFound>> Complete(
-        Guid programId, Guid workoutId, TenantContext tenant, EnrollmentDbContext db, IProgramContent programs, TimeProvider time,
-        CancellationToken cancellationToken)
+        Guid programId, Guid workoutId, TenantContext tenant, EnrollmentDbContext db, IProgramContent programs, IServiceScopeFactory scopes,
+        TimeProvider time, CancellationToken cancellationToken)
     {
         if (await FindOwnAsync(tenant.UserId, db, programId, cancellationToken) is not { } enrollment)
         {
             return TypedResults.NotFound();
         }
 
-        // Only a workout of this program can be completed.
-        var content = await programs.GetAsync(enrollment.TenantId, programId, cancellationToken);
-        if (content?.Workouts.Any(w => w.Id == workoutId) != true)
+        // Only a workout of this program can be completed (of the buyers' copy, once the coach left).
+        var found = await PaidContent.GetAsync(enrollment, programs, scopes, cancellationToken);
+        if (found?.Content.Workouts.Any(w => w.Id == workoutId) != true)
         {
             return TypedResults.NotFound();
         }

@@ -18,7 +18,7 @@ The limitations fall into three kinds:
 | 1 | No VAT or invoices | Scope | Legal, payments |
 | 2 | Legal pages are drafts, reviewed by no lawyer | Scope | Legal |
 | 3 | The data export is one synchronous JSON file | Trade-off | Legal, GDPR |
-| 4 | Customers lose bought programs when a coach deletes their workspace | Trade-off | Tenant lifecycle |
+| 4 | Customers lose bought programs when a coach deletes their workspace (solved in v1.18.0) | Trade-off | Tenant lifecycle |
 | 5 | No program versioning | Scope | Product |
 | 6 | Stripe in test mode only | Scope | Payments |
 | 7 | Some refund cases are settled by hand | Trade-off | Payments |
@@ -66,7 +66,8 @@ The limitations fall into three kinds:
 - **Solution:** a queued export job writing the file to Blob Storage and emailing a short-lived link.
 
 ### 4. Customers lose bought programs when a coach deletes their workspace
-- **Missing:** a way for customers to keep paid content after the coach erases their workspace (§3.4). Since v1.7.0 a workspace cannot be deleted while any sale can still be refunded, and its open payment pages are closed first, so the loss only reaches purchases older than the refund window.
+- **Built (v1.18.0, decided 26 October 2026):** buyers keep a read-only copy. When a workspace is deleted, enrollment-api copies each bought program's content from catalog-api before catalog erases it, and keeps the buyers' enrollments and progress; the program page reads the copy (design §3.4). What remains of the trade-off: the coach's content is kept for the customers who paid for it, which the Terms for coaches say, and the cover image goes with the workspace.
+- **Was missing:** a way for customers to keep paid content after the coach erases their workspace (§3.4). Since v1.7.0 a workspace cannot be deleted while any sale can still be refunded, and its open payment pages are closed first, so the loss only reaches purchases older than the refund window.
 - **Why:** a trade-off between two rights. The coach's right to erasure removes their content, the bought programs included. Keeping copies would mean keeping the coach's data after they asked for it to be erased.
 - **Impact:** a customer who bought more than 14 days earlier loses access to what they paid for, with no refund. A coach who wants their data erased must wait until the window of their last sale ends, or refund those sales.
 - **Solution, in order of effort:**

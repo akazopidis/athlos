@@ -79,10 +79,20 @@ export function MyProgramPage() {
           <h1 className="text-4xl leading-tight font-black tracking-tight sm:text-5xl">{p.title}</h1>
           <p className="text-muted-foreground">
             by{' '}
-            <Link to={`/c/${p.coachSlug}`} className="font-medium text-foreground underline-offset-4 hover:underline">
-              {p.coachSlug}
-            </Link>
+            {p.coachLeft ? (
+              <span className="font-medium text-foreground">{p.coachSlug}</span>
+            ) : (
+              <Link to={`/c/${p.coachSlug}`} className="font-medium text-foreground underline-offset-4 hover:underline">
+                {p.coachSlug}
+              </Link>
+            )}
           </p>
+          {/* The coach deleted their workspace (design §3.4): the buyer keeps this copy and their progress. */}
+          {p.coachLeft && (
+            <Alert>
+              <AlertDescription>This coach has left Athlos. You keep this copy of the program and your progress; it no longer changes.</AlertDescription>
+            </Alert>
+          )}
           <div className="space-y-2 rounded-2xl border bg-card p-4">
             <div className="flex items-baseline justify-between gap-4">
               <p className="font-medium">
@@ -155,7 +165,7 @@ export function MyProgramPage() {
           )
         })}
       </div>
-      <MyReview key={p.review?.updatedAt ?? 'none'} programId={programId} review={p.review} />
+      {!p.coachLeft && <MyReview key={p.review?.updatedAt ?? 'none'} programId={programId} review={p.review} />}
     </article>
   )
 }

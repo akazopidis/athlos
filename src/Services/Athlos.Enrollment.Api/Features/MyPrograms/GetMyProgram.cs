@@ -7,14 +7,14 @@ namespace Athlos.Enrollment.Api.Features.MyPrograms;
 
 // GET /api/v1/me/programs/{programId}: a program the customer bought, with its workouts (the paid
 // content, from catalog-api), which of them they completed, and their review (design §2.4). Not enrolled: 404, like any resource
-// the caller cannot see.
+// the caller cannot see. Once the coach deleted their workspace, the buyers' copy (CoachLeft, no cover).
 public static class GetMyProgram
 {
     public sealed record Workout(Guid Id, int Week, int Day, string Title, string Content, string? VideoUrl, DateTimeOffset? CompletedAt);
 
     public sealed record Response(
         Guid ProgramId, string CoachSlug, string Title, string Description, string Category, int DurationWeeks, string? CoverImageUrl,
-        DateTimeOffset EnrolledAt, List<Workout> Workouts, MyReview.Response? Review);
+        DateTimeOffset EnrolledAt, List<Workout> Workouts, MyReview.Response? Review, bool CoachLeft);
 
     public static void MapGetMyProgram(this IEndpointRouteBuilder me) =>
         me.MapGet("/programs/{programId:guid}", Handle)
@@ -22,7 +22,7 @@ public static class GetMyProgram
             .WithTags("My programs");
 
     private static async Task<Results<Ok<Response>, NotFound>> Handle(
-        Guid programId, ITenantContext tenant, EnrollmentDbContext db, IProgramContent programs, CancellationToken cancellationToken)
+        Guid programId, ITenantContext tenant, EnrollmentDbContext db, IProgramContent programs, IServiceScopeFactory scopes, CancellationToken cancellationToken)
     {
         if (tenant.UserId is not { } customerId)
         {
@@ -46,12 +46,13 @@ public static class GetMyProgram
             await transaction.CommitAsync(cancellationToken);
         }
 
-        // The coach deleted the program: nothing left to show.
-        var content = await programs.GetAsync(enrollment.TenantId, programId, cancellationToken);
-        if (content is null)
+        // Gone with no copy (the coach erased it before buyers kept copies): nothing left to show.
+        if (await PaidContent.GetAsync(enrollment, programs, scopes, cancellationToken) is not { } found)
         {
             return TypedResults.NotFound();
         }
+
+        var content = found.Content;
 
         return TypedResults.Ok(new Response(
             content.ProgramId, content.CoachSlug, content.Title, content.Description, content.Category, content.DurationWeeks, content.CoverImageUrl,
@@ -59,6 +60,7 @@ public static class GetMyProgram
             content.Workouts
                 .Select(w => new Workout(w.Id, w.Week, w.Day, w.Title, w.Content, w.VideoUrl, completed.TryGetValue(w.Id, out var at) ? at : null))
                 .ToList(),
-            review is null ? null : MyReview.ToResponse(review)));
+            review is null ? null : MyReview.ToResponse(review),
+            found.CoachLeft));
     }
 }

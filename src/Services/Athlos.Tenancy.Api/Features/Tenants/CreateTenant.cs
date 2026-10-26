@@ -14,7 +14,7 @@ namespace Athlos.Tenancy.Api.Features.Tenants;
 public static class CreateTenant
 {
     // The Terms for coaches in force (the SPA's lib/legal.ts shows the same version); Legal:CoachTermsVersion overrides it.
-    public const string CurrentCoachTermsVersion = "2026-10-24";
+    public const string CurrentCoachTermsVersion = "2026-10-26";
 
     public static string CoachTermsInForce(IConfiguration configuration) => configuration["Legal:CoachTermsVersion"] ?? CurrentCoachTermsVersion;
 

@@ -2,7 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v17.6, built; v1.17.0 in production (2026-10-25)
+**Status:** v17.7, built on dev; v1.17.0 in production (2026-10-25)
+
+**Changes in v17.7 (next release):** a schema-wide RLS check and isolation cases for the last two uncovered endpoints (§3.3).
 
 **Changes in v17.6 (v1.17.0):** existing workspaces accept new Terms for coaches from a notice in the studio; the owner's workspace export (§5.4).
 
@@ -347,6 +349,7 @@ Pool is what a marketplace with many small coaches would use in practice, and it
 
 - An integration test suite (Testcontainers + real PostgreSQL 17) that, for **every** endpoint, calls with tenant B's identity against tenant A's resources and expects `404` (not `403`, which would leak existence).
 - A database-level test that connects as the service role, sets `app.tenant_id` to tenant B, runs raw `SELECT *` on tenant A's rows, and expects zero rows. It also tries an `INSERT` with tenant A's id and expects a policy violation. This proves layer 4 alone holds.
+- A schema-wide check (`SchemaRowLevelSecurityTests`): after the db-migrator's migrations, every table in every service database has RLS enabled, forced and at least one policy. The only exception is EF's `__EFMigrationsHistory`, and an exception may never hold a `tenant_id`. A migration that forgets its policy fails CI instead of reaching production.
 - A test that turns layer 3 off (test-only flag) and shows layer 4 still blocks. Good material for the "defense in depth" argument.
 
 ### 3.4 Tenant lifecycle

@@ -65,6 +65,24 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    // "Download my data" (design §5.4): B's owner gets their own account and workspace and nothing of
+    // A's, even when the request names A's tenant, which the export ignores.
+    [Fact]
+    public async Task Bs_data_export_holds_nothing_of_As()
+    {
+        foreach (var tenant in new Guid?[] { null, _a.TenantId })
+        {
+            var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/me/export"), _b.OwnerId, tenant, TenantRole.Owner);
+            var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains(_b.Slug, json, StringComparison.Ordinal);
+            Assert.Contains(_b.OwnerId.ToString(), json, StringComparison.Ordinal);
+            Assert.DoesNotContain(_a.Slug, json, StringComparison.Ordinal);
+            Assert.DoesNotContain(_a.OwnerId.ToString(), json, StringComparison.Ordinal);
+        }
+    }
+
     // The coach's logo (design §8): B's owner can neither replace nor remove A's.
     [Theory]
     [InlineData("PUT")]

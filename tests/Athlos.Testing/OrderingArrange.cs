@@ -32,7 +32,7 @@ public static class OrderingArrange
 
     public static Task<HttpResponseMessage> StartCheckout(this OrderingApiFactory api, Guid customerId, IReadOnlyList<Guid> programIds, string? idempotencyKey = null)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout") { Content = JsonContent.Create(new { programIds, termsVersion = TermsVersion }) };
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout") { Content = JsonContent.Create(new { programIds, termsVersion = TermsVersion, immediateAccess = true }) };
         if (idempotencyKey is not null) request.Headers.Add("Idempotency-Key", idempotencyKey);
         return api.SendAsGateway(request, customerId);
     }

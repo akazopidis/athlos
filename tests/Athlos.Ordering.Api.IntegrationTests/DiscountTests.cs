@@ -186,7 +186,7 @@ public sealed class DiscountTests(AthlosDatabases databases) : IAsyncLifetime
         _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/discount") { Content = JsonContent.Create(new { code, programIds }) }, customer);
 
     private Task<HttpResponseMessage> StartCheckout(Guid customer, string code, params Guid[] programIds) =>
-        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout") { Content = JsonContent.Create(new { programIds, discountCode = code, termsVersion = TermsVersion }) }, customer);
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout") { Content = JsonContent.Create(new { programIds, discountCode = code, termsVersion = TermsVersion, immediateAccess = true }) }, customer);
 
     private async Task<CheckoutStarted> Checkout(Guid customer, string code, params Guid[] programIds) =>
         await Read<CheckoutStarted>(await StartCheckout(customer, code, programIds));

@@ -63,7 +63,10 @@ export function Terms() {
         <li>You pay Athlos once, in one payment for everything in your cart. Athlos passes each coach their share and keeps a {fee}% platform fee.</li>
         <li>Prices are in euros and include any discount shown in your cart. Stripe processes the payment; Athlos never sees your card details.</li>
         <li>A program you buy is yours to use for personal training. You may not copy, resell or share its content.</li>
-        <li>Access starts as soon as the payment is confirmed. You can ask for a refund as described in the <Link to="/legal/refunds" className="underline underline-offset-4">refund policy</Link>.</li>
+        <li>
+          Access starts as soon as the payment is confirmed. At checkout you ask for access right away and acknowledge that your right of withdrawal then ends.
+          You can still ask for a refund as described in the <Link to="/legal/refunds" className="underline underline-offset-4">refund policy</Link>.
+        </li>
       </ul>
       <h2>Coaches</h2>
       <ul>
@@ -194,8 +197,8 @@ export function Refunds() {
       <p>Purchases are final after {days} days. If a payment was made without your permission, contact your bank; a dispute the coach loses also refunds the purchase.</p>
       <h2>Your right of withdrawal</h2>
       <p>
-        EU law gives you 14 days to withdraw from an online purchase. For digital content you can use at once, that right can end when access starts; Athlos
-        keeps the {days}-day refund anyway.
+        EU law gives you 14 days to withdraw from an online purchase. For digital content you can use at once, that right ends when access starts if you ask
+        for access right away and acknowledge losing it, which you do at checkout. Athlos keeps the {days}-day refund anyway.
       </p>
     </LegalPage>
   )

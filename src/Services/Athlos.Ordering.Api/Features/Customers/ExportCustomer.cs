@@ -17,7 +17,7 @@ public static class ExportCustomer
         Guid Id, Guid? CheckoutId, string ProgramTitle, string CoachSlug, long Amount, string Currency, string? DiscountCode, long DiscountAmount,
         OrderStatus Status, DateTimeOffset CreatedAt, DateTimeOffset? PaidAt, DateTimeOffset? RefundedAt);
 
-    public sealed record ExportedCheckout(Guid Id, DateTimeOffset CreatedAt, string? TermsVersion, DateTimeOffset? TermsAcceptedAt);
+    public sealed record ExportedCheckout(Guid Id, DateTimeOffset CreatedAt, string? TermsVersion, DateTimeOffset? TermsAcceptedAt, DateTimeOffset? ImmediateAccessConsentAt);
 
     public sealed record ExportedCartLine(Guid ProgramId, string Title, string CoachSlug, long PriceAmount, string Currency);
 
@@ -41,7 +41,7 @@ public static class ExportCustomer
         var checkouts = await db.Checkouts.AsNoTracking()
             .Where(c => c.CustomerId == customerId)
             .OrderBy(c => c.CreatedAt)
-            .Select(c => new ExportedCheckout(c.Id, c.CreatedAt, c.TermsVersion, c.TermsAcceptedAt))
+            .Select(c => new ExportedCheckout(c.Id, c.CreatedAt, c.TermsVersion, c.TermsAcceptedAt, c.ImmediateAccessConsentAt))
             .ToListAsync(cancellationToken);
         var cart = await db.Carts.AsNoTracking().SingleOrDefaultAsync(c => c.CustomerId == customerId, cancellationToken);
         return TypedResults.Ok(new Export(orders, checkouts,

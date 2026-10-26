@@ -33,6 +33,8 @@ export function Cart() {
   const [notice, setNotice] = useState<string | null>(null)
   // The customer accepts the Terms before paying (design §5.4); checkout sends the version shown.
   const [accepted, setAccepted] = useState(false)
+  // The EU's express consent to immediate access, which ends the right of withdrawal (design §5.4).
+  const [immediate, setImmediate] = useState(false)
   const [blocked, setBlocked] = useState<string[]>([])
   const signedIn = Boolean(auth?.account)
 
@@ -94,7 +96,9 @@ export function Cart() {
     mutationFn: async (programIds: string[]) => {
       setNotice(null)
       const { data, error, response } = await api.POST('/api/v1/orders/checkout', {
-        body: appliedCode ? { programIds, discountCode: appliedCode, termsVersion: TermsVersion } : { programIds, termsVersion: TermsVersion },
+        body: appliedCode
+          ? { programIds, discountCode: appliedCode, termsVersion: TermsVersion, immediateAccess: true }
+          : { programIds, termsVersion: TermsVersion, immediateAccess: true },
         params: { header: { 'Idempotency-Key': keyFor(programIds, appliedCode) } },
       })
       if (data) return data
@@ -289,11 +293,17 @@ export function Cart() {
               </span>
             </label>
           )}
+          {signedIn && (
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={immediate} onChange={(e) => setImmediate(e.target.checked)} />
+              <span>I want access right away, and understand that my right of withdrawal then ends. The refund policy still applies.</span>
+            </label>
+          )}
           {signedIn ? (
             <Button
               className="w-full"
               size="lg"
-              disabled={!accepted || !toBuy.length || totals.length > 1 || checkout.isPending || Boolean(checkout.data)}
+              disabled={!accepted || !immediate || !toBuy.length || totals.length > 1 || checkout.isPending || Boolean(checkout.data)}
               onClick={() => checkout.mutate(toBuy.map((i) => i.programId))}
             >
               {checkout.isPending || checkout.data ? 'Opening checkout…' : 'Check out'}

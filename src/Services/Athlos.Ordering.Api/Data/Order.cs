@@ -127,6 +127,10 @@ public sealed class Checkout : IHasTimestamps
 
     public DateTimeOffset? TermsAcceptedAt { get; init; }
 
+    // When the customer asked for access right away and acknowledged losing the EU's right of
+    // withdrawal once it starts (design §5.4). Null on checkouts from before v1.18.0.
+    public DateTimeOffset? ImmediateAccessConsentAt { get; init; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

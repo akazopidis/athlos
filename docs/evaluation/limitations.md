@@ -50,6 +50,7 @@ The limitations fall into three kinds:
 ### 2. Legal pages are drafts, reviewed by no lawyer
 - **Built (v1.12.0, design §5.4):** Terms, Privacy and Refund policy pages linked from the footer; customers accept the Terms at checkout, and each checkout keeps the accepted version.
 - **Built (v1.16.0):** Terms for coaches (`/legal/coaches`), accepted when a workspace is opened; tenancy-api records the version, the time and who accepted.
+- **Built (v1.18.0):** checkout asks for access right away and records that the customer acknowledged losing the right of withdrawal (the express consent EU consumer law asks for digital content), kept with the Terms version.
 - **Built (v1.17.0):** a workspace that has not accepted the coach terms in force (opened earlier, or the terms changed) gets a notice in the studio; the owner accepts there, recorded the same way.
 - **Missing:** a lawyer's review of the texts, an imprint naming the operator, and enforcement: a workspace that never accepts the new coach terms can still sell.
 - **Why:** these are legal texts, not engineering; the pages describe what the platform does, as a starting point.

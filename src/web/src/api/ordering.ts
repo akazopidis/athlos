@@ -485,6 +485,8 @@ export interface components {
             programIds: string[];
             discountCode?: null | string;
             termsVersion?: null | string;
+            /** @default false */
+            immediateAccess: boolean;
         };
         StartCheckoutResponse: {
             /** Format: uuid */

@@ -105,7 +105,7 @@ export function ProgramPage() {
     `${weeks} ${weeks === 1 ? 'week' : 'weeks'} of structured training`,
     'Every workout with instructions, and videos where the coach adds them',
     'Your progress saved as you tick off workouts',
-    'One payment, yours to keep',
+    'One payment, no subscription',
   ]
 
   const addToCart = () =>
@@ -216,7 +216,7 @@ export function ProgramPage() {
               <div className="min-w-0 lg:space-y-1">
                 <p className="font-heading text-2xl font-black tabular-nums lg:text-4xl">{formatMoney(p.priceAmount, p.currency)}</p>
                 {p.discount && !ownsIt && !mine && <DiscountNote offer={p.discount} price={Number(p.priceAmount)} currency={p.currency} />}
-                <p className="hidden text-sm text-muted-foreground lg:block">One payment. All workouts, yours to keep.</p>
+                <p className="hidden text-sm text-muted-foreground lg:block">One payment for every workout. No subscription.</p>
               </div>
               {deciding ? (
                 <div className="h-10 flex-1 animate-pulse rounded-lg bg-muted lg:h-[5.5rem] lg:flex-none" aria-busy="true" aria-label="Loading" />

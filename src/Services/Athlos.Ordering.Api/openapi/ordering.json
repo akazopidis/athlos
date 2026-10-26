@@ -549,6 +549,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPayoutsRetryRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -565,10 +575,84 @@
           }
         }
       }
+    },
+    "/api/v1/admin/payouts/actions": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminListPayoutActions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminActionsItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AdminActionKind": {
+        "enum": [
+          "WorkspaceSuspended",
+          "WorkspaceReactivated",
+          "PlanChanged",
+          "ReviewHidden",
+          "ReviewKept",
+          "PayoutRetried"
+        ]
+      },
+      "AdminActionsItem": {
+        "required": [
+          "id",
+          "adminId",
+          "action",
+          "subject",
+          "detail",
+          "reason",
+          "at"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "$ref": "#/components/schemas/AdminActionKind"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "AdminPayoutsItem": {
         "required": [
           "orderId",
@@ -621,6 +705,20 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "AdminPayoutsRetryRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Ordering.Api.Data;
 
 public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> options, ITenantContext tenant)
-    : TenantDbContext(options, tenant), IHasOutbox
+    : TenantDbContext(options, tenant), IHasOutbox, IHasAdminActions
 {
     public DbSet<Order> Orders => Set<Order>();
 
@@ -21,6 +21,8 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
     public DbSet<ProcessedStripeEvent> ProcessedStripeEvents => Set<ProcessedStripeEvent>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    public DbSet<AdminAction> AdminActions => Set<AdminAction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -87,6 +89,7 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
         });
 
         modelBuilder.ConfigureOutbox();
+        modelBuilder.ConfigureAdminActions();
 
         base.OnModelCreating(modelBuilder);
     }

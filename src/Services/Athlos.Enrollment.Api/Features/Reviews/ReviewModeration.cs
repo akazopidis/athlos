@@ -17,9 +17,12 @@ namespace Athlos.Enrollment.Api.Features.Reviews;
 //   policy, like ordering's payout_retries), so the admin never reads a tenant's reviews.
 // - Hiding or restoring enters the review's tenant, so the tenant filter and RLS confine the change to
 //   that one review; the program's rating in the shop follows, as for any change to its reviews.
+// - Every decision states a reason, recorded with the admin in admin_actions when the reports close.
 public static class ReviewModeration
 {
     public sealed record ReportRequest(ReportReason Reason, [property: MaxLength(500)] string? Note);
+
+    public sealed record DecisionRequest(string? Reason);
 
     public sealed record OpenReport(
         Guid ReviewId, Guid ProgramId, string ProgramTitle, string CoachSlug, string AuthorName, int Rating, string? Comment,
@@ -37,12 +40,15 @@ public static class ReviewModeration
             .RequireAuthorization(PlatformAdminAuthorization.Policy)
             .WithTags("Admin");
         admin.MapGet("/reports", ListReports).WithName("AdminListReviewReports");
-        admin.MapPost("/{reviewId:guid}/hide", (Guid reviewId, EnrollmentDbContext db, IServiceScopeFactory scopes, IProgramRatings ratings, TimeProvider time,
-                CancellationToken cancellationToken) => DecideAsync(reviewId, hide: true, db, scopes, ratings, time, cancellationToken))
+        admin.MapPost("/{reviewId:guid}/hide", (Guid reviewId, DecisionRequest request, TenantContext tenant, EnrollmentDbContext db, IServiceScopeFactory scopes,
+                IProgramRatings ratings, TimeProvider time, CancellationToken cancellationToken) =>
+                DecideAsync(reviewId, hide: true, request, tenant, db, scopes, ratings, time, cancellationToken))
             .WithName("AdminHideReview");
-        admin.MapPost("/{reviewId:guid}/keep", (Guid reviewId, EnrollmentDbContext db, IServiceScopeFactory scopes, IProgramRatings ratings, TimeProvider time,
-                CancellationToken cancellationToken) => DecideAsync(reviewId, hide: false, db, scopes, ratings, time, cancellationToken))
+        admin.MapPost("/{reviewId:guid}/keep", (Guid reviewId, DecisionRequest request, TenantContext tenant, EnrollmentDbContext db, IServiceScopeFactory scopes,
+                IProgramRatings ratings, TimeProvider time, CancellationToken cancellationToken) =>
+                DecideAsync(reviewId, hide: false, request, tenant, db, scopes, ratings, time, cancellationToken))
             .WithName("AdminKeepReview");
+        admin.MapAdminActions<EnrollmentDbContext>("/actions").WithName("AdminListReviewActions");
     }
 
     // 204 whether or not this person reported it before: one report per review and reporter.
@@ -117,8 +123,14 @@ public static class ReviewModeration
     // program's rating follows before the change commits, as for any review change. A review already
     // gone (refunded, erased) just closes its reports.
     private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> DecideAsync(
-        Guid reviewId, bool hide, EnrollmentDbContext db, IServiceScopeFactory scopes, IProgramRatings ratings, TimeProvider time, CancellationToken cancellationToken)
+        Guid reviewId, bool hide, DecisionRequest request, TenantContext tenant, EnrollmentDbContext db, IServiceScopeFactory scopes, IProgramRatings ratings,
+        TimeProvider time, CancellationToken cancellationToken)
     {
+        if (AdminActions.Valid(request.Reason) is not { } reason)
+        {
+            return AdminActions.MissingReason();
+        }
+
         ReviewReport? report;
         await using (var transaction = await db.Database.BeginTransactionAsync(cancellationToken))
         {
@@ -155,6 +167,18 @@ public static class ReviewModeration
             await db.ReviewReports
                 .Where(r => r.ReviewId == reviewId && r.ResolvedAt == null)
                 .ExecuteUpdateAsync(r => r.SetProperty(x => x.ResolvedAt, now).SetProperty(x => x.Hidden, hide), cancellationToken);
+            // The program, not the review's author or text: the log keeps no customer's personal data.
+            db.AdminActions.Add(new AdminAction
+            {
+                AdminId = tenant.UserId ?? Guid.Empty,
+                Action = hide ? AdminActionKind.ReviewHidden : AdminActionKind.ReviewKept,
+                TenantId = report.TenantId,
+                Subject = $"{report.ProgramTitle} (/c/{report.CoachSlug})",
+                Detail = $"{report.Rating}-star review",
+                Reason = reason,
+                At = now,
+            });
+            await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
 

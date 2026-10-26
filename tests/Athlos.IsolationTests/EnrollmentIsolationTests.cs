@@ -47,6 +47,7 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         { "GET", "/api/v1/admin/reviews/reports" },
         { "POST", $"/api/v1/admin/reviews/{Guid.Empty}/hide" },
         { "POST", $"/api/v1/admin/reviews/{Guid.Empty}/keep" },
+        { "GET", "/api/v1/admin/reviews/actions" },
     };
 
     // A workspace export (design §5.4) holds that coach's programs and reviews, and none of another's;

@@ -4,7 +4,7 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17.7, built on dev; v1.17.0 in production (2026-10-25)
 
-**Changes in v17.7 (next release):** a schema-wide RLS check and isolation cases for the last two uncovered endpoints (§3.3); the purchase end-to-end test refunds its payment at Stripe, so every staging deploy pays again (§15.1).
+**Changes in v17.7 (next release):** every platform admin action states a reason and is kept in an audit trail, and a suspended coach is told the reason (§2.3, §3.4); a schema-wide RLS check and isolation cases for the last two uncovered endpoints (§3.3); the purchase end-to-end test refunds its payment at Stripe, so every staging deploy pays again (§15.1).
 
 **Changes in v17.6 (v1.17.0):** existing workspaces accept new Terms for coaches from a notice in the studio; the owner's workspace export (§5.4).
 
@@ -205,6 +205,7 @@ Enough for the first migrations. Every table has `id uuid` (UUIDv7 via `Guid.Cre
 | enrollment | `workout_progress` **T** | `enrollment_id`, `workout_id`, `completed_at` |
 | enrollment | `reviews` **T** | `enrollment_id` (unique), `customer_id`, `program_id`, `rating` (1 to 5), `comment`, `author_name`, `reply`, `replied_at`, `hidden_at` (§2.4) |
 | enrollment | `review_reports` | `review_id`, `reporter_id` (unique together), `reason`, copies for the admin, `resolved_at`. A work queue of the service (allow-all policy, like `payout_retries`, §2.4) |
+| tenancy, enrollment, ordering | `admin_actions` | `admin_id`, `action`, `tenant_id`, `subject`, `detail`, `reason`, `at`: each service's audit trail of the platform admin's actions it carried out (allow-all policy, like `payout_retries`; no customer's personal data, §3.4) |
 | catalog | `saved_programs` | `customer_id`, `program_id` (unique together). The customer's: RLS `customer_id = app.user_id` (§2.4) |
 | catalog | `public_discounts` **T** | `tenant_id` (the key: one per workspace), `code`, `percent_off`, `program_id`, `expires_at`: a copy of the code the coach shows in the shop, from ordering-api; public-read for SELECT, written only in its tenant (§2.4) |
 | ordering | `discount_codes` **T** | `code` (unique per tenant), `percent_off`, `program_id`, `expires_at`, `max_redemptions`, `is_active`, `is_public` (§2.4) |
@@ -389,6 +390,7 @@ Pool is what a marketplace with many small coaches would use in practice, and it
   - Customers keep what they bought: paid content is read inside the tenant, whatever its state.
 - *Each write enters one tenant.* The admin has no tenant of its own. Changing a workspace's status or plan enters that tenant for the transaction, so RLS (`tenants_update`) confines the write to the one row. The isolation suite shows that suspending A leaves B active, and that B's owner cannot suspend A.
 - *Plans.* A new plan applies within the gateway's 60-second cache. A downgrade keeps what the coach has; quotas only stop new programs and staff.
+- *Audit trail (v1.18.0).* Every admin action states a reason (3 to 500 characters, otherwise `400` and nothing changes): suspending or reactivating a workspace, changing its plan (tenancy), hiding or keeping a reported review (enrollment) and retrying a coach's payout (ordering). The service that makes the change writes it to its own `admin_actions` in the same transaction, with the admin's id, what it concerned and the reason; a repeat that changes nothing writes nothing. The suspension email tells the coach the reason, the statement of reasons the EU Digital Services Act asks for. Each service lists its own (`GET /api/v1/admin/actions`, `/api/v1/admin/reviews/actions`, `/api/v1/admin/payouts/actions`, newest 100), and the admin page shows them together under "Recent actions". The log names programs and workspaces, never a review's author or text, so it keeps no customer's personal data.
 - *Platform metrics.* The admin page shows counts from tenancy's own table (database per service). Traffic, latency, 429s and sales per coach stay in the "Athlos per coach" workbook (§6), not in a cross-database report.
 
 Deleting one tenant's data with one key is a strong, demonstrable argument for the pool model's `tenant_id` discipline, and it is the GDPR "right to erasure" angle for the thesis. Plans (Free, Pro) are assigned by the platform admin; charging coaches a subscription through Stripe Billing is future work.

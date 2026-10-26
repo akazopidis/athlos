@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Tenancy.Api.Data;
 
 public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options, ITenantContext tenant)
-    : TenantDbContext(options, tenant), IHasOutbox
+    : TenantDbContext(options, tenant), IHasOutbox, IHasAdminActions
 {
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
@@ -16,6 +16,8 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
     public DbSet<StaffInvite> StaffInvites => Set<StaffInvite>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    public DbSet<AdminAction> AdminActions => Set<AdminAction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,6 +58,7 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
         });
 
         modelBuilder.ConfigureOutbox();
+        modelBuilder.ConfigureAdminActions();
 
         base.OnModelCreating(modelBuilder);
     }

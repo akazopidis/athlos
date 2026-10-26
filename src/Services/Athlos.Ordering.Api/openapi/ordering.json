@@ -1621,6 +1621,10 @@
               "null",
               "string"
             ]
+          },
+          "immediateAccess": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

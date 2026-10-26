@@ -23,8 +23,11 @@ namespace Athlos.Ordering.Api.Features.Checkout;
 //    order inside its coach's tenant, one tenant at a time, so the EF filter and RLS check every
 //    insert. The tenant comes from catalog's signed offer, never from the request.
 // The customer accepts the Terms (design §5.4): the request names the version they were shown, which
-// must be the current one (Legal:TermsVersion), or nothing is created (409, reason terms). The checkout
-// records the version and the time.
+// must be the current one (Legal:TermsVersion), or nothing is created (409, reason terms). They also
+// ask for access right away and acknowledge that the EU's 14-day right of withdrawal from digital
+// content ends once access starts (the Consumer Rights Directive's express consent); without it,
+// nothing is created either (409, reason withdrawal). Athlos's refund window still applies. The
+// checkout records the version, the consent and the time.
 // A discount code (design §2.4) is looked up inside each coach's tenant, like the cart's price check;
 // one that applies to nothing refuses the checkout (reason discountCode), so the customer never pays
 // more than the cart showed.
@@ -38,12 +41,13 @@ public static class StartCheckout
     public const int MaxPrograms = 10;
 
     // The Terms in force (the SPA's lib/legal.ts shows the same version); Legal:TermsVersion overrides it.
-    public const string CurrentTermsVersion = "2026-10-20";
+    public const string CurrentTermsVersion = "2026-10-26";
 
     public sealed record Request(
         [property: Required, MinLength(1), MaxLength(MaxPrograms)] List<Guid> ProgramIds,
         [property: MaxLength(40)] string? DiscountCode = null,
-        [property: MaxLength(20)] string? TermsVersion = null);
+        [property: MaxLength(20)] string? TermsVersion = null,
+        bool ImmediateAccess = false);
 
     public sealed record Response(Guid CheckoutId, string CheckoutUrl);
 
@@ -81,6 +85,12 @@ public static class StartCheckout
         if (request.TermsVersion != terms)
         {
             return Problem(StatusCodes.Status409Conflict, "terms", "Read and accept the current Terms to check out.", []);
+        }
+
+        if (!request.ImmediateAccess)
+        {
+            return Problem(StatusCodes.Status409Conflict, "withdrawal",
+                "Agree to get access right away, which ends the right of withdrawal, to check out. The refund window still applies.", []);
         }
 
         if (!checkout.IsConfigured)
@@ -231,6 +241,7 @@ public static class StartCheckout
                 CheckoutUrl = session.Url,
                 TermsVersion = terms,
                 TermsAcceptedAt = time.GetUtcNow(),
+                ImmediateAccessConsentAt = time.GetUtcNow(),
             });
             try
             {

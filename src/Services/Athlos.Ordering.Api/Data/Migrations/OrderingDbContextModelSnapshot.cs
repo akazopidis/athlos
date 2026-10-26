@@ -90,6 +90,10 @@ namespace Athlos.Ordering.Api.Data.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("idempotency_key");
 
+                    b.Property<DateTimeOffset?>("ImmediateAccessConsentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("immediate_access_consent_at");
+
                     b.Property<string>("StripeCheckoutSessionId")
                         .IsRequired()
                         .HasMaxLength(255)

@@ -68,7 +68,7 @@ export function ProgramPage() {
   const buy = useMutation({
     mutationFn: async (programId: string) => {
       const { data, error, response } = await api.POST('/api/v1/orders/checkout', {
-        body: { programIds: [programId], termsVersion: TermsVersion },
+        body: { programIds: [programId], termsVersion: TermsVersion, immediateAccess: true },
         params: { header: { 'Idempotency-Key': idempotencyKey } },
       })
       if (data) return data
@@ -271,7 +271,7 @@ export function ProgramPage() {
                 <Link to="/legal/refunds" className="underline underline-offset-4">
                   Refund policy
                 </Link>
-                .
+                , and ask for access right away, which ends your right of withdrawal. The refund policy still applies.
               </p>
             )}
             {slow && <div className="mt-3"><p className="text-center text-xs text-muted-foreground" role="status">Waking up the payment service. This can take up to a minute the first time.</p></div>}

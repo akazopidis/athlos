@@ -33,7 +33,7 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
     }
 
     // The Terms (design §5.4): a checkout must name the current version; none or an old one creates
-    // nothing, and the accepted version is kept on the checkout.
+    // nothing, and the accepted version is kept on the checkout, with the request for access right away.
     [Fact]
     public async Task A_checkout_needs_the_current_terms_and_keeps_the_accepted_version()
     {
@@ -47,13 +47,19 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
         }, customer);
         var old = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout")
         {
-            Content = JsonContent.Create(new { programIds = new[] { offer.ProgramId }, termsVersion = "2020-01-01" }),
+            Content = JsonContent.Create(new { programIds = new[] { offer.ProgramId }, termsVersion = "2020-01-01", immediateAccess = true }),
+        }, customer);
+        // The current Terms, but no request for access right away: the right of withdrawal would not end.
+        var noConsent = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders/checkout")
+        {
+            Content = JsonContent.Create(new { programIds = new[] { offer.ProgramId }, termsVersion = TermsVersion }),
         }, customer);
         var before = _api.CheckoutSessions.Sessions.Count;
         var checkout = await _api.Checkout(customer, offer.ProgramId);
 
-        Assert.Equal((HttpStatusCode.Conflict, HttpStatusCode.Conflict), (none.StatusCode, old.StatusCode));
+        Assert.Equal((HttpStatusCode.Conflict, HttpStatusCode.Conflict, HttpStatusCode.Conflict), (none.StatusCode, old.StatusCode, noConsent.StatusCode));
         Assert.Contains("\"terms\"", await old.Content.ReadAsStringAsync(Cancel), StringComparison.Ordinal);
+        Assert.Contains("\"withdrawal\"", await noConsent.Content.ReadAsStringAsync(Cancel), StringComparison.Ordinal);
         await using var scope = _api.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
         await using var transaction = await db.Database.BeginTransactionAsync(Cancel);
@@ -61,6 +67,7 @@ public sealed class CheckoutTests(AthlosDatabases databases) : IAsyncLifetime
         var row = await db.Checkouts.AsNoTracking().SingleAsync(c => c.Id == checkout.CheckoutId, Cancel);
         Assert.Equal(TermsVersion, row.TermsVersion);
         Assert.NotNull(row.TermsAcceptedAt);
+        Assert.NotNull(row.ImmediateAccessConsentAt);
         Assert.Equal(before + 1, _api.CheckoutSessions.Sessions.Count);
     }
 

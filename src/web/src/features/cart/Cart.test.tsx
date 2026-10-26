@@ -77,12 +77,13 @@ test('programs from two coaches are checked out together, in one payment', async
   expect(screen.getByRole('region', { name: 'From Ben Runs' })).toBeInTheDocument()
   expect(screen.getByText('€69.00')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('checkbox', { name: /I accept the Terms/ }))
+  fireEvent.click(screen.getByRole('checkbox', { name: /I want access right away/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Check out' }))
 
   await waitFor(() => expect(leaveTo).toHaveBeenCalledWith('https://checkout.stripe.test/cart'))
   const post = requests.find((r) => r.method === 'POST')!
   expect(new URL(post.url).pathname).toBe('/api/v1/orders/checkout')
-  expect(await post.json()).toEqual({ programIds: [annaProgram.programId, benProgram.programId], termsVersion: TermsVersion })
+  expect(await post.json()).toEqual({ programIds: [annaProgram.programId, benProgram.programId], termsVersion: TermsVersion, immediateAccess: true })
   expect(post.headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/)
 })
 
@@ -102,6 +103,8 @@ test('a program no longer for sale is taken out of the cart, and the customer is
   )
 
   fireEvent.click(await screen.findByRole('checkbox', { name: /I accept the Terms/ }))
+
+  fireEvent.click(screen.getByRole('checkbox', { name: /I want access right away/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Check out' }))
 
   expect(await screen.findByRole('status')).toHaveTextContent('Removed from your cart: Run ten k.')
@@ -119,6 +122,8 @@ test('a coach who cannot take payments is marked, and the cart stays', async () 
   )
 
   fireEvent.click(await screen.findByRole('checkbox', { name: /I accept the Terms/ }))
+
+  fireEvent.click(screen.getByRole('checkbox', { name: /I want access right away/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Check out' }))
 
   expect(await screen.findByText(/This coach cannot take payments right now/)).toBeInTheDocument()
@@ -141,13 +146,14 @@ test('a discount code lowers the programs of its coach and goes with the checkou
   expect(screen.getByText('€59.20')).toBeInTheDocument()
   expect(screen.getByText('−20%')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('checkbox', { name: /I accept the Terms/ }))
+  fireEvent.click(screen.getByRole('checkbox', { name: /I want access right away/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Check out' }))
 
   await waitFor(() => expect(leaveTo).toHaveBeenCalled())
   const check = requests.find((r) => new URL(r.url).pathname === '/api/v1/orders/discount')!
   expect(await check.json()).toEqual({ code: 'ANNA20', programIds: [annaProgram.programId, benProgram.programId] })
   const post = requests.find((r) => new URL(r.url).pathname === '/api/v1/orders/checkout')!
-  expect(await post.json()).toEqual({ programIds: [annaProgram.programId, benProgram.programId], discountCode: 'ANNA20', termsVersion: TermsVersion })
+  expect(await post.json()).toEqual({ programIds: [annaProgram.programId, benProgram.programId], discountCode: 'ANNA20', termsVersion: TermsVersion, immediateAccess: true })
 })
 
 test('checking out needs the Terms accepted', async () => {
@@ -156,6 +162,7 @@ test('checking out needs the Terms accepted', async () => {
   const checkout = await screen.findByRole('button', { name: 'Check out' })
   expect(checkout).toBeDisabled()
   fireEvent.click(screen.getByRole('checkbox', { name: /I accept the Terms/ }))
+  fireEvent.click(screen.getByRole('checkbox', { name: /I want access right away/ }))
   expect(checkout).toBeEnabled()
   expect(screen.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/legal/terms')
 })

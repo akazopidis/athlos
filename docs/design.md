@@ -4,7 +4,7 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17.7, built on dev; v1.17.0 in production (2026-10-25)
 
-**Changes in v17.7 (next release):** a schema-wide RLS check and isolation cases for the last two uncovered endpoints (§3.3).
+**Changes in v17.7 (next release):** a schema-wide RLS check and isolation cases for the last two uncovered endpoints (§3.3); the purchase end-to-end test refunds its payment at Stripe, so every staging deploy pays again (§15.1).
 
 **Changes in v17.6 (v1.17.0):** existing workspaces accept new Terms for coaches from a notice in the studio; the owner's workspace export (§5.4).
 
@@ -902,7 +902,7 @@ Build a deployable "walking skeleton" first, so IaC and CI/CD grow with the code
 | Isolation | same | The cross-tenant suite from §3.3; **a failing isolation test blocks the merge** | every PR |
 | Contract | OpenAPI documents checked into the repo | CI fails if an endpoint's OpenAPI changes without the file being updated, and if the SPA's generated client differs from the documents, so the client never drifts. `RouteCoverageTests` checks that every endpoint in the documents has a gateway route to its service (services answer only gateway-signed requests, so an unrouted endpoint is unreachable in Azure while its own tests pass) | every PR |
 | Frontend | Vitest + Testing Library | Components with API calls mocked | every PR |
-| End-to-end | Playwright (`tests/e2e`) | At phone, tablet and desktop sizes: the catalog and its filters, header search, the cart, a storefront, and no sideways scrolling on any main page (with a full-page screenshot of each in the report). Signed in (test customer in GitHub secrets): sign in through Entra, check out a cart, arrive on Stripe with the right total, without paying, so it can run on every deploy | after every staging deploy (`deploy-staging.yml`); type-checked on every PR |
+| End-to-end | Playwright (`tests/e2e`) | At phone, tablet and desktop sizes: the catalog and its filters, header search, the cart, a storefront, and no sideways scrolling on any main page (with a full-page screenshot of each in the report). Signed in (test customer in GitHub secrets): sign in through Entra, check out a cart, arrive on Stripe with the right total, without paying, so it can run on every deploy. A whole purchase with Stripe's test card (`E2E_PURCHASE_PROGRAM_PATH`), a review, then a full refund through Stripe's test API with the stage's key from Key Vault: the program page offers "Buy now" again once `charge.refunded` has removed the access, so every run pays again | after every staging deploy (`deploy-staging.yml`); type-checked on every PR |
 | Load | k6 | Noisy-neighbor experiment (§4) | on demand against staging |
 
 Stripe in tests: unit and integration tests use a fake `IPaymentGateway`; the real Stripe test mode is exercised only end to end.

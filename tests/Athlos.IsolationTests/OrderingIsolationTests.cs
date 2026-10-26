@@ -81,6 +81,7 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         { "GET", "/api/v1/me/cart" },
         { "GET", $"/internal/tenants/{Guid.Empty}/export" },
         { "PUT", "/api/v1/me/cart" },
+        { "POST", $"/internal/tenants/{Guid.Empty}/prepare-deletion" },
     };
 
     [Theory]
@@ -95,6 +96,24 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         var response = await _api.CreateClient().SendAsync(request, Cancel);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // Preparing a workspace's deletion (design §3.4) reads and closes that workspace's sales and payment
+    // pages only: A's refundable sale does not hold C's deletion, and C's deletion leaves A's open page open.
+    [Fact]
+    public async Task Preparing_a_deletion_sees_only_that_workspaces_sales_and_checkouts()
+    {
+        var c = NewCoach();
+        var aOpen = await _api.Checkout(Guid.CreateVersion7(), _api.Sellers.Sell(_a.TenantId, _a.Slug).ProgramId);
+        var cOpen = await _api.Checkout(Guid.CreateVersion7(), _api.Sellers.Sell(c.TenantId, c.Slug).ProgramId);
+
+        var forC = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/internal/tenants/{c.TenantId}/prepare-deletion"));
+        var aStillOpen = !_api.CheckoutSessions.Expired.ContainsKey(aOpen.SessionId);
+        var forA = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/internal/tenants/{_a.TenantId}/prepare-deletion"));
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.Conflict), (forC.StatusCode, forA.StatusCode));
+        Assert.True(_api.CheckoutSessions.Expired.ContainsKey(cOpen.SessionId));
+        Assert.True(aStillOpen);
     }
 
     [Fact]

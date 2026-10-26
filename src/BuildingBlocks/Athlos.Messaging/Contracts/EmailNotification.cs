@@ -48,9 +48,13 @@ public static class EmailTemplates
     // To the customer, queued by ordering-api with OrderRefunded (design §2.2), whoever refunded.
     public const string RefundConfirmation = "refund-confirmation";
 
-    // To the coach's owners, queued by ordering-api when a sale is refunded at Stripe or by a lost
-    // dispute (a refund the coach made in the studio needs no email).
+    // To the coach's owners, queued by ordering-api when a sale is refunded at Stripe, by a lost
+    // dispute or by the platform admin (a refund the coach made in the studio needs no email).
     public const string SaleRefunded = "sale-refunded";
+
+    // To the coach's owners, queued by ordering-api when a customer asks for a refund within the
+    // refund window (design §2.2): refund it in Sales by the date given, or the platform will.
+    public const string RefundRequested = "refund-requested";
 
     // To the coach's owners, queued by ordering-api when a customer disputes a payment (design §2.2).
     public const string SaleDisputed = "sale-disputed";

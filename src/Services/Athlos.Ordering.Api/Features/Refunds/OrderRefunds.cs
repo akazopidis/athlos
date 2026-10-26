@@ -9,20 +9,22 @@ using Stripe;
 
 namespace Athlos.Ordering.Api.Features.Refunds;
 
-// Refunding one paid order (design §2.2), the same way whoever starts it: the coach in the studio, a
-// refund made at Stripe, or a lost dispute.
+// Refunding one paid order (design §2.2), the same way whoever starts it: the coach in the studio, the
+// platform admin for a refund request the coach left waiting, a refund made at Stripe, or a lost dispute.
 // 1. The money, at Stripe.
 //    - A coach's refund takes the coach's share back first (the transfer is reversed), then gives the
 //      customer the price back. If Stripe refuses the reversal, nothing has changed and the coach can
 //      try again; the platform never pays a refund the coach's share does not cover.
+//    - The admin's refund keeps the refund promise: it tries to take the share back the same way, but
+//      if Stripe refuses, the customer is refunded anyway and the error is logged to settle with the coach.
 //    - A refund made at Stripe, or a lost dispute, has already given the money back; the reversal
 //      follows, and if Stripe refuses it the order is refunded in Athlos anyway (the error is logged
 //      for a person to settle with the coach).
 //    - A share still waiting in PayoutRetries was never sent; the retry is dropped.
 // 2. Inside the order's tenant, in one transaction: Paid -> Refunded (only once), OrderRefunded to the
 //    outbox, so enrollment-api removes the access, and the customer's refund email (design §5.3), unless
-//    they deleted their account. A refund the coach did not make (at Stripe, or a lost dispute) also
-//    emails the coach's owners, saying why.
+//    they deleted their account. A refund the coach did not make (by the admin, at Stripe, or a lost
+//    dispute) also emails the coach's owners, saying why. A refund request for the order is closed.
 // Every step is idempotent per order, at Stripe too (an existing refund or reversal is found by its
 // order, not by a 24-hour idempotency key), so a retry completes a refund that stopped halfway.
 public static partial class OrderRefunds
@@ -42,6 +44,8 @@ public static partial class OrderRefunds
         AtStripe,
         // The customer's bank decided a dispute against the platform: the money has gone back already.
         LostDispute,
+        // The platform admin, for a refund request the coach left waiting: Athlos refunds at Stripe.
+        Admin,
     }
 
     public enum Outcome
@@ -76,7 +80,7 @@ public static partial class OrderRefunds
 
         var beforeTheCart = order.CheckoutId is null;
         var transferred = !beforeTheCart && order.StripeTransferId is not null;
-        if (cause == Cause.Coach)
+        if (cause is Cause.Coach or Cause.Admin)
         {
             if (beforeTheCart)
             {
@@ -89,10 +93,15 @@ public static partial class OrderRefunds
                 {
                     await stripe.ReverseTransferAsync(order, cancellationToken);
                 }
-                catch (StripeException e)
+                catch (StripeException e) when (cause == Cause.Coach)
                 {
                     LogShareNotRecovered(logger, order.Id, tenantId, e.StripeError?.Code);
                     return Outcome.ShareNotRecovered;
+                }
+                catch (StripeException e)
+                {
+                    // The refund promise holds: the customer gets their money back regardless.
+                    LogReversalFailed(logger, order.Id, tenantId, e.StripeError?.Code);
                 }
             }
 
@@ -128,8 +137,9 @@ public static partial class OrderRefunds
                 return;
             }
 
-            // A share never transferred is not owed any more.
+            // A share never transferred is not owed any more, and a refund request is answered.
             await db.PayoutRetries.Where(r => r.OrderId == orderId).ExecuteDeleteAsync(cancellationToken);
+            await db.RefundRequests.Where(r => r.OrderId == orderId).ExecuteDeleteAsync(cancellationToken);
             db.OutboxMessages.Add(OutboxMessage.For(OrderRefunded.Queue,
                 new OrderRefunded(order.Id, order.TenantId, order.CustomerId, order.ProgramId, now)));
             if (order.CustomerEmail != EraseCustomer.ErasedEmail)
@@ -139,8 +149,12 @@ public static partial class OrderRefunds
 
             if (cause != Cause.Coach)
             {
-                db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, CoachEmail(EmailTemplates.SaleRefunded, order, configuration,
-                    cause == Cause.LostDispute ? "the customer's bank decided a payment dispute in their favour" : "the platform refunded it in Stripe")));
+                db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, CoachEmail(EmailTemplates.SaleRefunded, order, configuration, cause switch
+                {
+                    Cause.LostDispute => "the customer's bank decided a payment dispute in their favour",
+                    Cause.Admin => "the customer asked for a refund within the refund window and it was not refunded in three working days, so Athlos refunded it",
+                    _ => "the platform refunded it in Stripe",
+                })));
             }
 
             await db.SaveChangesAsync(cancellationToken);

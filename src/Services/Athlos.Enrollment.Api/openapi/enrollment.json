@@ -626,7 +626,8 @@
           "PlanChanged",
           "ReviewHidden",
           "ReviewKept",
-          "PayoutRetried"
+          "PayoutRetried",
+          "RefundIssued"
         ]
       },
       "AdminActionsItem": {

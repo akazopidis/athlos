@@ -69,6 +69,7 @@ export function Admin() {
           </p>
         </CardContent>
       </Card>
+      <RefundRequests reason={reason} />
       <Payouts reason={reason} />
       <ReportedReviews reason={reason} />
       <Workspaces reason={reason} />
@@ -168,6 +169,58 @@ function ReportedReviews({ reason }: { reason: Reason }) {
             </div>
           </li>
         ))}
+      </ul>
+    </Section>
+  )
+}
+
+// Refund requests (design §2.2): the customer asked within the refund window, and the coach has three
+// working days to refund it. Past its due date the admin refunds it, keeping the refund promise; the
+// coach's share is taken back when Stripe allows. Hidden while there are none.
+function RefundRequests({ reason }: { reason: Reason }) {
+  const { api } = useApp()
+  const queryClient = useQueryClient()
+  const [now] = useState(() => Date.now())
+  const requests = useQuery({
+    queryKey: ['admin', 'refund-requests'],
+    queryFn: async () => (await api.GET('/api/v1/admin/refund-requests')).data ?? [],
+  })
+  const refund = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error, response } = await api.POST('/api/v1/admin/refund-requests/{orderId}/refund', { params: { path: { orderId } }, body: { reason: reason.text } })
+      if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not refund it.')
+    },
+    onSuccess: reason.clear,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin'] }),
+  })
+
+  if (!requests.data?.length) return null
+  return (
+    <Section title="Refund requests">
+      <p className="text-sm text-muted-foreground">Customers asked within the refund window. Each coach has three working days; after that, refund it here.</p>
+      {refund.error && (
+        <Alert variant="destructive">
+          <AlertDescription>{refund.error.message}</AlertDescription>
+        </Alert>
+      )}
+      <ul className="divide-y rounded-2xl border bg-card">
+        {requests.data.map((r) => {
+          const due = new Date(r.dueAt).getTime() <= now
+          return (
+            <li key={r.orderId} className="flex flex-wrap items-center gap-x-4 gap-y-2 p-4 text-sm">
+              <div className="min-w-0 flex-1 basis-48">
+                <p className="truncate font-medium">{r.programTitle}</p>
+                <p className="text-muted-foreground">
+                  /c/{r.coachSlug} · asked {new Date(r.requestedAt).toLocaleDateString()} · {due ? 'overdue since' : 'due'} {new Date(r.dueAt).toLocaleString()}
+                </p>
+              </div>
+              <span className="tabular-nums">{formatMoney(r.amount, r.currency)}</span>
+              <Button size="sm" variant={due ? 'destructive' : 'outline'} disabled={!due || refund.isPending || !reason.ready} onClick={() => refund.mutate(r.orderId)}>
+                Refund
+              </Button>
+            </li>
+          )
+        })}
       </ul>
     </Section>
   )
@@ -376,6 +429,7 @@ const actionLabels: Record<Action['action'], string> = {
   ReviewHidden: 'Review hidden',
   ReviewKept: 'Review kept',
   PayoutRetried: 'Payout retried',
+  RefundIssued: 'Refund issued',
 }
 
 // The audit trail (design §3.4): each service keeps the admin actions it carried out (tenancy:
@@ -390,6 +444,7 @@ function RecentActions() {
         api.GET('/api/v1/admin/reviews/actions'),
         api.GET('/api/v1/admin/payouts/actions'),
       ])
+      // Ordering's log holds payout retries and refunds of refund requests.
       return [...(workspaces.data ?? []), ...(reviews.data ?? []), ...(payouts.data ?? [])].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 50)
     },
   })

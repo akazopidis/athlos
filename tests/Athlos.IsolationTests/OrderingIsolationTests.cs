@@ -83,6 +83,9 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         { "GET", $"/internal/tenants/{Guid.Empty}/export" },
         { "PUT", "/api/v1/me/cart" },
         { "POST", $"/internal/tenants/{Guid.Empty}/prepare-deletion" },
+        { "POST", $"/api/v1/me/orders/{Guid.Empty}/refund-request" },
+        { "GET", "/api/v1/admin/refund-requests" },
+        { "POST", $"/api/v1/admin/refund-requests/{Guid.Empty}/refund" },
     };
 
     [Theory]
@@ -115,6 +118,25 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.Conflict), (forC.StatusCode, forA.StatusCode));
         Assert.True(_api.CheckoutSessions.Expired.ContainsKey(cOpen.SessionId));
         Assert.True(aStillOpen);
+    }
+
+    // A refund request (design §2.2) is the customer's own: Bob asking about Alice's order is 404 and
+    // changes nothing, and Alice's request shows in coach A's sales only.
+    [Fact]
+    public async Task Only_the_buyer_can_ask_for_a_refund_and_only_their_coach_sees_it()
+    {
+        var bobAsks = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/orders/{_aliceBuysFromA}/refund-request") { Content = JsonContent.Create(new { note = "Bob's note" }) }, _bob);
+        var afterBob = await Body(await _api.AsCoach(_a, "/sales"));
+        var aliceAsks = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/orders/{_aliceBuysFromA}/refund-request") { Content = JsonContent.Create(new { note = "Alice's note" }) }, _alice);
+        var aSales = await Body(await _api.AsCoach(_a, "/sales"));
+        var bSales = await Body(await _api.AsCoach(_b, "/sales"));
+
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NoContent), (bobAsks.StatusCode, aliceAsks.StatusCode));
+        Assert.DoesNotContain("Bob's note", afterBob, StringComparison.Ordinal);
+        Assert.Contains("Alice's note", aSales, StringComparison.Ordinal);
+        Assert.DoesNotContain("Alice's note", bSales, StringComparison.Ordinal);
     }
 
     [Fact]

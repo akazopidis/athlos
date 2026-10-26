@@ -186,8 +186,8 @@ export function Refunds() {
       <p>Every program can be refunded within {days} days of purchase.</p>
       <h2>How to get a refund</h2>
       <ul>
-        <li>Contact the coach through the contact address on their storefront, or on the order in "Orders".</li>
-        <li>The coach refunds the purchase from their studio within {days} days of payment. You get the full amount you paid back on your card and an email confirming it.</li>
+        <li>Choose "Request a refund" on the order in "Orders" within {days} days of payment. You can add a note for the coach.</li>
+        <li>The coach refunds it from their studio. If they have not within three working days, Athlos refunds it. You get the full amount you paid back on your card and an email confirming it.</li>
         <li>Your access to the program ends with the refund, and your review of it is removed.</li>
       </ul>
       <h2>After {days} days</h2>

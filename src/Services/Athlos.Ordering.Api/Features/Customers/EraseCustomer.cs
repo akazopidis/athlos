@@ -65,7 +65,7 @@ public static class EraseCustomer
         {
             await scopes.InTenantAsync<OrderingDbContext>(tenantId, orders => orders.Orders
                 .Where(o => o.CustomerId == customerId)
-                .ExecuteUpdateAsync(o => o.SetProperty(x => x.CustomerEmail, ErasedEmail), cancellationToken), cancellationToken);
+                .ExecuteUpdateAsync(o => o.SetProperty(x => x.CustomerEmail, ErasedEmail).SetProperty(x => x.RefundRequestNote, (string?)null), cancellationToken), cancellationToken);
         }
 
         return TypedResults.NoContent();

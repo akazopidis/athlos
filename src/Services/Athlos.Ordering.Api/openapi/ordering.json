@@ -160,6 +160,43 @@
         }
       }
     },
+    "/api/v1/me/orders/{orderId}/refund-request": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "RequestRefund",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundRequestsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/v1/me/cart": {
       "get": {
         "tags": [
@@ -598,6 +635,66 @@
           }
         }
       }
+    },
+    "/api/v1/admin/refund-requests": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminListRefundRequests",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RefundRequestsItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/refund-requests/{orderId}/refund": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminRefundRequest",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundRequestsAdminRefund"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -609,7 +706,8 @@
           "PlanChanged",
           "ReviewHidden",
           "ReviewKept",
-          "PayoutRetried"
+          "PayoutRetried",
+          "RefundIssued"
         ]
       },
       "AdminActionsItem": {
@@ -952,7 +1050,9 @@
           "paidAt",
           "checkoutId",
           "discountCode",
-          "discountAmount"
+          "discountAmount",
+          "refundableUntil",
+          "refundRequestedAt"
         ],
         "type": "object",
         "properties": {
@@ -1015,6 +1115,20 @@
               "string"
             ],
             "format": "int64"
+          },
+          "refundableUntil": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "refundRequestedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -1202,7 +1316,9 @@
           "status",
           "refundedAt",
           "refundableUntil",
-          "discountCode"
+          "discountCode",
+          "refundRequestedAt",
+          "refundRequestNote"
         ],
         "type": "object",
         "properties": {
@@ -1265,6 +1381,19 @@
               "null",
               "string"
             ]
+          },
+          "refundRequestedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "refundRequestNote": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -1316,6 +1445,78 @@
           "Failed",
           "Refunded"
         ]
+      },
+      "RefundRequestsAdminRefund": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RefundRequestsItem": {
+        "required": [
+          "orderId",
+          "coachSlug",
+          "programTitle",
+          "amount",
+          "currency",
+          "requestedAt",
+          "dueAt"
+        ],
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "coachSlug": {
+            "type": "string"
+          },
+          "programTitle": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RefundRequestsRequest": {
+        "required": [
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "note": {
+            "maxLength": 500,
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
       },
       "SalesSummaryResponse": {
         "required": [

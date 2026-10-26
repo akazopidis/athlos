@@ -419,7 +419,7 @@ export interface components {
             displayName: string;
         };
         /** @enum {unknown} */
-        AdminActionKind: "WorkspaceSuspended" | "WorkspaceReactivated" | "PlanChanged" | "ReviewHidden" | "ReviewKept" | "PayoutRetried";
+        AdminActionKind: "WorkspaceSuspended" | "WorkspaceReactivated" | "PlanChanged" | "ReviewHidden" | "ReviewKept" | "PayoutRetried" | "RefundIssued";
         AdminActionsItem: {
             /** Format: uuid */
             id: string;

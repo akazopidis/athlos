@@ -15,6 +15,9 @@ public sealed class CrossTenantSliceGuardTests
         "src/Services/Athlos.Catalog.Api/Features/Saved/SavedPrograms.cs",
         // A customer's own orders across coaches.
         "src/Services/Athlos.Ordering.Api/Features/Orders/OrderLists.cs",
+        // A customer's refund request: their own order, found the same way, then changed inside its
+        // tenant (design §2.2).
+        "src/Services/Athlos.Ordering.Api/Features/Refunds/RefundRequests.cs",
         // A customer's own enrollments and progress across coaches.
         "src/Services/Athlos.Enrollment.Api/Features/MyPrograms/MyEnrollments.cs",
         // The public reviews of a program, every tenant's (public-read scope, design §2.4).

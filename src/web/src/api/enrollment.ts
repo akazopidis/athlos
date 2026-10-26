@@ -201,7 +201,7 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /** @enum {unknown} */
-        AdminActionKind: "WorkspaceSuspended" | "WorkspaceReactivated" | "PlanChanged" | "ReviewHidden" | "ReviewKept" | "PayoutRetried";
+        AdminActionKind: "WorkspaceSuspended" | "WorkspaceReactivated" | "PlanChanged" | "ReviewHidden" | "ReviewKept" | "PayoutRetried" | "RefundIssued";
         AdminActionsItem: {
             /** Format: uuid */
             id: string;

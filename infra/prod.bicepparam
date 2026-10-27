@@ -4,6 +4,7 @@ param environmentName = 'prod'
 param imageTag = readEnvironmentVariable('IMAGE_TAG')
 param appVersion = readEnvironmentVariable('APP_VERSION', readEnvironmentVariable('IMAGE_TAG'))
 param gatewaySigningKey = readEnvironmentVariable('GATEWAY_SIGNING_KEY')
+param signingKeyRotating = bool(readEnvironmentVariable('SIGNING_KEY_ROTATING', 'false'))
 param deployApps = bool(readEnvironmentVariable('DEPLOY_APPS', 'true'))
 param authAuthority = readEnvironmentVariable('AUTH_AUTHORITY', '')
 param authAudience = readEnvironmentVariable('AUTH_AUDIENCE', '')

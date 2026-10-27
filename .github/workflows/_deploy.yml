@@ -86,6 +86,13 @@ jobs:
           fi
           echo "::add-mask::$GATEWAY_SIGNING_KEY"
           export GATEWAY_SIGNING_KEY
+          # During a key rotation (infra/README.md) the vault also holds gateway-signing-key-also,
+          # which every app then accepts too.
+          SIGNING_KEY_ROTATING=false
+          if az keyvault secret show --vault-name "$vault" --name gateway-signing-key-also --output none 2>/dev/null; then
+            SIGNING_KEY_ROTATING=true
+          fi
+          export SIGNING_KEY_ROTATING
 
           deploy() {
             DEPLOY_APPS=$1 az deployment group create \

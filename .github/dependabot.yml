@@ -33,6 +33,10 @@ updates:
     target-branch: dev
     schedule:
       interval: monthly
+    # A TypeScript major waits until typescript-eslint supports it (7.0 broke npm ci in #225).
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     groups:
       web:
         patterns: ["*"]

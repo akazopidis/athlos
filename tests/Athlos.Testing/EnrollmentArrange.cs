@@ -148,7 +148,7 @@ public static class EnrollmentArrange
 
     public sealed record Workout(Guid Id, int Week, int Day, string Title, DateTimeOffset? CompletedAt);
 
-    public sealed record ProgramPage(Guid ProgramId, string Title, List<Workout> Workouts);
+    public sealed record ProgramPage(Guid ProgramId, string Title, List<Workout> Workouts, bool CoachLeft = false);
 
     public static OrderPaid Paid(Guid customerId, Guid tenantId, string coachSlug, ProgramContentResponse program, Guid? orderId = null) =>
         new(orderId ?? Guid.CreateVersion7(), tenantId, customerId, $"{customerId}@test.local", program.ProgramId, program.Title, coachSlug, 4900, "EUR", DateTimeOffset.UtcNow);

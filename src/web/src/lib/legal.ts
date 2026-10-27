@@ -7,6 +7,6 @@ export const TermsDate = '26 October 2026'
 
 // The Terms for coaches, accepted when a workspace is opened; tenancy-api refuses a version other than
 // its Legal:CoachTermsVersion, the same way.
-export const CoachTermsVersion = '2026-10-24'
+export const CoachTermsVersion = '2026-10-26'
 
-export const CoachTermsDate = '24 October 2026'
+export const CoachTermsDate = '26 October 2026'

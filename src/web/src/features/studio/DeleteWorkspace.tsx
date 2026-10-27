@@ -42,8 +42,8 @@ export function DeleteWorkspace({ slug }: { slug: string }) {
       <CardHeader>
         <CardTitle>Delete workspace</CardTitle>
         <CardDescription>
-          Removes your storefront, programs, workouts, images and team for good. Customers lose access to the programs they bought; their
-          orders are kept for accounting. Your Stripe account stays yours at Stripe.
+          Removes your storefront, programs, workouts, images and team for good. Customers keep a read-only copy of the programs they bought,
+          with their progress; their orders are kept for accounting. Your Stripe account stays yours at Stripe.
         </CardDescription>
       </CardHeader>
       <CardContent>

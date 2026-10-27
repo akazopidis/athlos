@@ -20,6 +20,8 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
 
     public DbSet<AdminAction> AdminActions => Set<AdminAction>();
 
+    public DbSet<ProgramCopy> ProgramCopies => Set<ProgramCopy>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ProgramEnrollment>(enrollment =>
@@ -78,6 +80,16 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
             report.Property(r => r.Comment).HasMaxLength(Review.MaxCommentLength);
             report.Property(r => r.Note).HasMaxLength(500);
             report.Property(r => r.Reason).HasConversion<string>().HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<ProgramCopy>(copy =>
+        {
+            copy.HasKey(c => c.ProgramId);
+            copy.HasIndex(c => c.TenantId);
+            copy.Property(c => c.CoachSlug).HasMaxLength(40);
+            copy.Property(c => c.Title).HasMaxLength(120);
+            copy.Property(c => c.Category).HasMaxLength(40);
+            copy.Property(c => c.Workouts).HasColumnType("jsonb");
         });
 
         modelBuilder.ConfigureOutbox();

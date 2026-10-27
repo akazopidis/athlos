@@ -48,6 +48,8 @@ public static class EraseCustomer
 
                 await enrollment.WorkoutProgress.Where(p => p.CustomerId == customerId).ExecuteDeleteAsync(cancellationToken);
                 await enrollment.Enrollments.Where(e => e.CustomerId == customerId).ExecuteDeleteAsync(cancellationToken);
+                // A deleted coach's program nobody owns any more needs no copy.
+                await enrollment.ProgramCopies.Where(c => !enrollment.Enrollments.Any(e => e.ProgramId == c.ProgramId)).ExecuteDeleteAsync(cancellationToken);
                 foreach (var programId in reviewed)
                 {
                     await ProgramRatings.PublishAsync(enrollment, ratings, tenantId, programId, cancellationToken);

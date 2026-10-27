@@ -23,6 +23,9 @@ param gatewayMinReplicas int = 0
 // (swap staging's and prod's values for a real launch). The migrator caps each database at twice
 // its share, room for a rollout's old and new revisions and the migrator itself, so a stage that is
 // set up wrong still cannot take the others' connections.
+// The gateway's replicas: each enforces its share of every rate limit (design §4).
+var gatewayMaxReplicas = 2
+
 @description('Database connections per service replica.')
 param dbPoolSize int = 2
 
@@ -486,14 +489,16 @@ module gateway 'modules/container-app.bicep' = if (deployApps) {
     image: '${registryServer}/athlos/gateway:${imageTag}'
     external: true
     minReplicas: gatewayMinReplicas
-    // The in-memory rate limiter multiplies with replicas, so the gateway stays at 2 (design §4).
-    maxReplicas: 2
+    // The rate limiter's buckets live in each replica, which enforces its share of every limit
+    // (RateLimits__GatewayReplicas below), so the two must stay equal (design §4).
+    maxReplicas: gatewayMaxReplicas
     // At 0.25 vCPU, refusing a 300 req/s flood took the gateway's CPU from the other coaches (their p95
     // +71%); at 0.5 vCPU their p95 stayed at baseline (docs/evaluation/noisy-neighbor.md, round 2).
     cpu: '0.5'
     keyVaultSecrets: signingKeySecret
     env: concat(commonEnv, authEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'gateway' }
+      { name: 'RateLimits__GatewayReplicas', value: string(gatewayMaxReplicas) }
       // Container Apps terminates TLS; trust its X-Forwarded-* headers so HSTS sees https.
       { name: 'ASPNETCORE_FORWARDEDHEADERS_ENABLED', value: 'true' }
       // SPA sign-in settings, served by GET /config.json (design §8.1).

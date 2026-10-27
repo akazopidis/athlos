@@ -28,7 +28,7 @@ The limitations fall into three kinds:
 | 11 | One PostgreSQL server for all three stages | Budget | Operations, isolation |
 | 12 | One Container Apps environment for all three stages | Budget | Operations, isolation |
 | 13 | Cold starts of about 90 seconds | Budget | Performance |
-| 14 | The rate limit grows with each gateway replica | Budget | Noisy neighbor |
+| 14 | The rate limit grows with each gateway replica (solved in v1.18.0, by dividing it) | Budget | Noisy neighbor |
 | 15 | One coach's flood can block that coach's own visitors | Trade-off | Noisy neighbor |
 | 16 | One signing key shared by the gateway and every service | Trade-off | Security |
 | 17 | No CDN or web application firewall | Budget | Security, performance |
@@ -148,6 +148,7 @@ The limitations fall into three kinds:
 ## Noisy neighbor and security
 
 ### 14. The rate limit grows with each gateway replica
+- **Built (v1.18.0, decided 26 October 2026):** each replica enforces its share of every limit (the limit divided by the gateway's `maxReplicas`, `RateLimits:GatewayReplicas`). Two replicas together now allow the plan's limit, never more. What remains: while only one replica runs, a client gets half its limit, until the second replica starts; Redis would be exact at any scale.
 - **Missing:** an exact per-coach limit. The rate limiter keeps its token buckets in each gateway replica's memory (§4). With 2 replicas, a coach gets up to twice their plan's limit. Measured: about 30–40 req/s got through against the Free plan's 20 (`noisy-neighbor.md`, rounds 1 and 2).
 - **Why:** budget. A shared limiter needs Redis, about €13 a month or more.
 - **Impact:** limits are approximate. The experiment showed the extra traffic did not hurt the other coach at 0.5 vCPU, so the gateway keeps `maxReplicas: 2`.

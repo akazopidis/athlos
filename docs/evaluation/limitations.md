@@ -159,6 +159,7 @@ The limitations fall into three kinds:
 
 ### 16. One signing key shared by the gateway and every service
 - **Missing:** per-service credentials between services. The gateway signs every request it forwards (HMAC-SHA256), and services accept only signed requests (§3.2). There is one key per stage, shared by the gateway and every service, and a signed request can be replayed for up to 60 seconds.
+- **Built (v1.18.0):** the key can be rotated without downtime: services also accept a second key while `gateway-signing-key-also` exists, so a rotation is three deploys (infra/README.md, "Rotating secrets"). The key is still one per stage, shared.
 - **Why:** a simple, testable mechanism that keeps every service gateway-only (layer 1 of the isolation design).
 - **Impact:** a compromised service could sign requests as the gateway, including requests for another tenant. Replay needs access inside the platform, since all traffic is TLS.
 - **Solution:** per-service keys, or workload identity tokens: the gateway's managed identity requests an Entra token for each service, and each service validates the token's audience. Short-lived tokens or a nonce cache would close the replay window.

@@ -5,7 +5,8 @@ For each stage (dev, staging, prod) this:
   1. creates, in the External ID tenant, the app "Athlos account deletion (<stage>)" with Microsoft
      Graph's application permission User.ReadWrite.All, and grants admin consent for it;
   2. adds a client secret (valid 2 years) and stores it as entra-deletion-client-secret in
-     kv-athlos-<stage> (it grants you "Key Vault Secrets Officer" there to write it);
+     kv-athlos-<stage>, with the same expiry date, which secret-expiry.yml warns about (it grants you
+     "Key Vault Secrets Officer" there to write it);
   3. sets ACCOUNT_DELETION_CLIENT_ID on the GitHub environment, so the next deploy wires it in.
 
 Each run adds a new secret and removes the app's older ones, so only the stored secret works.
@@ -91,7 +92,7 @@ def new_secret(app):
     for old in app.get("passwordCredentials", []):
         if old["keyId"] != created["keyId"]:
             graph("POST", f"/applications/{app['id']}/removePassword", {"keyId": old["keyId"]})
-    return created["secretText"]
+    return created["secretText"], expires
 
 
 def my_object_id():
@@ -102,13 +103,13 @@ def my_object_id():
     return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))["oid"]
 
 
-def store(stage, name, value):
+def store(stage, name, value, expires=None):
     vault = f"kv-athlos-{stage}"
     scope = run("az", "keyvault", "show", "--subscription", SUBSCRIPTION, "-n", vault, "--query", "id", "-o", "tsv")
     run("az", "role", "assignment", "create", "--subscription", SUBSCRIPTION, "--assignee-object-id", my_object_id(),
         "--assignee-principal-type", "User", "--role", SECRETS_OFFICER_ROLE, "--scope", scope, "-o", "none")
     run("az", "keyvault", "secret", "set", "--subscription", SUBSCRIPTION, "--vault-name", vault,
-        "-n", name, "--value", value, "-o", "none")
+        "-n", name, "--value", value, *(["--expires", expires] if expires else []), "-o", "none")
 
 
 def main():
@@ -116,7 +117,8 @@ def main():
     for stage in STAGES:
         app = ensure_app(stage)
         ensure_admin_consent(service_principal(app["appId"]), graph_sp)
-        store(stage, "entra-deletion-client-secret", new_secret(graph("GET", f"/applications/{app['id']}")))
+        secret, expires = new_secret(graph("GET", f"/applications/{app['id']}"))
+        store(stage, "entra-deletion-client-secret", secret, expires)
         run("gh", "variable", "set", "ACCOUNT_DELETION_CLIENT_ID", "-R", GITHUB_REPO, "--env", stage, "--body", app["appId"], capture=False)
         print(f"== {stage}: app {app['appId']}, consent granted, secret in kv-athlos-{stage}, ACCOUNT_DELETION_CLIENT_ID set")
 

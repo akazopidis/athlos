@@ -47,6 +47,9 @@ param apiScope string = ''
 @description('true once the stage Key Vault holds stripe-secret-key (infra/stripe_setup.py). Referencing a missing Key Vault secret would fail the deploy.')
 param stripeConfigured bool = false
 
+@description('true during a signing-key rotation: the stage Key Vault holds gateway-signing-key-also, a second key every app also accepts (infra/README.md). Set by the deploy workflow when the secret exists.')
+param signingKeyRotating bool = false
+
 @description('true in dev and staging: the migrator adds the demo coaches, programs and purchases (design §15.2). Never in prod.')
 param seedDemoData bool = false
 
@@ -214,7 +217,9 @@ module keyVault 'modules/keyvault.bicep' = {
   }
 }
 
-var signingKeySecret = [{ name: 'gateway-signing-key', keyVaultUrl: keyVault.outputs.signingKeyUri }]
+var signingKeySecret = concat([{ name: 'gateway-signing-key', keyVaultUrl: keyVault.outputs.signingKeyUri }], signingKeyRotating
+  ? [{ name: 'gateway-signing-key-also', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/gateway-signing-key-also' }]
+  : [])
 
 // Stripe secrets are written into Key Vault by infra/stripe_setup.py, not by Bicep (no secret in the repo or pipeline).
 var stripeSecretKey = [{ name: 'stripe-secret-key', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/stripe-secret-key' }]
@@ -227,11 +232,11 @@ var entraDeletionSecret = [{ name: 'entra-deletion-client-secret', keyVaultUrl: 
 // The stage's public address: its gateway (container app names are fixed, the domain is the environment's).
 var publicUrl = 'https://ca-athlos-gateway-${environmentName}.${acaEnvironment.properties.defaultDomain}'
 
-var commonEnv = [
+var commonEnv = concat([
   { name: 'GatewaySignature__Key', secretRef: 'gateway-signing-key' }
   { name: 'APP_VERSION', value: appVersion }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
-]
+], signingKeyRotating ? [{ name: 'GatewaySignature__AlsoAcceptKey', secretRef: 'gateway-signing-key-also' }] : [])
 
 // Runs before the apps on every deploy (see deployApps), started by _deploy.yml.
 module migrator 'modules/container-job.bicep' = {

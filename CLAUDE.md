@@ -35,7 +35,7 @@ Master thesis project: a multi-tenant B2B2C fitness marketplace. Coaches are ten
   - Every new endpoint gets a case in `tests/Athlos.IsolationTests`.
 - Services connect to PostgreSQL as their own non-owner role. Never grant `BYPASSRLS` or superuser to an app role.
 - Tenant-scoped route groups use `.RequireTenant()` and `.WithTenantTransaction<TDbContext>()`; RLS settings only exist inside a transaction.
-- Schema changes go through EF migrations; RLS policies are written in the same migration with the `RowLevelSecurity` helpers. Never widen reads in a combined policy: `AddTenantIsolationPolicy(table, alsoReadable)` splits SELECT from writes (design §3.2).
+- Schema changes go through EF migrations; RLS policies are written in the same migration with the `RowLevelSecurity` helpers. Expand, then contract: a migration only adds (new required columns need a default); dropping or renaming waits until no released version uses it and carries a `// Contract step:` comment (design §12.2, `MigrationRuleTests`). Never widen reads in a combined policy: `AddTenantIsolationPolicy(table, alsoReadable)` splits SELECT from writes (design §3.2).
 - `set_config('app.tenant_id', ..., true)` is transaction-local; do not change it to session-level.
 - Database per service. A service never reads another service's database; use an HTTP call or an event.
 - Money is integer minor units plus a currency code.

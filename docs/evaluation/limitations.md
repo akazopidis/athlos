@@ -139,6 +139,7 @@ The limitations fall into three kinds:
   - the first visitor after a quiet period sees a long wait, and the gateway also serves the SPA, so even the page load waits;
   - Stripe's webhook calls can time out during a cold start and are retried later. v1.5.1 made a refund that arrives before its payment's event wait for that event, rather than be lost;
   - the end-to-end tests run a warm-up step first.
+  - since v1.18.0 `uptime.yml` asks staging and prod four times a day, so a quiet stage that stopped answering is noticed, and its job summaries record each cold start (47 to 54 seconds on 27 October 2026).
 - **Solution, in order of cost:**
   - `minReplicas: 1` for the gateway alone, which hides most of the delay, at about €10–15 a month;
   - keep the apps warm with a scheduled ping (cheap, but it defeats scale to zero during the day);

@@ -117,3 +117,83 @@ jobs:
           for env in dev staging prod; do
             az bicep build-params --file "infra/$env.bicepparam" --stdout > /dev/null
           done
+
+  # What a PR's infra/ change would do (design §11): Azure's what-if for dev, signed in with dev's
+  # identity, posted to the job summary. Only on PRs that touch infra/; not a required check, so an
+  # Azure hiccup never blocks a merge. Dev's current images are kept, so only infra changes show.
+  infra-what-if:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - id: changed
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          if git diff --quiet "$BASE...HEAD" -- infra/; then
+            echo "infra=false" >> "$GITHUB_OUTPUT"
+            echo "No change under infra/: nothing to preview."
+          else
+            echo "infra=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.changed.outputs.infra == 'true'
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: What-if for dev
+        if: steps.changed.outputs.infra == 'true'
+        env:
+          AUTH_AUTHORITY: ${{ vars.AUTH_AUTHORITY }}
+          AUTH_AUDIENCE: ${{ vars.AUTH_AUDIENCE }}
+          SPA_CLIENT_ID: ${{ vars.SPA_CLIENT_ID }}
+          API_SCOPE: ${{ vars.API_SCOPE }}
+          STRIPE_CONFIGURED: ${{ vars.STRIPE_CONFIGURED || 'false' }}
+          ACCOUNT_DELETION_CLIENT_ID: ${{ vars.ACCOUNT_DELETION_CLIENT_ID }}
+        run: |
+          GATEWAY_SIGNING_KEY=$(az keyvault secret show --vault-name kv-athlos-dev --name gateway-signing-key --query value --output tsv)
+          echo "::add-mask::$GATEWAY_SIGNING_KEY"
+          export GATEWAY_SIGNING_KEY
+          SIGNING_KEY_ROTATING=false
+          if az keyvault secret show --vault-name kv-athlos-dev --name gateway-signing-key-also --output none 2>/dev/null; then
+            SIGNING_KEY_ROTATING=true
+          fi
+          export SIGNING_KEY_ROTATING
+          image=$(az containerapp show -g rg-athlos-dev -n ca-athlos-gateway-dev --query "properties.template.containers[0].image" --output tsv)
+          export IMAGE_TAG="${image##*:}"
+          export APP_VERSION="$IMAGE_TAG"
+          az deployment group what-if --resource-group rg-athlos-dev --parameters infra/dev.bicepparam --no-pretty-print --output json > whatif.json
+          python3 - >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          import json, os, sys
+          changes = json.load(open("whatif.json"))["changes"]
+          name = lambda c: c["resourceId"].split("/providers/")[-1]
+          def paths(delta, prefix=""):
+              for d in delta or []:
+                  path = f"{prefix}.{d['path']}" if prefix else d["path"]
+                  if d.get("children"):
+                      yield from paths(d["children"], path)
+                  else:
+                      yield f"{d['propertyChangeType']} {path}"
+          def count(delta):
+              return len(list(paths(delta)))
+          for c in changes:
+              if c["changeType"] == "Modify":
+                  print(name(c), *paths(c.get("delta")), sep="\n    ", file=sys.stderr)
+          print(f"### What-if for dev (`env.bicep`, images `{os.environ['IMAGE_TAG']}`)")
+          print("Create and Delete are real. Modify also lists what-if noise: values built from references (Key Vault URLs, environment values) and server defaults Bicep does not set; open the log for the property paths.")
+          print("| Change | Resource | Properties |")
+          print("|---|---|---|")
+          for c in changes:
+              if c["changeType"] in ("Create", "Delete", "Modify"):
+                  print(f"| {c['changeType']} | `{name(c)}` | {count(c.get('delta')) if c['changeType'] == 'Modify' else ''} |")
+          EOF

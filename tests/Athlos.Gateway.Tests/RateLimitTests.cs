@@ -69,12 +69,17 @@ public sealed class RateLimitTests : IAsyncLifetime
         var client = Gateway();
 
         var flood = await Send(client, "/api/v1/marketplace/coaches/coach-a", times: PlanRate * 3);
-        var neighbour = await Send(client, "/api/v1/marketplace/coaches/coach-b", times: PlanRate);
+        // Coach B's visitors, each a different account, so no single visitor's own limit applies.
+        var neighbour = new List<HttpStatusCode>();
+        for (var i = 0; i < PlanRate; i++)
+        {
+            neighbour.Add(await Send(client, Guid.CreateVersion7(), HttpMethod.Get, "/api/v1/marketplace/coaches/coach-b"));
+        }
 
         var refused = flood.Where(r => r.StatusCode == HttpStatusCode.TooManyRequests).ToList();
         Assert.NotEmpty(refused);
         Assert.All(refused, r => Assert.True(int.Parse(r.Headers.GetValues("Retry-After").Single(), System.Globalization.CultureInfo.InvariantCulture) >= 1));
-        Assert.All(neighbour, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        Assert.All(neighbour, status => Assert.Equal(HttpStatusCode.OK, status));
     }
 
     // Tenant-aware telemetry (design §6): the gateway's request span names the coach and its plan.
@@ -184,6 +189,26 @@ public sealed class RateLimitTests : IAsyncLifetime
         using var request = new HttpRequestMessage(HttpMethod.Post, path);
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Athlos.Testing.TestTokens.For(customer));
         return (await client.SendAsync(request, TestContext.Current.CancellationToken)).StatusCode;
+    }
+
+    // One visitor flooding a storefront spends at most half of the coach's budget (design §4): their
+    // own requests get 429, while another visitor of the same coach still gets through.
+    [Fact]
+    public async Task One_visitor_cannot_spend_a_coachs_whole_budget()
+    {
+        var client = Gateway();
+        var (flooder, other) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+
+        var flood = new List<HttpStatusCode>();
+        for (var i = 0; i < PlanRate * 3; i++)
+        {
+            flood.Add(await Send(client, flooder, HttpMethod.Get, "/api/v1/marketplace/coaches/coach-a"));
+        }
+
+        var otherVisitor = await Send(client, other, HttpMethod.Get, "/api/v1/marketplace/coaches/coach-a");
+
+        Assert.Contains(HttpStatusCode.TooManyRequests, flood);
+        Assert.Equal(HttpStatusCode.OK, otherVisitor);
     }
 
     [Fact]

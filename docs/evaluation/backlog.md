@@ -63,7 +63,7 @@ These turn a working thesis deployment into one you could leave running: secrets
 | 26 | MFA for admins | Nothing in the repo sets up multi-factor sign-in; unless it was switched on in the portal, the admin signs in with a password alone. | Switch on email-code MFA in the Entra user flow, at least for `Platform.Admin` accounts. | S | Portal | Not started |
 | 27 | Email bounces | Failed deliveries from Communication Services are not processed, so Athlos keeps writing to dead addresses. | An Event Grid subscription on email events that marks bad addresses. | M | Code | Not started |
 | 28 | Rate limit across gateway replicas (#14) | Each gateway replica keeps its own buckets, so a coach's limit doubles at two replicas. | Divide the plan's limit by `maxReplicas`, or keep the buckets in PostgreSQL. Redis waits (item 28 below). | M | You | Done |
-| 29 | Storefront floods (#15) | One client flooding a storefront spends that coach's budget, so their own visitors get 429s. | A per-client limit on storefront traffic. A CDN and firewall wait (item 29 below). | M | Code | Not started |
+| 29 | Storefront floods (#15) | One client flooding a storefront spends that coach's budget, so their own visitors get 429s. | A per-client limit on storefront traffic. A CDN and firewall wait (item 29 below). | M | Code | Done |
 | 30 | Infra what-if on pull requests | Design §11 promises an `az deployment what-if` on infra PRs; CI only lints Bicep. | Sign in with OIDC on infra PRs and post the what-if to the job summary. | S | Code | Not started |
 
 ## Priority 4: tests still missing

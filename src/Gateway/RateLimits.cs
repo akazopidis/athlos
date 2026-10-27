@@ -11,6 +11,10 @@ namespace Athlos.Gateway;
 // - Each coach's studio and storefront traffic shares one token bucket, sized by the coach's plan
 //   (Free 20 req/s, Pro 100 req/s). Studio requests count only once the caller is a member, so a
 //   stranger cannot spend a coach's studio budget.
+// - In front of a coach's bucket, each visitor of the coach's storefront and programs has one at half
+//   the coach's rate (by account when signed in, by IP otherwise), so one client flooding a storefront
+//   cannot spend the whole budget and lock the coach's other visitors out (design §4). The studio is
+//   not limited per visitor: its callers are the coach's own team.
 // - Cover uploads and searches also hold one of a few concurrent slots per coach, so slow work
 //   cannot pile up.
 // - Traffic that belongs to no coach (the cross-coach marketplace search, unknown addresses) is
@@ -132,6 +136,20 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
         }
 
         var limits = context.RequestServices.GetRequiredService<RateLimits>();
+        if (partition.Scope == "tenant" && !context.Request.Path.StartsWithSegments(StudioPrefix))
+        {
+            var visitor = Athlos.Tenancy.TenantContextMiddleware.UserIdOf(context.User)?.ToString()
+                ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var share = Math.Max(1, partition.RequestsPerSecond / 2);
+            var visitorPartition = partition with { Key = $"visitor:{partition.Tenant}:{visitor}:{share}", RequestsPerSecond = share, Scope = "visitor" };
+            using var visitorLease = limits._requests.AttemptAcquire(visitorPartition);
+            if (!visitorLease.IsAcquired)
+            {
+                await Reject(context, visitorPartition, visitorLease, reason: "visitor");
+                return;
+            }
+        }
+
         using var lease = limits._requests.AttemptAcquire(partition);
         if (!lease.IsAcquired)
         {

@@ -29,7 +29,7 @@ The limitations fall into three kinds:
 | 12 | One Container Apps environment for all three stages | Budget | Operations, isolation |
 | 13 | Cold starts of about 90 seconds | Budget | Performance |
 | 14 | The rate limit grows with each gateway replica (solved in v1.18.0, by dividing it) | Budget | Noisy neighbor |
-| 15 | One coach's flood can block that coach's own visitors | Trade-off | Noisy neighbor |
+| 15 | One coach's flood can block that coach's own visitors (a single client cannot since v1.18.0) | Trade-off | Noisy neighbor |
 | 16 | One signing key shared by the gateway and every service | Trade-off | Security |
 | 17 | No CDN or web application firewall | Budget | Security, performance |
 | 18 | Workspace deletion is not one transaction | Trade-off | Tenant lifecycle |
@@ -156,6 +156,7 @@ The limitations fall into three kinds:
 
 ### 15. One coach's flood can block that coach's own visitors
 - **Missing:** protection for a flooded coach's real visitors. A flood of one coach's public storefront spends that coach's budget, so their own visitors also get 429 responses, while every other coach is unaffected (§4).
+- **Built (v1.18.0):** a per-visitor limit in front of the coach's bucket: one visitor may use at most half the coach's rate (by account, or by IP when signed out), so a single client can no longer lock the coach's other visitors out. A distributed flood, from many addresses, still can.
 - **Why:** this is the isolation the experiment set out to show: the damage stays inside the tenant. It also means one abusive client can do it on purpose.
 - **Solution:** a per-client limit on storefront traffic stops a single client but not a distributed one. A CDN with a web application firewall (limitation 17) handles the rest.
 

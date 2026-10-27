@@ -10,6 +10,8 @@ Run on 5 October 2026 against **staging** (`sha-e2f52d2`), as design §4 describ
   - *Limits off*: `RateLimits__Enabled=false` set on the staging gateway for that run only, then removed.
 - **Fixed**: catalog-api up to 3 replicas with `Maximum Pool Size=3` each; gateway up to 2 replicas. Since v1.18.0 the connection budget allows staging 2 catalog replicas with a pool of 2 each (design §7), so a rerun starts from a smaller catalog-api.
 
+- **Since v1.18.0**, a rerun's flood from one machine also meets the per-visitor limit (half the coach's rate per client, design §4), so tenant A's own bucket drains more slowly; the experiment as recorded here predates it.
+
 ## Results
 
 | Run | B p50 | B p95 | B p99 | B errors | A requests | A refused (429) | A admitted |

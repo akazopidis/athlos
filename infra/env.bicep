@@ -16,6 +16,22 @@ param appVersion string = imageTag
 @description('Set to 1 on prod during demos to avoid a cold start; costs about €5/month (design §10).')
 param gatewayMinReplicas int = 0
 
+// The connection budget (design §7): the B1ms allows 50 connections, of which 15 are reserved, so
+// the app roles of all three stages share 35. Each service replica opens at most dbPoolSize, and a
+// stage runs at most dbServiceMaxReplicas of each of its four database services: 4 × 2 × 2 = 16 in
+// staging, where the demos and the evaluation run, and 4 × 1 × 2 = 8 each in dev and prod, 32 in all
+// (swap staging's and prod's values for a real launch). The migrator caps each database at twice
+// its share, room for a rollout's old and new revisions and the migrator itself, so a stage that is
+// set up wrong still cannot take the others' connections.
+// The gateway's replicas: each enforces its share of every rate limit (design §4).
+var gatewayMaxReplicas = 2
+
+@description('Database connections per service replica.')
+param dbPoolSize int = 2
+
+@description('Replicas of each service that connects to PostgreSQL (tenancy, catalog, ordering, enrollment).')
+param dbServiceMaxReplicas int = 1
+
 @description('false on the first pass of a deploy: everything except the apps, so the migrator job can prepare the database before the apps start.')
 param deployApps bool = true
 
@@ -33,6 +49,9 @@ param apiScope string = ''
 
 @description('true once the stage Key Vault holds stripe-secret-key (infra/stripe_setup.py). Referencing a missing Key Vault secret would fail the deploy.')
 param stripeConfigured bool = false
+
+@description('true during a signing-key rotation: the stage Key Vault holds gateway-signing-key-also, a second key every app also accepts (infra/README.md). Set by the deploy workflow when the secret exists.')
+param signingKeyRotating bool = false
 
 @description('true in dev and staging: the migrator adds the demo coaches, programs and purchases (design §15.2). Never in prod.')
 param seedDemoData bool = false
@@ -201,7 +220,9 @@ module keyVault 'modules/keyvault.bicep' = {
   }
 }
 
-var signingKeySecret = [{ name: 'gateway-signing-key', keyVaultUrl: keyVault.outputs.signingKeyUri }]
+var signingKeySecret = concat([{ name: 'gateway-signing-key', keyVaultUrl: keyVault.outputs.signingKeyUri }], signingKeyRotating
+  ? [{ name: 'gateway-signing-key-also', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/gateway-signing-key-also' }]
+  : [])
 
 // Stripe secrets are written into Key Vault by infra/stripe_setup.py, not by Bicep (no secret in the repo or pipeline).
 var stripeSecretKey = [{ name: 'stripe-secret-key', keyVaultUrl: '${keyVault.outputs.vaultUri}secrets/stripe-secret-key' }]
@@ -214,11 +235,11 @@ var entraDeletionSecret = [{ name: 'entra-deletion-client-secret', keyVaultUrl: 
 // The stage's public address: its gateway (container app names are fixed, the domain is the environment's).
 var publicUrl = 'https://ca-athlos-gateway-${environmentName}.${acaEnvironment.properties.defaultDomain}'
 
-var commonEnv = [
+var commonEnv = concat([
   { name: 'GatewaySignature__Key', secretRef: 'gateway-signing-key' }
   { name: 'APP_VERSION', value: appVersion }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
-]
+], signingKeyRotating ? [{ name: 'GatewaySignature__AlsoAcceptKey', secretRef: 'gateway-signing-key-also' }] : [])
 
 // Runs before the apps on every deploy (see deployApps), started by _deploy.yml.
 module migrator 'modules/container-job.bicep' = {
@@ -244,6 +265,7 @@ module migrator 'modules/container-job.bicep' = {
       { name: 'Databases__Enrollment__AppRole', value: enrollmentAppRole }
       { name: 'Databases__Enrollment__AppPrincipalObjectId', value: enrollmentIdentity.outputs.principalId }
       { name: 'AZURE_CLIENT_ID', value: migratorIdentity.properties.clientId }
+      { name: 'Databases__ConnectionLimit', value: string(2 * dbPoolSize * dbServiceMaxReplicas) }
       { name: 'Seed__DemoData', value: string(seedDemoData) }
       { name: 'APP_VERSION', value: appVersion }
       { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
@@ -267,7 +289,7 @@ module tenancyApi 'modules/container-app.bicep' = if (deployApps) {
     identityId: tenancyIdentity.outputs.id
     registryServer: registryServer
     image: '${registryServer}/athlos/tenancy-api:${imageTag}'
-    maxReplicas: 3
+    maxReplicas: dbServiceMaxReplicas
     keyVaultSecrets: concat(signingKeySecret, stripeConfigured ? concat(stripeSecretKey, stripeConnectWebhookSecret) : [], accountDeletionConfigured ? entraDeletionSecret : [])
     env: concat(commonEnv, authEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'tenancy-api' }
@@ -276,7 +298,7 @@ module tenancyApi 'modules/container-app.bicep' = if (deployApps) {
       // The coach's uploaded logo (design §8): the same container as catalog-api's covers, no key.
       { name: 'ConnectionStrings__media', value: storage.outputs.blobEndpoint }
       // No password: the app signs in with its managed identity's token (PostgresEntraAuthentication).
-      { name: 'ConnectionStrings__tenancy-db', value: 'Host=${postgresHost};Database=${tenancyDatabase};Username=${tenancyAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
+      { name: 'ConnectionStrings__tenancy-db', value: 'Host=${postgresHost};Database=${tenancyDatabase};Username=${tenancyAppRole};SSL Mode=Require;Maximum Pool Size=${dbPoolSize};Connection Idle Lifetime=60;Options=-c statement_timeout=5000' }
       // Staff invite emails leave through the outbox (design §5.2); a namespace, no key.
       { name: 'ConnectionStrings__messaging', value: serviceBus.outputs.fullyQualifiedNamespace }
       // Deleting a workspace calls catalog and enrollment (design §3.4). Their internal addresses are
@@ -318,7 +340,7 @@ module catalogApi 'modules/container-app.bicep' = if (deployApps) {
     identityId: catalogIdentity.outputs.id
     registryServer: registryServer
     image: '${registryServer}/athlos/catalog-api:${imageTag}'
-    maxReplicas: 3
+    maxReplicas: dbServiceMaxReplicas
     keyVaultSecrets: signingKeySecret
     env: concat(commonEnv, authEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'catalog-api' }
@@ -329,7 +351,7 @@ module catalogApi 'modules/container-app.bicep' = if (deployApps) {
       // A program on sale got a new workout: enrollment emails its customers (design §5.3). Built from the
       // environment's domain, not a module output: enrollment-api already depends on catalog-api.
       { name: 'services__enrollment-api__https__0', value: 'https://ca-athlos-enrollment-api-${environmentName}.internal.${acaEnvironment.properties.defaultDomain}' }
-      { name: 'ConnectionStrings__catalog-db', value: 'Host=${postgresHost};Database=${catalogDatabase};Username=${catalogAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
+      { name: 'ConnectionStrings__catalog-db', value: 'Host=${postgresHost};Database=${catalogDatabase};Username=${catalogAppRole};SSL Mode=Require;Maximum Pool Size=${dbPoolSize};Connection Idle Lifetime=60;Options=-c statement_timeout=5000' }
     ])
   }
 }
@@ -344,13 +366,13 @@ module orderingApi 'modules/container-app.bicep' = if (deployApps) {
     identityId: orderingIdentity.outputs.id
     registryServer: registryServer
     image: '${registryServer}/athlos/ordering-api:${imageTag}'
-    maxReplicas: 3
+    maxReplicas: dbServiceMaxReplicas
     keyVaultSecrets: concat(signingKeySecret, stripeConfigured ? concat(stripeSecretKey, stripeWebhookSecret) : [])
     env: concat(commonEnv, authEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'ordering-api' }
       { name: 'AZURE_CLIENT_ID', value: orderingIdentity.outputs.clientId }
       { name: 'App__PublicUrl', value: publicUrl }
-      { name: 'ConnectionStrings__ordering-db', value: 'Host=${postgresHost};Database=${orderingDatabase};Username=${orderingAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
+      { name: 'ConnectionStrings__ordering-db', value: 'Host=${postgresHost};Database=${orderingDatabase};Username=${orderingAppRole};SSL Mode=Require;Maximum Pool Size=${dbPoolSize};Connection Idle Lifetime=60;Options=-c statement_timeout=5000' }
       // A namespace, no key: the client signs in with AZURE_CLIENT_ID's managed identity.
       { name: 'ConnectionStrings__messaging', value: serviceBus.outputs.fullyQualifiedNamespace }
       { name: 'services__catalog-api__https__0', value: 'https://${catalogApi!.outputs.fqdn}' }
@@ -372,7 +394,7 @@ module enrollmentApi 'modules/container-app.bicep' = if (deployApps) {
     identityId: enrollmentIdentity.outputs.id
     registryServer: registryServer
     image: '${registryServer}/athlos/enrollment-api:${imageTag}'
-    maxReplicas: 3
+    maxReplicas: dbServiceMaxReplicas
     keyVaultSecrets: signingKeySecret
     // Scales up from zero when OrderPaid messages wait, not only on HTTP traffic (design §4, row 4).
     // KEDA reads the queue length with the app's own identity (Data Receiver on the namespace).
@@ -406,7 +428,7 @@ module enrollmentApi 'modules/container-app.bicep' = if (deployApps) {
       { name: 'OTEL_SERVICE_NAME', value: 'enrollment-api' }
       { name: 'AZURE_CLIENT_ID', value: enrollmentIdentity.outputs.clientId }
       { name: 'App__PublicUrl', value: publicUrl }
-      { name: 'ConnectionStrings__enrollment-db', value: 'Host=${postgresHost};Database=${enrollmentDatabase};Username=${enrollmentAppRole};SSL Mode=Require;Maximum Pool Size=3;Options=-c statement_timeout=5000' }
+      { name: 'ConnectionStrings__enrollment-db', value: 'Host=${postgresHost};Database=${enrollmentDatabase};Username=${enrollmentAppRole};SSL Mode=Require;Maximum Pool Size=${dbPoolSize};Connection Idle Lifetime=60;Options=-c statement_timeout=5000' }
       // A namespace, no key: the client signs in with AZURE_CLIENT_ID's managed identity.
       { name: 'ConnectionStrings__messaging', value: serviceBus.outputs.fullyQualifiedNamespace }
       { name: 'services__catalog-api__https__0', value: 'https://${catalogApi!.outputs.fqdn}' }
@@ -467,14 +489,16 @@ module gateway 'modules/container-app.bicep' = if (deployApps) {
     image: '${registryServer}/athlos/gateway:${imageTag}'
     external: true
     minReplicas: gatewayMinReplicas
-    // The in-memory rate limiter multiplies with replicas, so the gateway stays at 2 (design §4).
-    maxReplicas: 2
+    // The rate limiter's buckets live in each replica, which enforces its share of every limit
+    // (RateLimits__GatewayReplicas below), so the two must stay equal (design §4).
+    maxReplicas: gatewayMaxReplicas
     // At 0.25 vCPU, refusing a 300 req/s flood took the gateway's CPU from the other coaches (their p95
     // +71%); at 0.5 vCPU their p95 stayed at baseline (docs/evaluation/noisy-neighbor.md, round 2).
     cpu: '0.5'
     keyVaultSecrets: signingKeySecret
     env: concat(commonEnv, authEnv, [
       { name: 'OTEL_SERVICE_NAME', value: 'gateway' }
+      { name: 'RateLimits__GatewayReplicas', value: string(gatewayMaxReplicas) }
       // Container Apps terminates TLS; trust its X-Forwarded-* headers so HSTS sees https.
       { name: 'ASPNETCORE_FORWARDEDHEADERS_ENABLED', value: 'true' }
       // SPA sign-in settings, served by GET /config.json (design §8.1).

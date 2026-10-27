@@ -1,9 +1,14 @@
 # Every push to dev: build images tagged sha-<short>, deploy them to dev (design §12.3).
+# Also on the first of every month: images are built on the newest .NET base image, so a rebuild picks
+# up the operating system's and runtime's security patches even when no code changed. The rebuilt
+# images replace dev's and are what the next release promotes (infra/README.md).
 name: deploy-dev
 
 on:
   push:
     branches: [dev]
+  schedule:
+    - cron: "0 5 1 * *"
   workflow_dispatch:
 
 permissions:

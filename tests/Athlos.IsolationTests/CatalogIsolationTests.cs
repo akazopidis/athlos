@@ -83,6 +83,7 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         { "GET", $"/internal/tenants/{Guid.Empty}/programs/{Guid.Empty}/content" },
         { "DELETE", $"/internal/tenants/{Guid.Empty}" },
         { "PUT", $"/internal/tenants/{Guid.Empty}/suspension" },
+        { "PUT", $"/internal/tenants/{Guid.Empty}/programs/{Guid.Empty}/block" },
         { "PUT", $"/internal/tenants/{Guid.Empty}/public-discount" },
         { "DELETE", $"/internal/tenants/{Guid.Empty}/public-discount" },
         { "GET", $"/internal/tenants/{Guid.Empty}/export" },
@@ -111,6 +112,19 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         var underA = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/tenants/{_a.TenantId}/programs/{_aPublished.Id}/content"));
 
         Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.OK), (underB.StatusCode, underA.StatusCode));
+    }
+
+    // Taking a reported program down (design §2.4): tenancy-api names the tenant from the report;
+    // naming B's tenant with A's program finds nothing, and A's program stays on sale.
+    [Fact]
+    public async Task Blocking_As_program_under_Bs_tenant_finds_nothing()
+    {
+        var underB = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{_b.TenantId}/programs/{_aPublished.Id}/block")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new { blocked = true }),
+        });
+
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.OK), (underB.StatusCode, await PublicPage(_a, _aPublished)));
     }
 
     // Deleting a workspace (design §3.4): one tenant id erases that tenant's programs, workouts and

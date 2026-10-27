@@ -68,3 +68,31 @@ What it creates:
 - **Known trade-off:** every identity has `Contributor` on `rg-athlos-shared`, because each environment pushes or imports images in the shared registry and grants its own identities `AcrPull` there. `Role Based Access Control Administrator` is unconstrained. A production hardening step is a role-assignment condition that only allows the specific roles Bicep grants (`AcrPull`, `Key Vault Secrets User`, and so on).
 - **Known trade-off (email):** the notifications-worker sends email with its managed identity through the built-in `Communication and Email Service Owner` role, scoped to its own stage's Communication Services resource. That role can also list the resource's keys and delete it. A custom role with only `Microsoft.Communication/CommunicationServices/Read` and `/Write` and `Microsoft.Communication/EmailServices/Write` is the hardening step; creating role definitions needs `Microsoft.Authorization/roleDefinitions/write`, which the deploy identities deliberately do not have.
 - **Budget start date** defaults to the first day of the current month and cannot change once the budget exists. When re-running the script in a later month, skip the budget step or pass the original `startDate`.
+
+## Rotating secrets
+
+Every secret lives in its stage's Key Vault (`kv-athlos-{env}`), never in the repo or a workflow. Rotate one stage at a time, dev first. Writing a secret needs `Key Vault Secrets Officer` on that vault (the setup scripts grant it to you; `az role assignment create --role "Key Vault Secrets Officer" --assignee <you> --scope <vault id>`).
+
+**Reminder.** [`secret-expiry.yml`](../.github/workflows/secret-expiry.yml) runs on the first of every month and fails, which GitHub emails you about, when a secret in `kv-athlos-dev` expires within 60 days. Scheduled runs can only use the dev environment, and the setup scripts store each secret in all three stages at once with the same expiry, so dev stands for all. The deletion secrets stored before v1.18.0 (10 October 2026) carry no expiry yet; give them theirs once, for each stage: `az keyvault secret set-attributes --vault-name kv-athlos-<env> -n entra-deletion-client-secret --expires 2028-10-09T10:00:00Z`. Only secrets stored with an expiry date are checked: the Entra deletion secret has one (2 years from `account_deletion_setup.py`); the others have none.
+
+| Secret | Who uses it | How to rotate | Downtime |
+|---|---|---|---|
+| `gateway-signing-key` | Every app: the gateway and service-to-service calls sign with it, every service verifies (design §3.2) | The three deploys below | None |
+| `stripe-secret-key` | ordering-api (payments, refunds), tenancy-api (Connect) | Roll the key in the Stripe dashboard, then `python infra/stripe_setup.py` for that stage and redeploy | Seconds: the old key stops when you roll it unless Stripe is told to keep it for a while |
+| `stripe-webhook-secret`, `stripe-connect-webhook-secret` | ordering-api, tenancy-api (webhook signatures) | `python infra/stripe_setup.py` recreates both endpoints with new secrets; redeploy | Events Stripe sends between the two steps fail and are retried by Stripe |
+| `entra-deletion-client-secret` | tenancy-api (account deletion through Graph) | `python infra/account_deletion_setup.py`: a new secret, the old ones removed, the expiry stored; redeploy | Account deletion answers 503 until the redeploy |
+
+### The gateway signing key, without downtime
+
+Services accept a request signed with their key, or with `gateway-signing-key-also` while that secret exists (`GatewaySignature:AlsoAcceptKey`). The deploy workflow wires the second key into every app when it finds it. Apps roll out one at a time, so each step must work with half the apps on the old setting:
+
+1. **Accept the new key.** `az keyvault secret set --vault-name kv-athlos-<env> -n gateway-signing-key-also --value "$(openssl rand -base64 48)"`, then redeploy the stage. Everyone still signs with the old key; everyone now also accepts the new one.
+2. **Sign with the new key.** Swap them: set `gateway-signing-key` to the new value and `gateway-signing-key-also` to the old one, then redeploy. Apps that already moved sign with the new key, which the others accept since step 1.
+3. **Drop the old key.** `az keyvault secret delete --vault-name kv-athlos-<env> -n gateway-signing-key-also` (purge it too, since soft delete keeps it 7 days), then redeploy.
+
+A compromised key goes the same way, as fast as three deploys allow. Per-service keys, so a compromised service could not sign as another, are future work (`docs/evaluation/limitations.md` #16).
+
+## Security patches
+
+- **Packages.** Dependabot opens version updates for NuGet and GitHub Actions weekly and for `src/web` and `tests/e2e` monthly, and security updates as they appear (`.github/dependabot.yml`).
+- **Base images.** Each image is built on the newest .NET base image (`mcr.microsoft.com/dotnet/aspnet`), so every build picks up the operating system's and runtime's patches. `deploy-dev.yml` also runs on the first of every month, so dev is rebuilt even when no code changed. Staging and prod get the patched images with the next release, which promotes dev's images; if a month passes without one, cut a patch release (`vX.Y.Z+1`).

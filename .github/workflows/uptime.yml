@@ -1,0 +1,48 @@
+# Is staging and prod up? (design §6). Four times a day the gateway, tenancy-api and catalog-api of
+# each stage are asked for something, with up to 3 minutes for a cold start from zero replicas. A
+# stage that does not answer fails the run, which GitHub emails the owner about: the 5xx alert only
+# fires when there is traffic, and nothing else watches a quiet stage. The job summary lists each
+# answer's time, so the runs also measure cold starts (limitations.md #13). About 1 Actions minute a
+# run, inside the plan's included minutes.
+name: uptime
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        stage: [staging, prod]
+    steps:
+      - name: Ask the ${{ matrix.stage }} stage
+        env:
+          BASE: https://ca-athlos-gateway-${{ matrix.stage }}.ashybush-033a4967.italynorth.azurecontainerapps.io
+          STAGE: ${{ matrix.stage }}
+        run: |
+          failed=0
+          {
+            echo "### $STAGE, $(date -u +%Y-%m-%dT%H:%MZ)"
+            echo "| Request | Status | Seconds |"
+            echo "|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # The gateway itself, then a read through it to tenancy-api and one to catalog-api.
+          for path in /health/ready /api/v1/plans "/api/v1/marketplace/programs?PageSize=1"; do
+            result=$(curl -s -o /dev/null -w '%{http_code} %{time_total}' --max-time 180 "$BASE$path" || echo "000 180")
+            status=${result% *}
+            seconds=${result#* }
+            echo "| \`$path\` | $status | $seconds |" >> "$GITHUB_STEP_SUMMARY"
+            echo "$path $status ${seconds}s"
+            if [ "$status" != "200" ]; then
+              echo "::error::$STAGE: $path answered $status after ${seconds}s"
+              failed=1
+            fi
+          done
+          exit $failed

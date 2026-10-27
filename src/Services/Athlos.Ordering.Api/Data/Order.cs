@@ -55,6 +55,12 @@ public sealed class Order : ITenantOwned, IHasTimestamps
 
     public DateTimeOffset? RefundedAt { get; set; }
 
+    // The customer asked for their money back, within the refund window (design §2.2), and their
+    // optional note to the coach. Personal data: cleared when the customer deletes their account.
+    public DateTimeOffset? RefundRequestedAt { get; set; }
+
+    public string? RefundRequestNote { get; set; }
+
     // One Checkout Session can pay for several orders, of several coaches.
     public string? StripeCheckoutSessionId { get; set; }
 
@@ -73,6 +79,30 @@ public enum OrderStatus
     Paid,
     Failed,
     Refunded,
+}
+
+// A customer's refund request waiting for the coach (design §2.2): the coach refunds it in Sales, and
+// after three working days (DueAt) the platform admin may refund it instead. Not tenant data: like
+// payout_retries, a work queue of the service with an allow-all policy, so the admin lists it without
+// reading any tenant's orders. It names the order and copies what the list shows; no customer's data.
+// Any refund of the order (by the coach, the admin, at Stripe, or a lost dispute) removes the row.
+public sealed class RefundRequest
+{
+    public required Guid OrderId { get; init; }
+
+    public required Guid TenantId { get; init; }
+
+    public required string CoachSlug { get; init; }
+
+    public required string ProgramTitle { get; init; }
+
+    public required long Amount { get; init; }
+
+    public required string Currency { get; init; }
+
+    public required DateTimeOffset RequestedAt { get; init; }
+
+    public required DateTimeOffset DueAt { get; init; }
 }
 
 // A cart checkout (design §2.2): one Stripe payment for programs from any number of coaches. Each
@@ -96,6 +126,10 @@ public sealed class Checkout : IHasTimestamps
     public string? TermsVersion { get; init; }
 
     public DateTimeOffset? TermsAcceptedAt { get; init; }
+
+    // When the customer asked for access right away and acknowledged losing the EU's right of
+    // withdrawal once it starts (design §5.4). Null on checkouts from before v1.18.0.
+    public DateTimeOffset? ImmediateAccessConsentAt { get; init; }
 
     public DateTimeOffset CreatedAt { get; set; }
 

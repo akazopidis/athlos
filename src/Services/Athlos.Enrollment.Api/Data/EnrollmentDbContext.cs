@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Enrollment.Api.Data;
 
 public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> options, ITenantContext tenant)
-    : TenantDbContext(options, tenant), IHasOutbox
+    : TenantDbContext(options, tenant), IHasOutbox, IHasAdminActions
 {
     public DbSet<ProgramEnrollment> Enrollments => Set<ProgramEnrollment>();
 
@@ -17,6 +17,10 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
     public DbSet<ReviewReport> ReviewReports => Set<ReviewReport>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    public DbSet<AdminAction> AdminActions => Set<AdminAction>();
+
+    public DbSet<ProgramCopy> ProgramCopies => Set<ProgramCopy>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -78,7 +82,18 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
             report.Property(r => r.Reason).HasConversion<string>().HasMaxLength(20);
         });
 
+        modelBuilder.Entity<ProgramCopy>(copy =>
+        {
+            copy.HasKey(c => c.ProgramId);
+            copy.HasIndex(c => c.TenantId);
+            copy.Property(c => c.CoachSlug).HasMaxLength(40);
+            copy.Property(c => c.Title).HasMaxLength(120);
+            copy.Property(c => c.Category).HasMaxLength(40);
+            copy.Property(c => c.Workouts).HasColumnType("jsonb");
+        });
+
         modelBuilder.ConfigureOutbox();
+        modelBuilder.ConfigureAdminActions();
 
         base.OnModelCreating(modelBuilder);
     }

@@ -15,6 +15,11 @@ namespace Athlos.Tenancy;
 // The signature covers the timestamp, method, path and query, and both trusted headers, so a
 // signed request cannot be redirected to another path, re-targeted at another tenant, or
 // replayed after MaxAge.
+//
+// Rotating the key without downtime (infra/README.md): requests are always signed with Key, and
+// also verified against AlsoAcceptKey when it is set. Three deploys: accept the new key while
+// signing with the old one; sign with the new one while still accepting the old; drop the old one.
+// Apps roll out one by one, so at every step each signer's key is one every verifier accepts.
 public sealed class GatewaySignature
 {
     public const string TimestampHeader = "X-Gateway-Timestamp";
@@ -23,18 +28,20 @@ public sealed class GatewaySignature
     public static readonly TimeSpan MaxAge = TimeSpan.FromSeconds(60);
 
     private readonly byte[] _key;
+    private readonly byte[]? _alsoAccepted;
     private readonly TimeProvider _time;
 
     public GatewaySignature(IOptions<GatewaySignatureOptions> options, TimeProvider time)
     {
         _key = Encoding.UTF8.GetBytes(options.Value.Key);
+        _alsoAccepted = string.IsNullOrEmpty(options.Value.AlsoAcceptKey) ? null : Encoding.UTF8.GetBytes(options.Value.AlsoAcceptKey);
         _time = time;
     }
 
     public SignedHeaders Sign(string method, string pathAndQuery, string? tenantId, string? userRole)
     {
         var timestamp = _time.GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
-        return new SignedHeaders(timestamp, Compute(timestamp, method, pathAndQuery, tenantId, userRole));
+        return new SignedHeaders(timestamp, Compute(_key, timestamp, method, pathAndQuery, tenantId, userRole));
     }
 
     public bool Verify(string method, string pathAndQuery, string? tenantId, string? userRole, string? timestamp, string? signature)
@@ -51,14 +58,17 @@ public sealed class GatewaySignature
             return false;
         }
 
-        var expected = Encoding.ASCII.GetBytes(Compute(timestamp!, method, pathAndQuery, tenantId, userRole));
-        return CryptographicOperations.FixedTimeEquals(expected, Encoding.ASCII.GetBytes(signature));
+        var given = Encoding.ASCII.GetBytes(signature);
+        return Matches(_key) || (_alsoAccepted is { } other && Matches(other));
+
+        bool Matches(byte[] key) =>
+            CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(Compute(key, timestamp!, method, pathAndQuery, tenantId, userRole)), given);
     }
 
-    private string Compute(string timestamp, string method, string pathAndQuery, string? tenantId, string? userRole)
+    private static string Compute(byte[] key, string timestamp, string method, string pathAndQuery, string? tenantId, string? userRole)
     {
         var payload = string.Join('\n', timestamp, method.ToUpperInvariant(), pathAndQuery, tenantId ?? "", userRole ?? "");
-        return Convert.ToBase64String(HMACSHA256.HashData(_key, Encoding.UTF8.GetBytes(payload)));
+        return Convert.ToBase64String(HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(payload)));
     }
 
     public readonly record struct SignedHeaders(string Timestamp, string Signature);
@@ -74,5 +84,10 @@ public sealed class GatewaySignatureOptions
     // Azure: Key Vault secret gateway-signing-key, created by the deploy workflow.
     public string Key { get; set; } = "";
 
-    internal static bool IsValid(GatewaySignatureOptions options) => options.Key.Length >= MinKeyLength;
+    // Only during a rotation: a second key that verification accepts too (never used to sign).
+    // Azure: Key Vault secret gateway-signing-key-also, which the deploy workflow wires in when it exists.
+    public string? AlsoAcceptKey { get; set; }
+
+    internal static bool IsValid(GatewaySignatureOptions options) =>
+        options.Key.Length >= MinKeyLength && (string.IsNullOrEmpty(options.AlsoAcceptKey) || options.AlsoAcceptKey.Length >= MinKeyLength);
 }

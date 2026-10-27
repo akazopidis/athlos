@@ -118,7 +118,7 @@ test('Buy now starts a checkout of this program alone and leaves for Stripe', as
   await waitFor(() => expect(leaveTo).toHaveBeenCalledWith('https://checkout.stripe.test/s'))
   const checkout = requests.find((r) => r.method === 'POST')!
   expect(new URL(checkout.url).pathname).toBe('/api/v1/orders/checkout')
-  expect(await checkout.json()).toEqual({ programIds: [program.id], termsVersion: TermsVersion })
+  expect(await checkout.json()).toEqual({ programIds: [program.id], termsVersion: TermsVersion, immediateAccess: true })
   expect(checkout.headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/)
   expect(checkout.headers.get('Authorization')).toBe('Bearer token')
 })

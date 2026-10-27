@@ -65,6 +65,24 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    // "Download my data" (design §5.4): B's owner gets their own account and workspace and nothing of
+    // A's, even when the request names A's tenant, which the export ignores.
+    [Fact]
+    public async Task Bs_data_export_holds_nothing_of_As()
+    {
+        foreach (var tenant in new Guid?[] { null, _a.TenantId })
+        {
+            var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/me/export"), _b.OwnerId, tenant, TenantRole.Owner);
+            var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains(_b.Slug, json, StringComparison.Ordinal);
+            Assert.Contains(_b.OwnerId.ToString(), json, StringComparison.Ordinal);
+            Assert.DoesNotContain(_a.Slug, json, StringComparison.Ordinal);
+            Assert.DoesNotContain(_a.OwnerId.ToString(), json, StringComparison.Ordinal);
+        }
+    }
+
     // The coach's logo (design §8): B's owner can neither replace nor remove A's.
     [Theory]
     [InlineData("PUT")]
@@ -178,8 +196,8 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
     // the gateway's tenant headers for B, is refused for any workspace (403 for every id, so nothing
     // about A leaks), and A is unchanged.
     [Theory]
-    [InlineData("/status", "{\"status\":\"Suspended\"}")]
-    [InlineData("/plan", "{\"plan\":\"Pro\"}")]
+    [InlineData("/status", "{\"status\":\"Suspended\",\"reason\":\"Spam\"}")]
+    [InlineData("/plan", "{\"plan\":\"Pro\",\"reason\":\"Upgrade\"}")]
     public async Task B_cannot_suspend_A_or_change_As_plan(string path, string body)
     {
         var response = await _api.SendAsGateway(
@@ -202,7 +220,7 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
     public async Task Suspending_A_leaves_B_active()
     {
         var response = await _api.SendAsGateway(
-            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/admin/tenants/{_a.TenantId}/status") { Content = JsonContent.Create(new { status = "Suspended" }) },
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/admin/tenants/{_a.TenantId}/status") { Content = JsonContent.Create(new { status = "Suspended", reason = "Breaks the terms" }) },
             Guid.CreateVersion7(), appRoles: ["Platform.Admin"]);
         var aStorefront = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{_a.Slug}"));
         var bStorefront = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/marketplace/coaches/{_b.Slug}"));

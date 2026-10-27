@@ -84,6 +84,10 @@ app.MapGroup("/api/v1/me")
     .RequireAuthorization()
     .WithTenantTransaction<OrderingDbContext>()
     .MapGetMyReceipt();
+// Customer: ask for a refund within the window (reads their own order, then enters its tenant itself)
+app.MapGroup("/api/v1/me")
+    .RequireAuthorization()
+    .MapRequestRefund();
 // Customer: their cart, kept with the account (their own row; RLS customer_id = app.user_id)
 app.MapGroup("/api/v1/me")
     .RequireAuthorization()
@@ -116,6 +120,8 @@ app.MapGroup("/api/v1/studio/{tenantSlug}")
 
 // Platform admin (Entra app role Platform.Admin): coach shares waiting for a transfer
 app.MapAdminPayouts();
+// Platform admin: refund requests a coach left open for three working days (design §2.2)
+app.MapAdminRefundRequests();
 
 // Stripe, through the gateway (no user; the Stripe-Signature is the authentication)
 app.MapStripeWebhook();

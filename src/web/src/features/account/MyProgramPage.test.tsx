@@ -110,3 +110,41 @@ test('a buyer posts a review with stars and a comment', async () => {
   expect(new URL(put.url).pathname).toBe(`/api/v1/me/programs/${programId}/review`)
   expect(await put.json()).toEqual({ rating: 4, comment: 'Clear plan.' })
 })
+
+test("a deleted coach's program says the buyer keeps a copy, without a review form or storefront link", async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      Response.json({
+        programId,
+        coachSlug: 'anna',
+        title: 'Strong start',
+        description: 'Eight weeks of basics.',
+        category: 'Powerlifting',
+        durationWeeks: 8,
+        coverImageUrl: null,
+        enrolledAt: '2026-10-01T10:00:00Z',
+        workouts: [workout('w1', 1, null)],
+        review: null,
+        coachLeft: true,
+      }),
+    ),
+  )
+
+  const config = { entraClientId: 'client', entraAuthority: 'https://login.example', apiScope: 'api://athlos/access', version: 'test' }
+  render(
+    <AppContext.Provider value={{ config, auth: signedIn, api: createApi(signedIn) }}>
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={[`/me/programs/${programId}`]}>
+          <Routes>
+            <Route path="/me/programs/:programId" element={<MyProgramPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </AppContext.Provider>,
+  )
+
+  expect(await screen.findByText(/This coach has left Athlos/)).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: 'anna' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Post review/ })).not.toBeInTheDocument()
+})

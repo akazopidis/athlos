@@ -148,6 +148,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReportContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/studio/{tenantSlug}/workspace": {
         parameters: {
             query?: never;
@@ -388,6 +404,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminListReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/programs/{programId}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AdminUnpublishProgram"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/programs/{programId}/allow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AdminAllowProgram"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/programs/{programId}/keep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AdminKeepProgram"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/coaches/{tenantId}/keep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AdminKeepCoach"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminListWorkspaceActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -401,6 +513,20 @@ export interface components {
         AcceptInviteResponse: {
             slug: string;
             displayName: string;
+        };
+        /** @enum {unknown} */
+        AdminActionKind: "WorkspaceSuspended" | "WorkspaceReactivated" | "PlanChanged" | "ReviewHidden" | "ReviewKept" | "PayoutRetried" | "RefundIssued" | "ProgramUnpublished" | "ProgramAllowed" | "ReportsKept";
+        AdminActionsItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            adminId: string;
+            action: components["schemas"]["AdminActionKind"];
+            subject: string;
+            detail: null | string;
+            reason: string;
+            /** Format: date-time */
+            at: string;
         };
         Branding: {
             logoUrl?: null | string;
@@ -420,6 +546,50 @@ export interface components {
             instagramUrl: null | string;
             youTubeUrl: null | string;
             websiteUrl: null | string;
+        };
+        /** @enum {unknown} */
+        ContentReportKind: "Program" | "Coach";
+        /** @enum {unknown} */
+        ContentReportReason: "Illegal" | "Misleading" | "Copyright" | "Abusive" | "Other";
+        ContentReportsDecision: {
+            reason: null | string;
+        };
+        ContentReportsOpenReport: {
+            kind: components["schemas"]["ContentReportKind"];
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            programId: null | string;
+            subject: string;
+            coachSlug: string;
+            /** Format: int32 */
+            reports: number | string;
+            reasons: components["schemas"]["ContentReportReason"][];
+            notes: string[];
+            /** Format: date-time */
+            firstReportedAt: string;
+        };
+        ContentReportsReportList: {
+            open: components["schemas"]["ContentReportsOpenReport"][];
+            takenDown: components["schemas"]["ContentReportsTakenDown"][];
+        };
+        ContentReportsReportRequest: {
+            kind: components["schemas"]["ContentReportKind"];
+            /** Format: uuid */
+            programId: null | string;
+            coachSlug: null | string;
+            reason: components["schemas"]["ContentReportReason"];
+            note: null | string;
+        };
+        ContentReportsTakenDown: {
+            /** Format: uuid */
+            programId: string;
+            /** Format: uuid */
+            tenantId: string;
+            subject: string;
+            coachSlug: string;
+            /** Format: date-time */
+            since: string;
         };
         CreateTenantRequest: {
             slug: string;
@@ -587,9 +757,11 @@ export interface components {
         PlanName: "Free" | "Pro";
         SetTenantPlanRequest: {
             plan: components["schemas"]["PlanName"];
+            reason: null | string;
         };
         SetTenantStatusRequest: {
             status: components["schemas"]["TenantStatus"];
+            reason: null | string;
         };
         StaffInvitesInvite: {
             /** Format: uuid */
@@ -844,6 +1016,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ExportMyDataResponse"];
                 };
+            };
+        };
+    };
+    ReportContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContentReportsReportRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1398,6 +1599,170 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GetPlatformMetricsResponse"];
+                };
+            };
+        };
+    };
+    AdminListReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentReportsReportList"];
+                };
+            };
+        };
+    };
+    AdminUnpublishProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                programId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContentReportsDecision"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AdminAllowProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                programId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContentReportsDecision"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AdminKeepProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                programId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContentReportsDecision"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AdminKeepCoach: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContentReportsDecision"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AdminListWorkspaceActions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminActionsItem"][];
                 };
             };
         };

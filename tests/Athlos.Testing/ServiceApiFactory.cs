@@ -86,6 +86,9 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
     // What suspending a workspace asks catalog-api to do (design §3.4).
     public FakeTenantSuspension Suspension { get; } = new();
 
+    // What reporting a program and the admin's decisions ask catalog-api (design §2.4).
+    public FakeReportedPrograms ReportedPrograms { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -111,6 +114,7 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
             services.AddSingleton<Athlos.Tenancy.Api.Features.Workspace.ITenantExport>(TenantExport);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Account.IEntraUsers>(EntraUsers);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Admin.ITenantSuspension>(Suspension);
+            services.AddSingleton<Athlos.Tenancy.Api.Features.Reports.IReportedPrograms>(ReportedPrograms);
         });
 
         // Without a fake, Stripe counts as not configured, as in an environment without a key.

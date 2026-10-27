@@ -17,16 +17,20 @@ public static class OrderLists
     // CheckoutId: the cart checkout it was bought in (null before the cart), so the page Stripe returns
     // to can find the orders of that payment.
     // DiscountCode and DiscountAmount: a coach's code and what it took off (design §2.4); Amount is what was paid.
+    // RefundableUntil: the end of the refund window, for a paid order; RefundRequestedAt: when the customer asked (design §2.2).
     public sealed record MyOrder(
         Guid Id, Guid ProgramId, string ProgramTitle, string CoachSlug, long Amount, string Currency, OrderStatus Status, DateTimeOffset CreatedAt, DateTimeOffset? PaidAt,
-        Guid? CheckoutId, string? DiscountCode, long DiscountAmount);
+        Guid? CheckoutId, string? DiscountCode, long DiscountAmount, DateTimeOffset? RefundableUntil, DateTimeOffset? RefundRequestedAt);
 
     // Status: Paid or Refunded (a refunded sale stays in the list, marked, and earns nothing).
     // RefundableUntil: the end of the coach's refund window (Payments:RefundWindowDays after payment).
     // CustomerEmail: null once the customer deleted their account (design §5.2).
+    // RefundRequestedAt and RefundRequestNote: the customer asked for a refund (design §2.2); refund it
+    // within three working days, or the platform will.
     public sealed record Sale(
         Guid Id, Guid ProgramId, string ProgramTitle, string? CustomerEmail, long Amount, long PlatformFee, string Currency, DateTimeOffset PaidAt,
-        OrderStatus Status, DateTimeOffset? RefundedAt, DateTimeOffset RefundableUntil, string? DiscountCode);
+        OrderStatus Status, DateTimeOffset? RefundedAt, DateTimeOffset RefundableUntil, string? DiscountCode, DateTimeOffset? RefundRequestedAt,
+        string? RefundRequestNote);
 
     public sealed record Paging([property: Range(1, 10_000)] int Page = 1, [property: Range(1, MaxPageSize)] int PageSize = 20);
 
@@ -47,8 +51,9 @@ public static class OrderLists
     // CROSS-TENANT SLICE (design §3.2, "a customer's own orders"): ignores the tenant filter and
     // relies on the customer filter below and on RLS, which reads orders where customer_id = app.user_id.
     public static void MapListMyOrders(this IEndpointRouteBuilder me) =>
-        me.MapGet("/orders", async ([AsParameters] Paging paging, ITenantContext tenant, OrderingDbContext db, CancellationToken cancellationToken) =>
+        me.MapGet("/orders", async ([AsParameters] Paging paging, ITenantContext tenant, OrderingDbContext db, IConfiguration configuration, CancellationToken cancellationToken) =>
             {
+                var window = Refunds.OrderRefunds.RefundWindow(configuration);
                 var customerId = tenant.UserId;
                 var orders = db.Orders.AsNoTracking()
                     .IgnoreQueryFilters([TenantDbContext.TenantFilter])
@@ -57,7 +62,8 @@ public static class OrderLists
                 return TypedResults.Ok(new MyOrdersPage(
                     await orders.OrderByDescending(o => o.CreatedAt)
                         .Skip((paging.Page - 1) * paging.PageSize).Take(paging.PageSize)
-                        .Select(o => new MyOrder(o.Id, o.ProgramId, o.ProgramTitle, o.CoachSlug, o.Amount, o.Currency, o.Status, o.CreatedAt, o.PaidAt, o.CheckoutId, o.DiscountCode, o.DiscountAmount))
+                        .Select(o => new MyOrder(o.Id, o.ProgramId, o.ProgramTitle, o.CoachSlug, o.Amount, o.Currency, o.Status, o.CreatedAt, o.PaidAt, o.CheckoutId, o.DiscountCode, o.DiscountAmount,
+                            o.PaidAt + window, o.RefundRequestedAt))
                         .ToListAsync(cancellationToken),
                     paging.Page, paging.PageSize, await orders.CountAsync(cancellationToken)));
             })
@@ -106,7 +112,7 @@ public static class OrderLists
                     await sales.OrderByDescending(o => o.PaidAt)
                         .Skip((paging.Page - 1) * paging.PageSize).Take(paging.PageSize)
                         .Select(o => new Sale(o.Id, o.ProgramId, o.ProgramTitle, o.CustomerEmail == Customers.EraseCustomer.ErasedEmail ? null : o.CustomerEmail, o.Amount, o.PlatformFee, o.Currency, o.PaidAt!.Value, o.Status, o.RefundedAt,
-                            o.PaidAt!.Value + window, o.DiscountCode))
+                            o.PaidAt!.Value + window, o.DiscountCode, o.RefundRequestedAt, o.RefundRequestNote))
                         .ToListAsync(cancellationToken),
                     paging.Page, paging.PageSize, await sales.CountAsync(cancellationToken)));
             })

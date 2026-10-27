@@ -90,6 +90,10 @@ namespace Athlos.Ordering.Api.Data.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("idempotency_key");
 
+                    b.Property<DateTimeOffset?>("ImmediateAccessConsentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("immediate_access_consent_at");
+
                     b.Property<string>("StripeCheckoutSessionId")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -283,6 +287,15 @@ namespace Athlos.Ordering.Api.Data.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("program_title");
 
+                    b.Property<string>("RefundRequestNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("refund_request_note");
+
+                    b.Property<DateTimeOffset?>("RefundRequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("refund_requested_at");
+
                     b.Property<DateTimeOffset?>("RefundedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("refunded_at");
@@ -420,6 +433,108 @@ namespace Athlos.Ordering.Api.Data.Migrations
                         .HasName("pk_processed_stripe_events");
 
                     b.ToTable("processed_stripe_events", (string)null);
+                });
+
+            modelBuilder.Entity("Athlos.Ordering.Api.Data.RefundRequest", b =>
+                {
+                    b.Property<Guid>("OrderId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<long>("Amount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("CoachSlug")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("coach_slug");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("DueAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("due_at");
+
+                    b.Property<string>("ProgramTitle")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("program_title");
+
+                    b.Property<DateTimeOffset>("RequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("OrderId")
+                        .HasName("pk_refund_requests");
+
+                    b.HasIndex("DueAt")
+                        .HasDatabaseName("ix_refund_requests_due_at");
+
+                    b.ToTable("refund_requests", (string)null);
+                });
+
+            modelBuilder.Entity("Athlos.Tenancy.Data.AdminAction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid>("AdminId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("admin_id");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("detail");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("subject");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_admin_actions");
+
+                    b.HasIndex("At")
+                        .HasDatabaseName("ix_admin_actions_at");
+
+                    b.ToTable("admin_actions", (string)null);
                 });
 
             modelBuilder.Entity("Athlos.Ordering.Api.Data.CustomerCart", b =>

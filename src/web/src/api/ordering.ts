@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/orders/{orderId}/refund-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RequestRefund"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/cart": {
         parameters: {
             query?: never;
@@ -196,10 +212,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminListPayoutActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/refund-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminListRefundRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/refund-requests/{orderId}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AdminRefundRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {unknown} */
+        AdminActionKind: "WorkspaceSuspended" | "WorkspaceReactivated" | "PlanChanged" | "ReviewHidden" | "ReviewKept" | "PayoutRetried" | "RefundIssued" | "ProgramUnpublished" | "ProgramAllowed" | "ReportsKept";
+        AdminActionsItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            adminId: string;
+            action: components["schemas"]["AdminActionKind"];
+            subject: string;
+            detail: null | string;
+            reason: string;
+            /** Format: date-time */
+            at: string;
+        };
         AdminPayoutsItem: {
             /** Format: uuid */
             orderId: string;
@@ -214,6 +292,9 @@ export interface components {
             nextAttemptAt: string;
             /** Format: date-time */
             createdAt: string;
+        };
+        AdminPayoutsRetryRequest: {
+            reason: null | string;
         };
         AdminPayoutsRetryResult: {
             paid: boolean;
@@ -284,6 +365,10 @@ export interface components {
             discountCode: null | string;
             /** Format: int64 */
             discountAmount: number | string;
+            /** Format: date-time */
+            refundableUntil: null | string;
+            /** Format: date-time */
+            refundRequestedAt: null | string;
         };
         OrderListsMyOrdersPage: {
             items: components["schemas"]["OrderListsMyOrder"][];
@@ -346,6 +431,9 @@ export interface components {
             /** Format: date-time */
             refundableUntil: string;
             discountCode: null | string;
+            /** Format: date-time */
+            refundRequestedAt: null | string;
+            refundRequestNote: null | string;
         };
         OrderListsSalesPage: {
             items: components["schemas"]["OrderListsSale"][];
@@ -358,6 +446,25 @@ export interface components {
         };
         /** @enum {unknown} */
         OrderStatus: "Pending" | "Paid" | "Failed" | "Refunded";
+        RefundRequestsAdminRefund: {
+            reason: null | string;
+        };
+        RefundRequestsItem: {
+            /** Format: uuid */
+            orderId: string;
+            coachSlug: string;
+            programTitle: string;
+            /** Format: int64 */
+            amount: number | string;
+            currency: string;
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            dueAt: string;
+        };
+        RefundRequestsRequest: {
+            note: null | string;
+        };
         SalesSummaryResponse: {
             currency: string;
             /** Format: int32 */
@@ -378,6 +485,8 @@ export interface components {
             programIds: string[];
             discountCode?: null | string;
             termsVersion?: null | string;
+            /** @default false */
+            immediateAccess: boolean;
         };
         StartCheckoutResponse: {
             /** Format: uuid */
@@ -530,6 +639,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["OrderListsReceipt"];
                 };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RequestRefund: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundRequestsRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Not Found */
             404: {
@@ -816,7 +956,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminPayoutsRetryRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -826,6 +970,77 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AdminPayoutsRetryResult"];
                 };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AdminListPayoutActions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminActionsItem"][];
+                };
+            };
+        };
+    };
+    AdminListRefundRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundRequestsItem"][];
+                };
+            };
+        };
+    };
+    AdminRefundRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundRequestsAdminRefund"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Not Found */
             404: {

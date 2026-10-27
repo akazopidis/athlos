@@ -8,8 +8,9 @@ namespace Athlos.Ordering.Api.Features.Refunds;
 
 // The coach refunds one of their sales (design §2.2): the customer gets the price back, the coach's
 // share is taken back, and the customer loses access to the program. Owners only; staff see sales but
-// cannot give money back. Within the refund window only (14 days after payment by default). Another
-// tenant's order is not found (404), as everywhere.
+// cannot give money back. Within the refund window only (14 days after payment by default), or later
+// for a sale whose customer asked for a refund within it. Another tenant's order is not found (404), as
+// everywhere.
 // Not in the studio group's transaction: the Stripe calls must not hold one of the service's three
 // database connections; OrderRefunds enters the tenant for each short transaction itself.
 public static class RefundSale
@@ -25,16 +26,19 @@ public static class RefundSale
     {
         // The sale must be this tenant's, under this address (read in the tenant, so RLS applies).
         DateTimeOffset? paidAt;
+        DateTimeOffset? requestedAt;
         await using (var transaction = await db.Database.BeginTransactionAsync(cancellationToken))
         {
-            paidAt = await db.Orders
+            var sale = await db.Orders
                 .Where(o => o.Id == orderId && o.CoachSlug == tenantSlug && o.Status == OrderStatus.Paid)
-                .Select(o => o.PaidAt)
+                .Select(o => new { o.PaidAt, o.RefundRequestedAt })
                 .SingleOrDefaultAsync(cancellationToken);
-            if (paidAt is null)
+            if (sale?.PaidAt is null)
             {
                 return TypedResults.NotFound();
             }
+
+            (paidAt, requestedAt) = (sale.PaidAt, sale.RefundRequestedAt);
         }
 
         if (tenant.Role != TenantRole.Owner)
@@ -43,7 +47,7 @@ public static class RefundSale
         }
 
         var window = OrderRefunds.RefundWindow(configuration);
-        if (paidAt.Value + window < DateTimeOffset.UtcNow)
+        if (paidAt.Value + window < DateTimeOffset.UtcNow && requestedAt is null)
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
                 title: $"Sales can be refunded for {window.TotalDays:0} days after payment; this one is older.");

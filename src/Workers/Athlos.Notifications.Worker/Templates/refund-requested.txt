@@ -1,0 +1,9 @@
+Subject: Refund requested: {{programTitle}}
+A customer asked for their money back for {{programTitle}} ({{price}}), within the refund window Athlos promises.
+
+Their note: {{note}}
+
+Refund it in your sales by {{dueDate}}. If it is still open then, Athlos refunds it and takes your share of {{earnings}} back.
+See your sales: {{salesUrl}}
+
+Athlos

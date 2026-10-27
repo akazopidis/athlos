@@ -70,13 +70,14 @@ public sealed class WorkspaceEmailTests(AthlosDatabases database) : IAsyncLifeti
 
         foreach (var status in (string[])["Suspended", "Suspended", "Active"])
         {
-            await Admin(admin, HttpMethod.Put, $"/api/v1/admin/tenants/{workspace.TenantId}/status", new { status });
+            await Admin(admin, HttpMethod.Put, $"/api/v1/admin/tenants/{workspace.TenantId}/status", new { status, reason = "Selling stolen programs" });
         }
 
-        await Admin(admin, HttpMethod.Put, $"/api/v1/admin/tenants/{workspace.TenantId}/plan", new { plan = "Pro" });
-        await Admin(admin, HttpMethod.Put, $"/api/v1/admin/tenants/{workspace.TenantId}/plan", new { plan = "Pro" });
+        await Admin(admin, HttpMethod.Put, $"/api/v1/admin/tenants/{workspace.TenantId}/plan", new { plan = "Pro", reason = "Upgrade" });
+        await Admin(admin, HttpMethod.Put, $"/api/v1/admin/tenants/{workspace.TenantId}/plan", new { plan = "Pro", reason = "Upgrade" });
 
-        Render(await Single(EmailTemplates.WorkspaceSuspended, workspace.TenantId));
+        var suspended = Render(await Single(EmailTemplates.WorkspaceSuspended, workspace.TenantId));
+        Assert.Contains("Reason: Selling stolen programs", suspended.PlainText, StringComparison.Ordinal);
         Render(await Single(EmailTemplates.WorkspaceReactivated, workspace.TenantId));
         var plan = await Single(EmailTemplates.PlanChanged, workspace.TenantId);
         Assert.Contains("Pro plan", Render(plan).Subject, StringComparison.Ordinal);

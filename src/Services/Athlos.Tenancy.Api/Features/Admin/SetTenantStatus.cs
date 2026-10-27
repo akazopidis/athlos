@@ -1,6 +1,7 @@
 using Athlos.Tenancy.Api.Data;
 using Athlos.Messaging.Contracts;
 using Athlos.Tenancy.Api.Features.Tenants;
+using Athlos.Tenancy.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,11 +16,12 @@ namespace Athlos.Tenancy.Api.Features.Admin;
 // 1. catalog-api hides or shows the programs first. If it fails, nothing has changed here and the
 //    admin tries again (502): both steps are idempotent.
 // 2. Then the workspace's status changes, in a transaction that enters that tenant, so RLS
-//    (tenants_update) lets the write reach this one row only.
+//    (tenants_update) lets the write reach this one row only. The same transaction records the
+//    admin and their reason (admin_actions), and the suspension email tells the owners the reason.
 // Deleting stays with the owner (DeleteWorkspace); an admin deletion route is future work.
 public static class SetTenantStatus
 {
-    public sealed record Request(TenantStatus Status);
+    public sealed record Request(TenantStatus Status, string? Reason);
 
     public static void MapSetTenantStatus(this IEndpointRouteBuilder app) =>
         app.MapPut("/tenants/{tenantId:guid}/status", Handle)
@@ -27,8 +29,13 @@ public static class SetTenantStatus
 
     private static async Task<Results<Ok<ListTenants.Item>, NotFound, ProblemHttpResult>> Handle(
         Guid tenantId, Request request, TenantContext tenant, TenancyDbContext db, ITenantSuspension suspension,
-        IConfiguration configuration, CancellationToken cancellationToken)
+        IConfiguration configuration, TimeProvider time, CancellationToken cancellationToken)
     {
+        if (AdminActions.Valid(request.Reason) is not { } reason)
+        {
+            return AdminActions.MissingReason();
+        }
+
         if (request.Status is not (TenantStatus.Active or TenantStatus.Suspended))
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status400BadRequest, title: "A workspace can be set Active or Suspended.");
@@ -56,8 +63,26 @@ public static class SetTenantStatus
         var workspace = await db.Tenants.SingleAsync(t => t.Id == tenantId, cancellationToken);
         if (workspace.Status != request.Status)
         {
-            WorkspaceEmails.ToOwners(db, request.Status == TenantStatus.Suspended ? EmailTemplates.WorkspaceSuspended : EmailTemplates.WorkspaceReactivated,
-                workspace, configuration);
+            var suspending = request.Status == TenantStatus.Suspended;
+            if (suspending)
+            {
+                WorkspaceEmails.ToOwners(db, EmailTemplates.WorkspaceSuspended, workspace, configuration, new() { ["reason"] = reason });
+                await Reports.ContentReports.CloseCoachReportsAsync(db, workspace.Id, time.GetUtcNow(), cancellationToken);
+            }
+            else
+            {
+                WorkspaceEmails.ToOwners(db, EmailTemplates.WorkspaceReactivated, workspace, configuration);
+            }
+
+            db.AdminActions.Add(new AdminAction
+            {
+                AdminId = tenant.UserId ?? Guid.Empty,
+                Action = suspending ? AdminActionKind.WorkspaceSuspended : AdminActionKind.WorkspaceReactivated,
+                TenantId = workspace.Id,
+                Subject = $"{workspace.DisplayName} (/c/{workspace.Slug})",
+                Reason = reason,
+                At = time.GetUtcNow(),
+            });
         }
 
         workspace.Status = request.Status;

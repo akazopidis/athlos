@@ -27,6 +27,7 @@ public sealed class PlatformAdminTests(AthlosDatabases databases) : IAsyncLifeti
         { "PUT", "/api/v1/admin/tenants/{id}/status" },
         { "PUT", "/api/v1/admin/tenants/{id}/plan" },
         { "GET", "/api/v1/admin/metrics" },
+        { "GET", "/api/v1/admin/actions" },
     };
 
     [Theory]
@@ -34,7 +35,7 @@ public sealed class PlatformAdminTests(AthlosDatabases databases) : IAsyncLifeti
     public async Task Coaches_and_customers_are_forbidden_and_anonymous_callers_unauthorized(string method, string path)
     {
         var workspace = await _api.CreateWorkspace();
-        var body = method == "PUT" ? JsonContent.Create(new { status = "Suspended", plan = "Pro" }) : null;
+        var body = method == "PUT" ? JsonContent.Create(new { status = "Suspended", plan = "Pro", reason = "Test" }) : null;
         var url = path.Replace("{id}", workspace.TenantId.ToString(), StringComparison.Ordinal);
 
         var owner = await _api.SendAsGateway(new HttpRequestMessage(new HttpMethod(method), url) { Content = body }, workspace.OwnerId);
@@ -142,14 +143,41 @@ public sealed class PlatformAdminTests(AthlosDatabases databases) : IAsyncLifeti
             metrics.GetProperty("active").GetInt32() + metrics.GetProperty("suspended").GetInt32() + metrics.GetProperty("deleted").GetInt32());
     }
 
+    // The audit trail (design §3.4): an action without a reason is refused and changes nothing; with one,
+    // the change, the admin and the reason are recorded together, newest first. A repeat that changes
+    // nothing records nothing.
+    [Fact]
+    public async Task Every_admin_action_needs_a_reason_and_is_recorded_with_its_admin()
+    {
+        var workspace = await _api.CreateWorkspace();
+        var withoutReason = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/admin/tenants/{workspace.TenantId}/status") { Content = JsonContent.Create(new { status = "Suspended", reason = " " }) },
+            _admin, appRoles: AdminRole);
+
+        Assert.Equal(HttpStatusCode.BadRequest, withoutReason.StatusCode);
+        Assert.Equal(("Active", "Free"), await StatusAndPlan(workspace.TenantId));
+
+        await SetStatus(workspace.TenantId, "Suspended");
+        await SetStatus(workspace.TenantId, "Suspended");
+        await SetPlan(workspace.TenantId, "Pro");
+
+        var actions = (await AsAdmin<List<JsonElement>>("/api/v1/admin/actions"))
+            .Where(a => a.GetProperty("subject").GetString()!.Contains($"/c/{workspace.Slug})", StringComparison.Ordinal))
+            .ToList();
+        Assert.Equal(["PlanChanged", "WorkspaceSuspended"], actions.Select(a => a.GetProperty("action").GetString()));
+        Assert.All(actions, a => Assert.Equal(_admin, a.GetProperty("adminId").GetGuid()));
+        Assert.Equal(("Free to Pro", "Asked for more programs"), (actions[0].GetProperty("detail").GetString(), actions[0].GetProperty("reason").GetString()));
+        Assert.Equal("Breaks the terms", actions[1].GetProperty("reason").GetString());
+    }
+
     private Task<HttpResponseMessage> SetStatus(Guid tenantId, string status) =>
         _api.SendAsGateway(
-            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/admin/tenants/{tenantId}/status") { Content = JsonContent.Create(new { status }) },
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/admin/tenants/{tenantId}/status") { Content = JsonContent.Create(new { status, reason = "Breaks the terms" }) },
             _admin, appRoles: AdminRole);
 
     private Task<HttpResponseMessage> SetPlan(Guid tenantId, string plan) =>
         _api.SendAsGateway(
-            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/admin/tenants/{tenantId}/plan") { Content = JsonContent.Create(new { plan }) },
+            new HttpRequestMessage(HttpMethod.Put, $"/api/v1/admin/tenants/{tenantId}/plan") { Content = JsonContent.Create(new { plan, reason = "Asked for more programs" }) },
             _admin, appRoles: AdminRole);
 
     private async Task<T> AsAdmin<T>(string path)

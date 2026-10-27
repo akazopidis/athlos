@@ -292,6 +292,13 @@ public sealed class RefundTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.True(paid);
         Assert.True(_api.CheckoutSessions.Transfers.ContainsKey(orderId));
         Assert.DoesNotContain(await AdminPayouts(), p => p.GetProperty("orderId").GetGuid() == orderId);
+        // Both tries are in the audit trail, with their reason and outcome (design §3.4).
+        var log = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, "/api/v1/admin/payouts/actions"), Guid.CreateVersion7(), appRoles: ["Platform.Admin"]);
+        var retries = (await log.Content.ReadFromJsonAsync<List<JsonElement>>(Cancel))!
+            .Where(a => a.GetProperty("detail").GetString()!.Contains(orderId.ToString(), StringComparison.Ordinal))
+            .ToList();
+        Assert.Equal(["paid", "still refused"], retries.Select(a => a.GetProperty("detail").GetString()!.Split(", ")[^1]));
+        Assert.All(retries, a => Assert.Equal(("PayoutRetried", "Coach fixed their account"), (a.GetProperty("action").GetString(), a.GetProperty("reason").GetString())));
     }
 
     [Fact]
@@ -311,6 +318,7 @@ public sealed class RefundTests(AthlosDatabases databases) : IAsyncLifetime
     [Theory]
     [InlineData("GET", "/api/v1/admin/payouts")]
     [InlineData("POST", "/api/v1/admin/payouts/0199a000-0000-7000-8000-000000000001/retry")]
+    [InlineData("GET", "/api/v1/admin/payouts/actions")]
     public async Task Payouts_are_for_the_platform_admin_only(string method, string path)
     {
         var coach = await _api.SendAsGateway(new HttpRequestMessage(new HttpMethod(method), path), Guid.CreateVersion7());
@@ -330,7 +338,8 @@ public sealed class RefundTests(AthlosDatabases databases) : IAsyncLifetime
 
     private async Task<bool> RetryNow(Guid orderId)
     {
-        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/payouts/{orderId}/retry"), Guid.CreateVersion7(), appRoles: ["Platform.Admin"]);
+        var response = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/payouts/{orderId}/retry") { Content = JsonContent.Create(new { reason = "Coach fixed their account" }) },
+            Guid.CreateVersion7(), appRoles: ["Platform.Admin"]);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<JsonElement>(Cancel)).GetProperty("paid").GetBoolean();
     }

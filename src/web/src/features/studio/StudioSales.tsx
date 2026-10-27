@@ -20,7 +20,8 @@ const PageSize = 20
 // The customer's address is shown to the coach here (and only here), so they can reach their buyers.
 // The owner can refund a sale (design §2.2) within the refund window (14 days after payment by
 // default): the customer is paid back, the coach's share is taken back, and the customer loses access
-// to the program. Refunded sales stay listed, marked.
+// to the program. Refunded sales stay listed, marked. A sale whose customer asked for a refund is marked
+// with their note and stays refundable after the window; after three working days Athlos refunds it.
 export function StudioSales() {
   const { slug, isOwner } = useStudio()
   const { api } = useApp()
@@ -156,13 +157,20 @@ function SaleRow({
   onRefund: () => void
 }) {
   const refunded = s.status === 'Refunded'
-  const windowClosed = new Date(s.refundableUntil).getTime() < now
+  const requested = !refunded && !!s.refundRequestedAt
+  const windowClosed = new Date(s.refundableUntil).getTime() < now && !requested
   return (
     <TableRow className={refunded ? 'text-muted-foreground' : undefined}>
       <TableCell>{new Date(s.paidAt).toLocaleDateString()}</TableCell>
       <TableCell className="max-w-48">
         <span className="block truncate">{s.programTitle}</span>
         {refunded && <Badge variant="secondary">Refunded</Badge>}
+        {requested && (
+          <span className="block space-y-1">
+            <Badge variant="destructive">Refund requested {new Date(s.refundRequestedAt!).toLocaleDateString()}</Badge>
+            {s.refundRequestNote && <span className="block text-xs whitespace-normal text-muted-foreground">“{s.refundRequestNote}”</span>}
+          </span>
+        )}
         {s.discountCode && <span className="block text-xs text-muted-foreground">Code {s.discountCode}</span>}
       </TableCell>
       <TableCell className="hidden text-muted-foreground md:table-cell">{s.customerEmail ?? <span className="italic">Deleted account</span>}</TableCell>

@@ -380,6 +380,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewModerationDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "204": {
             "description": "No Content"
@@ -407,12 +417,45 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewModerationDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "204": {
             "description": "No Content"
           },
           "404": {
             "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reviews/actions": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminListReviewActions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminActionsItem"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -576,6 +619,61 @@
   },
   "components": {
     "schemas": {
+      "AdminActionKind": {
+        "enum": [
+          "WorkspaceSuspended",
+          "WorkspaceReactivated",
+          "PlanChanged",
+          "ReviewHidden",
+          "ReviewKept",
+          "PayoutRetried",
+          "RefundIssued",
+          "ProgramUnpublished",
+          "ProgramAllowed",
+          "ReportsKept"
+        ]
+      },
+      "AdminActionsItem": {
+        "required": [
+          "id",
+          "adminId",
+          "action",
+          "subject",
+          "detail",
+          "reason",
+          "at"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "$ref": "#/components/schemas/AdminActionKind"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "GetMyProgramResponse": {
         "required": [
           "programId",
@@ -587,7 +685,8 @@
           "coverImageUrl",
           "enrolledAt",
           "workouts",
-          "review"
+          "review",
+          "coachLeft"
         ],
         "type": "object",
         "properties": {
@@ -640,6 +739,9 @@
                 "$ref": "#/components/schemas/MyReviewResponse"
               }
             ]
+          },
+          "coachLeft": {
+            "type": "boolean"
           }
         }
       },
@@ -1048,6 +1150,20 @@
           "Spam",
           "Other"
         ]
+      },
+      "ReviewModerationDecisionRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
       },
       "ReviewModerationOpenReport": {
         "required": [

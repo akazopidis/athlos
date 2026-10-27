@@ -52,18 +52,34 @@ public sealed class RateLimitTests : IAsyncLifetime
         return _gateway.CreateClient();
     }
 
+    // Each replica enforces its share of a limit (design §4): at full scale the replicas together
+    // allow the limit, never more; a share is at least 1.
+    [Theory]
+    [InlineData(1, 100, 100)]
+    [InlineData(2, 100, 50)]
+    [InlineData(2, 3, 2)]
+    [InlineData(2, 1, 1)]
+    [InlineData(0, 20, 20)]
+    public void Each_replica_enforces_its_share_of_a_limit(int replicas, int limit, int share) =>
+        Assert.Equal(share, new RateLimits.Options { GatewayReplicas = replicas }.Share(limit));
+
     [Fact]
     public async Task A_flooding_coach_gets_429_and_another_coach_does_not()
     {
         var client = Gateway();
 
         var flood = await Send(client, "/api/v1/marketplace/coaches/coach-a", times: PlanRate * 3);
-        var neighbour = await Send(client, "/api/v1/marketplace/coaches/coach-b", times: PlanRate);
+        // Coach B's visitors, each a different account, so no single visitor's own limit applies.
+        var neighbour = new List<HttpStatusCode>();
+        for (var i = 0; i < PlanRate; i++)
+        {
+            neighbour.Add(await Send(client, Guid.CreateVersion7(), HttpMethod.Get, "/api/v1/marketplace/coaches/coach-b"));
+        }
 
         var refused = flood.Where(r => r.StatusCode == HttpStatusCode.TooManyRequests).ToList();
         Assert.NotEmpty(refused);
         Assert.All(refused, r => Assert.True(int.Parse(r.Headers.GetValues("Retry-After").Single(), System.Globalization.CultureInfo.InvariantCulture) >= 1));
-        Assert.All(neighbour, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        Assert.All(neighbour, status => Assert.Equal(HttpStatusCode.OK, status));
     }
 
     // Tenant-aware telemetry (design §6): the gateway's request span names the coach and its plan.
@@ -173,6 +189,26 @@ public sealed class RateLimitTests : IAsyncLifetime
         using var request = new HttpRequestMessage(HttpMethod.Post, path);
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Athlos.Testing.TestTokens.For(customer));
         return (await client.SendAsync(request, TestContext.Current.CancellationToken)).StatusCode;
+    }
+
+    // One visitor flooding a storefront spends at most half of the coach's budget (design §4): their
+    // own requests get 429, while another visitor of the same coach still gets through.
+    [Fact]
+    public async Task One_visitor_cannot_spend_a_coachs_whole_budget()
+    {
+        var client = Gateway();
+        var (flooder, other) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+
+        var flood = new List<HttpStatusCode>();
+        for (var i = 0; i < PlanRate * 3; i++)
+        {
+            flood.Add(await Send(client, flooder, HttpMethod.Get, "/api/v1/marketplace/coaches/coach-a"));
+        }
+
+        var otherVisitor = await Send(client, other, HttpMethod.Get, "/api/v1/marketplace/coaches/coach-a");
+
+        Assert.Contains(HttpStatusCode.TooManyRequests, flood);
+        Assert.Equal(HttpStatusCode.OK, otherVisitor);
     }
 
     [Fact]

@@ -93,6 +93,22 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
 
+      # The purchase spec refunds its own test payment with the stage's Stripe test key, so every
+      # run pays again. No key yet (infra/stripe_setup.py not run): the spec keeps the program.
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Stripe test key for the purchase spec
+        run: |
+          key=$(az keyvault secret show --vault-name kv-athlos-staging --name stripe-secret-key --query value --output tsv 2>/dev/null || true)
+          if [ -n "$key" ]; then
+            echo "::add-mask::$key"
+            echo "E2E_STRIPE_SECRET_KEY=$key" >> "$GITHUB_ENV"
+          fi
+
       - name: Run end-to-end tests
         env:
           E2E_BASE_URL: ${{ vars.E2E_BASE_URL }}

@@ -63,13 +63,16 @@ export function Terms() {
         <li>You pay Athlos once, in one payment for everything in your cart. Athlos passes each coach their share and keeps a {fee}% platform fee.</li>
         <li>Prices are in euros and include any discount shown in your cart. Stripe processes the payment; Athlos never sees your card details.</li>
         <li>A program you buy is yours to use for personal training. You may not copy, resell or share its content.</li>
-        <li>Access starts as soon as the payment is confirmed. You can ask for a refund as described in the <Link to="/legal/refunds" className="underline underline-offset-4">refund policy</Link>.</li>
+        <li>
+          Access starts as soon as the payment is confirmed. At checkout you ask for access right away and acknowledge that your right of withdrawal then ends.
+          You can still ask for a refund as described in the <Link to="/legal/refunds" className="underline underline-offset-4">refund policy</Link>.
+        </li>
       </ul>
       <h2>Coaches</h2>
       <ul>
         <li>Each coach is responsible for their programs: their content, their safety advice and their accuracy. Athlos does not check training advice.</li>
         <li>Coaches are paid through their own Stripe account and must give Stripe correct details about who they are.</li>
-        <li>A coach may refund a sale within {days} days. If a coach deletes their workspace, customers lose access to that coach's programs.</li>
+        <li>A coach may refund a sale within {days} days. If a coach deletes their workspace, customers keep a read-only copy of the programs they bought, with their progress.</li>
       </ul>
       <h2>Training safely</h2>
       <p>Exercise carries risk. Check with a doctor before starting a new program, and stop if something hurts. Athlos and its coaches are not medical providers.</p>
@@ -132,8 +135,8 @@ export function CoachTerms() {
       </ul>
       <h2>Leaving</h2>
       <p>
-        You can delete your workspace once no sale can still be refunded. Its programs, images and team go with it, and customers lose access to its
-        programs. The sales stay in Athlos' records for accounting.
+        You can delete your workspace once no sale can still be refunded. Its storefront, programs, images and team go with it. Customers who bought a
+        program keep a read-only copy of it, with their progress. The sales stay in Athlos' records for accounting.
       </p>
       <h2>Changes</h2>
       <p>If these terms change, the date above changes, and the new version is the one accepted when a workspace is opened.</p>
@@ -186,16 +189,16 @@ export function Refunds() {
       <p>Every program can be refunded within {days} days of purchase.</p>
       <h2>How to get a refund</h2>
       <ul>
-        <li>Contact the coach through the contact address on their storefront, or on the order in "Orders".</li>
-        <li>The coach refunds the purchase from their studio within {days} days of payment. You get the full amount you paid back on your card and an email confirming it.</li>
+        <li>Choose "Request a refund" on the order in "Orders" within {days} days of payment. You can add a note for the coach.</li>
+        <li>The coach refunds it from their studio. If they have not within three working days, Athlos refunds it. You get the full amount you paid back on your card and an email confirming it.</li>
         <li>Your access to the program ends with the refund, and your review of it is removed.</li>
       </ul>
       <h2>After {days} days</h2>
       <p>Purchases are final after {days} days. If a payment was made without your permission, contact your bank; a dispute the coach loses also refunds the purchase.</p>
       <h2>Your right of withdrawal</h2>
       <p>
-        EU law gives you 14 days to withdraw from an online purchase. For digital content you can use at once, that right can end when access starts; Athlos
-        keeps the {days}-day refund anyway.
+        EU law gives you 14 days to withdraw from an online purchase. For digital content you can use at once, that right ends when access starts if you ask
+        for access right away and acknowledge losing it, which you do at checkout. Athlos keeps the {days}-day refund anyway.
       </p>
     </LegalPage>
   )

@@ -8,6 +8,7 @@ import type { components } from '@/api/catalog'
 import { CoachAvatar, CoachLinks } from '@/components/coach-profile'
 import { DiscountNote } from '@/components/discount-note'
 import { ProgramCover } from '@/components/program-cover'
+import { ReportContent } from '@/components/report-content'
 import { SaveButton } from '@/components/save-button'
 import { Stars } from '@/components/stars'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -67,7 +68,7 @@ export function ProgramPage() {
   const buy = useMutation({
     mutationFn: async (programId: string) => {
       const { data, error, response } = await api.POST('/api/v1/orders/checkout', {
-        body: { programIds: [programId], termsVersion: TermsVersion },
+        body: { programIds: [programId], termsVersion: TermsVersion, immediateAccess: true },
         params: { header: { 'Idempotency-Key': idempotencyKey } },
       })
       if (data) return data
@@ -105,7 +106,7 @@ export function ProgramPage() {
     `${weeks} ${weeks === 1 ? 'week' : 'weeks'} of structured training`,
     'Every workout with instructions, and videos where the coach adds them',
     'Your progress saved as you tick off workouts',
-    'One payment, yours to keep',
+    'One payment, no subscription',
   ]
 
   const addToCart = () =>
@@ -207,6 +208,7 @@ export function ProgramPage() {
                 </div>
               </section>
             )}
+            {!mine && <ReportContent target={{ kind: 'Program', programId: p.id }} label="Report this program" />}
           </div>
 
           {/* The buy box: a bar pinned to the bottom of the screen on phones, a card that follows the
@@ -216,7 +218,7 @@ export function ProgramPage() {
               <div className="min-w-0 lg:space-y-1">
                 <p className="font-heading text-2xl font-black tabular-nums lg:text-4xl">{formatMoney(p.priceAmount, p.currency)}</p>
                 {p.discount && !ownsIt && !mine && <DiscountNote offer={p.discount} price={Number(p.priceAmount)} currency={p.currency} />}
-                <p className="hidden text-sm text-muted-foreground lg:block">One payment. All workouts, yours to keep.</p>
+                <p className="hidden text-sm text-muted-foreground lg:block">One payment for every workout. No subscription.</p>
               </div>
               {deciding ? (
                 <div className="h-10 flex-1 animate-pulse rounded-lg bg-muted lg:h-[5.5rem] lg:flex-none" aria-busy="true" aria-label="Loading" />
@@ -269,7 +271,7 @@ export function ProgramPage() {
                 <Link to="/legal/refunds" className="underline underline-offset-4">
                   Refund policy
                 </Link>
-                .
+                , and ask for access right away, which ends your right of withdrawal. The refund policy still applies.
               </p>
             )}
             {slow && <div className="mt-3"><p className="text-center text-xs text-muted-foreground" role="status">Waking up the payment service. This can take up to a minute the first time.</p></div>}

@@ -27,6 +27,20 @@ updates:
     schedule:
       interval: weekly
 
+  # The SPA: version updates once a month in one group (security updates come as they appear).
+  - package-ecosystem: npm
+    directory: /src/web
+    target-branch: dev
+    schedule:
+      interval: monthly
+    # A TypeScript major waits until typescript-eslint supports it (7.0 broke npm ci in #225).
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+    groups:
+      web:
+        patterns: ["*"]
+
   # The end-to-end tests (Playwright), run after every staging deploy.
   - package-ecosystem: npm
     directory: /tests/e2e

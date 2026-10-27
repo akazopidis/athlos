@@ -25,6 +25,13 @@ public sealed class BypassGatewayTests(AthlosDatabases database) : IAsyncLifetim
         { "GET", "/api/v1/me/memberships" },
         { "PUT", "/api/v1/me/profile" },
         { "DELETE", "/api/v1/me" },
+        { "GET", "/api/v1/me/export" },
+        { "POST", "/api/v1/me/reports" },
+        { "GET", "/api/v1/admin/reports" },
+        { "POST", $"/api/v1/admin/reports/programs/{TenantA}/unpublish" },
+        { "POST", $"/api/v1/admin/reports/programs/{TenantA}/allow" },
+        { "POST", $"/api/v1/admin/reports/programs/{TenantA}/keep" },
+        { "POST", $"/api/v1/admin/reports/coaches/{TenantA}/keep" },
         { "GET", "/api/v1/studio/some-coach/workspace" },
         { "PUT", "/api/v1/studio/some-coach/workspace" },
         { "DELETE", "/api/v1/studio/some-coach/workspace" },
@@ -44,6 +51,7 @@ public sealed class BypassGatewayTests(AthlosDatabases database) : IAsyncLifetim
         { "PUT", $"/api/v1/admin/tenants/{TenantA}/status" },
         { "PUT", $"/api/v1/admin/tenants/{TenantA}/plan" },
         { "GET", "/api/v1/admin/metrics" },
+        { "GET", "/api/v1/admin/actions" },
     };
 
     [Theory]

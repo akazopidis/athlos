@@ -22,6 +22,62 @@ namespace Athlos.Enrollment.Api.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Athlos.Enrollment.Api.Data.ProgramCopy", b =>
+                {
+                    b.Property<Guid>("ProgramId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("program_id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("category");
+
+                    b.Property<string>("CoachSlug")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("coach_slug");
+
+                    b.Property<DateTimeOffset>("CopiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("copied_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<int>("DurationWeeks")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_weeks");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("Workouts")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("workouts");
+
+                    b.HasKey("ProgramId")
+                        .HasName("pk_program_copies");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_program_copies_tenant_id");
+
+                    b.ToTable("program_copies", (string)null);
+                });
+
             modelBuilder.Entity("Athlos.Enrollment.Api.Data.ProgramEnrollment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -359,6 +415,57 @@ namespace Athlos.Enrollment.Api.Data.Migrations
                         .HasFilter("sent_at IS NULL");
 
                     b.ToTable("outbox_messages", (string)null);
+                });
+
+            modelBuilder.Entity("Athlos.Tenancy.Data.AdminAction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid>("AdminId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("admin_id");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("detail");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("subject");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_admin_actions");
+
+                    b.HasIndex("At")
+                        .HasDatabaseName("ix_admin_actions_at");
+
+                    b.ToTable("admin_actions", (string)null);
                 });
 
             modelBuilder.Entity("Athlos.Enrollment.Api.Data.Review", b =>

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Tenancy.Api.Data;
 
 public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options, ITenantContext tenant)
-    : TenantDbContext(options, tenant), IHasOutbox
+    : TenantDbContext(options, tenant), IHasOutbox, IHasAdminActions
 {
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
@@ -15,7 +15,11 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
 
     public DbSet<StaffInvite> StaffInvites => Set<StaffInvite>();
 
+    public DbSet<ContentReport> ContentReports => Set<ContentReport>();
+
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    public DbSet<AdminAction> AdminActions => Set<AdminAction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,7 +59,21 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
             invite.HasOne<Tenant>().WithMany().HasForeignKey(i => i.TenantId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<ContentReport>(report =>
+        {
+            report.HasIndex(r => new { r.ResolvedAt, r.ReportedAt });
+            report.HasIndex(r => r.ProgramId);
+            report.HasIndex(r => r.TenantId);
+            report.Property(r => r.Kind).HasConversion<string>().HasMaxLength(20);
+            report.Property(r => r.Reason).HasConversion<string>().HasMaxLength(20);
+            report.Property(r => r.Outcome).HasConversion<string>().HasMaxLength(20);
+            report.Property(r => r.Subject).HasMaxLength(120);
+            report.Property(r => r.CoachSlug).HasMaxLength(40);
+            report.Property(r => r.Note).HasMaxLength(500);
+        });
+
         modelBuilder.ConfigureOutbox();
+        modelBuilder.ConfigureAdminActions();
 
         base.OnModelCreating(modelBuilder);
     }

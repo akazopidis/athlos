@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Catalog.Api.Features.Programs;
 
 // Publishing puts a program in the marketplace (RLS public-read then applies to it). The workspace
-// must be able to sell first: active, with Stripe onboarding finished (design §3.4).
+// must be able to sell first: active, with Stripe onboarding finished (design §3.4). A program the
+// platform admin took off the marketplace after a report cannot be published until it is allowed again.
 public static class PublishProgram
 {
     public static void MapPublishProgram(this IEndpointRouteBuilder app)
@@ -43,6 +44,12 @@ public static class PublishProgram
         if (program is null)
         {
             return TypedResults.NotFound();
+        }
+
+        if (publish && program.BlockedAt is { } blockedAt)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
+                title: $"Athlos took this program off the marketplace on {blockedAt.UtcDateTime:d MMMM yyyy}, after a report; the email from Athlos says why. Reply to it if you think this is a mistake.");
         }
 
         if (publish && !await db.Workouts.AnyAsync(w => w.ProgramId == programId, cancellationToken))

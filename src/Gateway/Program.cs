@@ -49,6 +49,8 @@ builder.Services.AddReverseProxy()
         context.AddRequestTransform(GatewayRequestSigning.SignAsync);
     });
 
+builder.Services.AddSingleton<ClientErrors.Limiter>();
+
 var app = builder.Build();
 
 app.UseForwardedHeaders();
@@ -72,6 +74,7 @@ app.MapReverseProxy(proxy =>
 });
 app.MapLinkPreviews();
 app.MapSitemap();
+app.MapClientErrors();
 app.MapSpa();
 
 app.Run();

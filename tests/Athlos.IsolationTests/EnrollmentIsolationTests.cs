@@ -47,6 +47,7 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         { "GET", "/api/v1/admin/reviews/reports" },
         { "POST", $"/api/v1/admin/reviews/{Guid.Empty}/hide" },
         { "POST", $"/api/v1/admin/reviews/{Guid.Empty}/keep" },
+        { "GET", "/api/v1/admin/reviews/actions" },
     };
 
     // A workspace export (design §5.4) holds that coach's programs and reviews, and none of another's;
@@ -95,19 +96,40 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    // Deleting a workspace (design §3.4): one tenant id erases that coach's enrollments and progress,
-    // and nothing of another coach's. Counted as the superuser, so RLS cannot hide a leftover.
+    // Deleting a workspace (design §3.4): one tenant id copies that coach's bought programs for their
+    // buyers, who keep their enrollments and progress, and removes the coach's reviews; nothing of
+    // another coach's changes. Counted as the superuser, so RLS cannot hide a row.
     [Fact]
-    public async Task Erasing_A_removes_its_enrollments_and_progress_and_nothing_of_Bs()
+    public async Task Deleting_A_keeps_its_buyers_a_copy_and_changes_nothing_of_Bs()
     {
+        await Review(_alice, _alicesProgram.ProgramId, 4);
+        await Review(_bob, _bobsProgram.ProgramId, 5);
+
         var erased = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/tenants/{_a.TenantId}"));
+        _api.Programs.Remove(_a.TenantId, _alicesProgram.ProgramId); // catalog-api erases it next
         var again = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/tenants/{_a.TenantId}"));
 
         Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (erased.StatusCode, again.StatusCode));
-        Assert.Equal((0L, 0L), (await RowsOf("enrollments", _a.TenantId), await RowsOf("workout_progress", _a.TenantId)));
-        Assert.Equal(1L, await RowsOf("enrollments", _b.TenantId));
-        Assert.Empty((await _api.MyPrograms(_alice)).Items);
-        Assert.Single((await _api.MyPrograms(_bob)).Items);
+        Assert.Equal((1L, 1L, 1L, 0L), (await RowsOf("enrollments", _a.TenantId), await RowsOf("workout_progress", _a.TenantId),
+            await RowsOf("program_copies", _a.TenantId), await RowsOf("reviews", _a.TenantId)));
+        Assert.Equal((1L, 0L, 1L), (await RowsOf("enrollments", _b.TenantId), await RowsOf("program_copies", _b.TenantId), await RowsOf("reviews", _b.TenantId)));
+        Assert.True((await _api.MyProgram(_alice, _alicesProgram.ProgramId)).CoachLeft);
+    }
+
+    // Layer 4 alone: as tenant B, raw SQL reads none of A's buyers' copies and cannot write one for A.
+    [Fact]
+    public async Task RLS_shows_a_program_copy_to_its_own_tenant_only()
+    {
+        await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/tenants/{_a.TenantId}"));
+
+        var asB = await Scalar<long>(_b.TenantId, null, $"SELECT count(*) FROM program_copies WHERE tenant_id = '{_a.TenantId}'");
+        var asA = await Scalar<long>(_a.TenantId, null, $"SELECT count(*) FROM program_copies WHERE tenant_id = '{_a.TenantId}'");
+        var write = await Assert.ThrowsAsync<PostgresException>(() => Scalar<long>(_b.TenantId, null,
+            $"INSERT INTO program_copies (program_id, tenant_id, coach_slug, title, description, category, duration_weeks, workouts, copied_at) " +
+            $"VALUES ('{Guid.CreateVersion7()}', '{_a.TenantId}', 'a', 'x', 'x', 'x', 1, '[]', now()) RETURNING 1"));
+
+        Assert.Equal((0L, 1L), (asB, asA));
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, write.SqlState);
     }
 
     private async Task<long> RowsOf(string table, Guid tenantId)

@@ -4,6 +4,8 @@ What Athlos (v1.6.0, October 2026) does not do, or does only partly, collected i
 
 The list comes from the design (`docs/design.md`; section numbers below refer to it), the evaluation (`targets.md`, `noisy-neighbor.md`) and a review of edge cases on 16 October 2026. Edge cases that review found and fixed in v1.5.1 and v1.6.0 are not repeated here; they are in the design's §2.2.
 
+[`backlog.md`](backlog.md) turns these limitations, with the other gaps a review of the whole project found on 25 October 2026, into one ranked list of work; its items name the limitation they come from (#n).
+
 The limitations fall into three kinds:
 - **Scope.** Needed for a commercial launch, but outside a thesis about multi-tenant architecture. Most are product and legal work.
 - **Budget.** The fix exists and is known, but costs more than the €100-for-12-months budget allows.
@@ -16,18 +18,18 @@ The limitations fall into three kinds:
 | 1 | No VAT or invoices | Scope | Legal, payments |
 | 2 | Legal pages are drafts, reviewed by no lawyer | Scope | Legal |
 | 3 | The data export is one synchronous JSON file | Trade-off | Legal, GDPR |
-| 4 | Customers lose bought programs when a coach deletes their workspace | Trade-off | Tenant lifecycle |
+| 4 | Customers lose bought programs when a coach deletes their workspace (solved in v1.18.0) | Trade-off | Tenant lifecycle |
 | 5 | No program versioning | Scope | Product |
 | 6 | Stripe in test mode only | Scope | Payments |
 | 7 | Some refund cases are settled by hand | Trade-off | Payments |
 | 8 | Disputes cost the platform, not the coach | Trade-off | Payments |
 | 9 | Coach plans are not billed | Scope | Business model |
-| 10 | Backups kept 7 days in one region, restore never tested | Budget | Operations |
+| 10 | Backups kept 7 days in one region, restore not yet timed | Budget | Operations |
 | 11 | One PostgreSQL server for all three stages | Budget | Operations, isolation |
 | 12 | One Container Apps environment for all three stages | Budget | Operations, isolation |
 | 13 | Cold starts of about 90 seconds | Budget | Performance |
-| 14 | The rate limit grows with each gateway replica | Budget | Noisy neighbor |
-| 15 | One coach's flood can block that coach's own visitors | Trade-off | Noisy neighbor |
+| 14 | The rate limit grows with each gateway replica (solved in v1.18.0, by dividing it) | Budget | Noisy neighbor |
+| 15 | One coach's flood can block that coach's own visitors (a single client cannot since v1.18.0) | Trade-off | Noisy neighbor |
 | 16 | One signing key shared by the gateway and every service | Trade-off | Security |
 | 17 | No CDN or web application firewall | Budget | Security, performance |
 | 18 | Workspace deletion is not one transaction | Trade-off | Tenant lifecycle |
@@ -48,6 +50,7 @@ The limitations fall into three kinds:
 ### 2. Legal pages are drafts, reviewed by no lawyer
 - **Built (v1.12.0, design §5.4):** Terms, Privacy and Refund policy pages linked from the footer; customers accept the Terms at checkout, and each checkout keeps the accepted version.
 - **Built (v1.16.0):** Terms for coaches (`/legal/coaches`), accepted when a workspace is opened; tenancy-api records the version, the time and who accepted.
+- **Built (v1.18.0):** checkout asks for access right away and records that the customer acknowledged losing the right of withdrawal (the express consent EU consumer law asks for digital content), kept with the Terms version.
 - **Built (v1.17.0):** a workspace that has not accepted the coach terms in force (opened earlier, or the terms changed) gets a notice in the studio; the owner accepts there, recorded the same way.
 - **Missing:** a lawyer's review of the texts, an imprint naming the operator, and enforcement: a workspace that never accepts the new coach terms can still sell.
 - **Why:** these are legal texts, not engineering; the pages describe what the platform does, as a starting point.
@@ -63,7 +66,8 @@ The limitations fall into three kinds:
 - **Solution:** a queued export job writing the file to Blob Storage and emailing a short-lived link.
 
 ### 4. Customers lose bought programs when a coach deletes their workspace
-- **Missing:** a way for customers to keep paid content after the coach erases their workspace (§3.4). Since v1.7.0 a workspace cannot be deleted while any sale can still be refunded, and its open payment pages are closed first, so the loss only reaches purchases older than the refund window.
+- **Built (v1.18.0, decided 26 October 2026):** buyers keep a read-only copy. When a workspace is deleted, enrollment-api copies each bought program's content from catalog-api before catalog erases it, and keeps the buyers' enrollments and progress; the program page reads the copy (design §3.4). What remains of the trade-off: the coach's content is kept for the customers who paid for it, which the Terms for coaches say, and the cover image goes with the workspace.
+- **Was missing:** a way for customers to keep paid content after the coach erases their workspace (§3.4). Since v1.7.0 a workspace cannot be deleted while any sale can still be refunded, and its open payment pages are closed first, so the loss only reaches purchases older than the refund window.
 - **Why:** a trade-off between two rights. The coach's right to erasure removes their content, the bought programs included. Keeping copies would mean keeping the coach's data after they asked for it to be erased.
 - **Impact:** a customer who bought more than 14 days earlier loses access to what they paid for, with no refund. A coach who wants their data erased must wait until the window of their last sale ends, or refund those sales.
 - **Solution, in order of effort:**
@@ -105,17 +109,18 @@ The limitations fall into three kinds:
 
 ## Operations
 
-### 10. Backups kept 7 days in one region, restore never tested
+### 10. Backups kept 7 days in one region, restore not yet timed
 - **Missing:** a restore drill, and backups kept outside `italynorth`. PostgreSQL Flexible Server keeps automatic backups for 7 days (`backupRetentionDays: 7`, `geoRedundantBackup: Disabled`). Blob Storage (cover images) has no soft delete or versioning.
 - **Why:** budget and the single allowed region (§10). Geo-redundant backups need a paired region the subscription's policy blocks.
 - **Impact:** a lost region loses everything. A bad migration found more than 7 days later cannot be undone. Nobody knows how long a restore takes, so there is no measured recovery time (RTO).
-- **Solution:** a scripted point-in-time restore to a temporary server, timed and recorded like the other evaluation numbers. Then longer retention, Blob soft delete, and with another region, geo-redundant backups.
+- **Solution:** a scripted point-in-time restore to a temporary server, timed and recorded like the other evaluation numbers: `tests/evaluation/restore_drill.sh`, results in `restore-drill.md` once it has run (`pg_dump` cannot serve: FORCE RLS hides every tenant row from the owner too). Then longer retention, Blob soft delete, and with another region, geo-redundant backups.
 
 ### 11. One PostgreSQL server for all three stages
-- **Missing:** separate database servers per stage. Dev, staging and prod have separate databases and roles on one Burstable B1ms server (free for 12 months), with at most 3 connections per service (CLAUDE.md).
+- **Missing:** separate database servers per stage. Dev, staging and prod have separate databases and roles on one Burstable B1ms server (free for 12 months), within one connection budget: the app roles share 35 connections, so since v1.18.0 each service replica has a pool of 2, database services run at most 2 replicas in staging and 1 in dev and prod, and each database is capped (design §7).
 - **Why:** budget. A second server is about €13 a month or more.
 - **Impact:**
   - a load test on staging competes with prod for the same CPU and memory;
+  - the connection budget limits scale-out: a database service runs at most 2 replicas in staging and 1 in prod, where the stress test of v1.12.0 saw catalog-api recover by scaling to 3 (`stress.md`);
   - a server outage or upgrade takes down all three stages at once;
   - stage isolation rests on database roles, not on separate servers;
   - B1ms is a burstable tier: sustained load uses up its CPU credits.
@@ -134,6 +139,7 @@ The limitations fall into three kinds:
   - the first visitor after a quiet period sees a long wait, and the gateway also serves the SPA, so even the page load waits;
   - Stripe's webhook calls can time out during a cold start and are retried later. v1.5.1 made a refund that arrives before its payment's event wait for that event, rather than be lost;
   - the end-to-end tests run a warm-up step first.
+  - since v1.18.0 `uptime.yml` asks staging and prod four times a day, so a quiet stage that stopped answering is noticed, and its job summaries record each cold start (47 to 54 seconds on 27 October 2026).
 - **Solution, in order of cost:**
   - `minReplicas: 1` for the gateway alone, which hides most of the delay, at about €10–15 a month;
   - keep the apps warm with a scheduled ping (cheap, but it defeats scale to zero during the day);
@@ -142,6 +148,7 @@ The limitations fall into three kinds:
 ## Noisy neighbor and security
 
 ### 14. The rate limit grows with each gateway replica
+- **Built (v1.18.0, decided 26 October 2026):** each replica enforces its share of every limit (the limit divided by the gateway's `maxReplicas`, `RateLimits:GatewayReplicas`). Two replicas together now allow the plan's limit, never more. What remains: while only one replica runs, a client gets half its limit, until the second replica starts; Redis would be exact at any scale.
 - **Missing:** an exact per-coach limit. The rate limiter keeps its token buckets in each gateway replica's memory (§4). With 2 replicas, a coach gets up to twice their plan's limit. Measured: about 30–40 req/s got through against the Free plan's 20 (`noisy-neighbor.md`, rounds 1 and 2).
 - **Why:** budget. A shared limiter needs Redis, about €13 a month or more.
 - **Impact:** limits are approximate. The experiment showed the extra traffic did not hurt the other coach at 0.5 vCPU, so the gateway keeps `maxReplicas: 2`.
@@ -149,11 +156,13 @@ The limitations fall into three kinds:
 
 ### 15. One coach's flood can block that coach's own visitors
 - **Missing:** protection for a flooded coach's real visitors. A flood of one coach's public storefront spends that coach's budget, so their own visitors also get 429 responses, while every other coach is unaffected (§4).
+- **Built (v1.18.0):** a per-visitor limit in front of the coach's bucket: one visitor may use at most half the coach's rate (by account, or by IP when signed out), so a single client can no longer lock the coach's other visitors out. A distributed flood, from many addresses, still can.
 - **Why:** this is the isolation the experiment set out to show: the damage stays inside the tenant. It also means one abusive client can do it on purpose.
 - **Solution:** a per-client limit on storefront traffic stops a single client but not a distributed one. A CDN with a web application firewall (limitation 17) handles the rest.
 
 ### 16. One signing key shared by the gateway and every service
 - **Missing:** per-service credentials between services. The gateway signs every request it forwards (HMAC-SHA256), and services accept only signed requests (§3.2). There is one key per stage, shared by the gateway and every service, and a signed request can be replayed for up to 60 seconds.
+- **Built (v1.18.0):** the key can be rotated without downtime: services also accept a second key while `gateway-signing-key-also` exists, so a rotation is three deploys (infra/README.md, "Rotating secrets"). The key is still one per stage, shared.
 - **Why:** a simple, testable mechanism that keeps every service gateway-only (layer 1 of the isolation design).
 - **Impact:** a compromised service could sign requests as the gateway, including requests for another tenant. Replay needs access inside the platform, since all traffic is TLS.
 - **Solution:** per-service keys, or workload identity tokens: the gateway's managed identity requests an Entra token for each service, and each service validates the token's audience. Short-lived tokens or a nonce cache would close the replay window.
@@ -205,7 +214,7 @@ Each of these is ordinary product work with no new multi-tenancy question:
 
 ### 22. Gaps in automated testing
 - **Missing:** some kinds of automated test. The backend has 462 tests on every PR, 195 of them in the isolation suite. Playwright covers, after every staging deploy, the shop, the cart, layouts on three screen sizes, the account pages and saved programs, a studio's lifecycle (with a discount code) on a throwaway workspace, axe accessibility checks on the public pages, and a signed-in checkout up to Stripe's page.
-  - *Not covered end to end:* refunds and the platform admin. A whole purchase with Stripe's test card, then a review, runs after every staging deploy since v1.15.0 (`E2E_PURCHASE_PROGRAM_PATH`); it pays once, and later runs go straight to the review.
+  - *Not covered end to end:* refunds and the platform admin. A whole purchase with Stripe's test card, then a review, runs after every staging deploy since v1.15.0 (`E2E_PURCHASE_PROGRAM_PATH`). Since v1.18.0 it ends with a full refund at Stripe and waits until the access is gone, so every run pays again and a refund made at Stripe is covered end to end; a coach's refund from the studio is not (backlog item 31).
   - *No load test of checkout or webhooks:* reads are load- and stress-tested on staging (k6, `stress.md`); writes are covered by concurrency tests (concurrent reviews leave an exact rating, concurrent saves keep one row) and contract tests between the services (v1.12.0), not by load.
 - **Why:** time. The isolation suite was the priority, because isolation is the subject of the thesis.
 - **Solution:**

@@ -72,6 +72,7 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         { "POST", "/webhooks/stripe" },
         { "GET", "/api/v1/admin/payouts" },
         { "POST", $"/api/v1/admin/payouts/{Guid.Empty}/retry" },
+        { "GET", "/api/v1/admin/payouts/actions" },
         { "POST", "/api/v1/orders/discount" },
         { "GET", $"/api/v1/me/orders/receipts/{Guid.Empty}" },
         { "GET", "/api/v1/studio/some-coach/discounts" },
@@ -81,6 +82,10 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         { "GET", "/api/v1/me/cart" },
         { "GET", $"/internal/tenants/{Guid.Empty}/export" },
         { "PUT", "/api/v1/me/cart" },
+        { "POST", $"/internal/tenants/{Guid.Empty}/prepare-deletion" },
+        { "POST", $"/api/v1/me/orders/{Guid.Empty}/refund-request" },
+        { "GET", "/api/v1/admin/refund-requests" },
+        { "POST", $"/api/v1/admin/refund-requests/{Guid.Empty}/refund" },
     };
 
     [Theory]
@@ -95,6 +100,43 @@ public sealed class OrderingIsolationTests(AthlosDatabases databases) : IAsyncLi
         var response = await _api.CreateClient().SendAsync(request, Cancel);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // Preparing a workspace's deletion (design §3.4) reads and closes that workspace's sales and payment
+    // pages only: A's refundable sale does not hold C's deletion, and C's deletion leaves A's open page open.
+    [Fact]
+    public async Task Preparing_a_deletion_sees_only_that_workspaces_sales_and_checkouts()
+    {
+        var c = NewCoach();
+        var aOpen = await _api.Checkout(Guid.CreateVersion7(), _api.Sellers.Sell(_a.TenantId, _a.Slug).ProgramId);
+        var cOpen = await _api.Checkout(Guid.CreateVersion7(), _api.Sellers.Sell(c.TenantId, c.Slug).ProgramId);
+
+        var forC = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/internal/tenants/{c.TenantId}/prepare-deletion"));
+        var aStillOpen = !_api.CheckoutSessions.Expired.ContainsKey(aOpen.SessionId);
+        var forA = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/internal/tenants/{_a.TenantId}/prepare-deletion"));
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.Conflict), (forC.StatusCode, forA.StatusCode));
+        Assert.True(_api.CheckoutSessions.Expired.ContainsKey(cOpen.SessionId));
+        Assert.True(aStillOpen);
+    }
+
+    // A refund request (design §2.2) is the customer's own: Bob asking about Alice's order is 404 and
+    // changes nothing, and Alice's request shows in coach A's sales only.
+    [Fact]
+    public async Task Only_the_buyer_can_ask_for_a_refund_and_only_their_coach_sees_it()
+    {
+        var bobAsks = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/orders/{_aliceBuysFromA}/refund-request") { Content = JsonContent.Create(new { note = "Bob's note" }) }, _bob);
+        var afterBob = await Body(await _api.AsCoach(_a, "/sales"));
+        var aliceAsks = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/orders/{_aliceBuysFromA}/refund-request") { Content = JsonContent.Create(new { note = "Alice's note" }) }, _alice);
+        var aSales = await Body(await _api.AsCoach(_a, "/sales"));
+        var bSales = await Body(await _api.AsCoach(_b, "/sales"));
+
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NoContent), (bobAsks.StatusCode, aliceAsks.StatusCode));
+        Assert.DoesNotContain("Bob's note", afterBob, StringComparison.Ordinal);
+        Assert.Contains("Alice's note", aSales, StringComparison.Ordinal);
+        Assert.DoesNotContain("Alice's note", bSales, StringComparison.Ordinal);
     }
 
     [Fact]

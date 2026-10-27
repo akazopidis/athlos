@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Ordering.Api.Data;
 
 public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> options, ITenantContext tenant)
-    : TenantDbContext(options, tenant), IHasOutbox
+    : TenantDbContext(options, tenant), IHasOutbox, IHasAdminActions
 {
     public DbSet<Order> Orders => Set<Order>();
 
@@ -18,9 +18,13 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
 
     public DbSet<PayoutRetry> PayoutRetries => Set<PayoutRetry>();
 
+    public DbSet<RefundRequest> RefundRequests => Set<RefundRequest>();
+
     public DbSet<ProcessedStripeEvent> ProcessedStripeEvents => Set<ProcessedStripeEvent>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    public DbSet<AdminAction> AdminActions => Set<AdminAction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,6 +48,7 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
             order.Property(o => o.StripePaymentIntentId).HasMaxLength(255);
             order.HasIndex(o => o.StripePaymentIntentId);
             order.Property(o => o.DiscountCode).HasMaxLength(20);
+            order.Property(o => o.RefundRequestNote).HasMaxLength(500);
             // A code's uses are counted inside its tenant.
             order.HasIndex(o => new { o.TenantId, o.DiscountCode }).HasFilter("discount_code IS NOT NULL");
         });
@@ -80,6 +85,15 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
             retry.Property(r => r.LastError).HasMaxLength(200);
         });
 
+        modelBuilder.Entity<RefundRequest>(request =>
+        {
+            request.HasKey(r => r.OrderId);
+            request.HasIndex(r => r.DueAt);
+            request.Property(r => r.CoachSlug).HasMaxLength(40);
+            request.Property(r => r.ProgramTitle).HasMaxLength(120);
+            request.Property(r => r.Currency).HasMaxLength(3).IsFixedLength();
+        });
+
         modelBuilder.Entity<ProcessedStripeEvent>(e =>
         {
             e.HasKey(p => p.StripeEventId);
@@ -87,6 +101,7 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
         });
 
         modelBuilder.ConfigureOutbox();
+        modelBuilder.ConfigureAdminActions();
 
         base.OnModelCreating(modelBuilder);
     }

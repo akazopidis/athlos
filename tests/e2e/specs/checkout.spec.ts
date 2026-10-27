@@ -29,6 +29,7 @@ test('a signed-in customer checks out a cart and reaches Stripe', async ({ page 
 
   await page.goto('/cart')
   await page.getByRole('checkbox', { name: /I accept the Terms/ }).check()
+  await page.getByRole('checkbox', { name: /I want access right away/ }).check()
   await page.getByRole('button', { name: 'Check out' }).click()
 
   await page.waitForURL(/checkout\.stripe\.com/, { timeout: 150_000 })

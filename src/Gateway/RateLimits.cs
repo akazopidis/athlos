@@ -24,8 +24,10 @@ namespace Athlos.Gateway;
 //   by default, so one account cannot flood the services with writes. Reads stay unlimited.
 // - Over the limit: 429 with Retry-After, and athlos.ratelimit.rejected counts it per coach.
 //
-// The buckets live in this replica's memory: with N gateway replicas a coach effectively gets N
-// times its limit (design §4, known limitation; the gateway is capped at 2 replicas).
+// The buckets live in each replica's memory, so each replica enforces its share of every limit: the
+// limit divided by GatewayReplicas (the gateway's maxReplicas), rounded up (decided 26 October 2026).
+// At full scale the replicas together allow the limit; while fewer run, a client gets less than its
+// limit, never more (design §4). A shared store (Redis) would be exact at any scale, at a cost.
 public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
 {
     public sealed class Options
@@ -40,6 +42,11 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
         public int CheckoutsPerMinute { get; set; } = 10;
 
         public int CustomerWritesPerMinute { get; set; } = 60;
+
+        // The gateway's maxReplicas (infra/env.bicep): each replica enforces its share of every limit.
+        public int GatewayReplicas { get; set; } = 1;
+
+        public int Share(int limit) => Math.Max(1, (int)Math.Ceiling(limit / (double)Math.Max(1, GatewayReplicas)));
     }
 
     private sealed record Partition(string Key, int RequestsPerSecond, string Scope, string? Tenant, string? Plan, string? Slug = null);
@@ -94,7 +101,7 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
         {
             var customer = Athlos.Tenancy.TenantContextMiddleware.UserIdOf(context.User)?.ToString()
                 ?? $"client:{context.Connection.RemoteIpAddress}";
-            var checkout = new Partition($"checkout:{customer}:{options.CheckoutsPerMinute}", options.CheckoutsPerMinute, "checkout", Tenant: null, Plan: null);
+            var checkout = new Partition($"checkout:{customer}:{options.CheckoutsPerMinute}", options.Share(options.CheckoutsPerMinute), "checkout", Tenant: null, Plan: null);
             using var allowed = context.RequestServices.GetRequiredService<RateLimits>()._checkouts.AttemptAcquire(checkout);
             if (!allowed.IsAcquired)
             {
@@ -108,7 +115,7 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
 
         if (options.Enabled && IsCustomerWrite(context.Request) && Athlos.Tenancy.TenantContextMiddleware.UserIdOf(context.User) is { } writer)
         {
-            var writes = new Partition($"writes:{writer}:{options.CustomerWritesPerMinute}", options.CustomerWritesPerMinute, "writes", Tenant: null, Plan: null);
+            var writes = new Partition($"writes:{writer}:{options.CustomerWritesPerMinute}", options.Share(options.CustomerWritesPerMinute), "writes", Tenant: null, Plan: null);
             using var allowed = context.RequestServices.GetRequiredService<RateLimits>()._checkouts.AttemptAcquire(writes);
             if (!allowed.IsAcquired)
             {
@@ -185,11 +192,11 @@ public sealed partial class RateLimits(IOptions<RateLimits.Options> configured)
             System.Diagnostics.Activity.Current?.SetTag(Athlos.Tenancy.TelemetryTags.TenantId, plan.TenantId.ToString());
             System.Diagnostics.Activity.Current?.SetTag(Athlos.Tenancy.TelemetryTags.TenantSlug, slug);
             System.Diagnostics.Activity.Current?.SetTag(Athlos.Tenancy.TelemetryTags.TenantPlan, plan.Plan);
-            return new Partition($"tenant:{plan.TenantId}:{plan.RequestsPerSecond}", plan.RequestsPerSecond, "tenant", plan.TenantId.ToString(), plan.Plan, slug);
+            return new Partition($"tenant:{plan.TenantId}:{plan.RequestsPerSecond}", options.Share(plan.RequestsPerSecond), "tenant", plan.TenantId.ToString(), plan.Plan, slug);
         }
 
         var client = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        return new Partition($"client:{client}:{options.PerClientRequestsPerSecond}", options.PerClientRequestsPerSecond, "client", Tenant: null, Plan: null);
+        return new Partition($"client:{client}:{options.PerClientRequestsPerSecond}", options.Share(options.PerClientRequestsPerSecond), "client", Tenant: null, Plan: null);
     }
 
     // The limiter never fails a request itself: if tenancy-api cannot answer (for example while it

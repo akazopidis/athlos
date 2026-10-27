@@ -62,7 +62,7 @@ These turn a working thesis deployment into one you could leave running: secrets
 | 25 | Base-image patches and Dependabot | Images are rebuilt only when code is pushed, so OS patches wait; `dependabot.yml` has no `src/web` entry, so the shop gets security fixes only. | A monthly scheduled rebuild and release, and `src/web` added to Dependabot. | S | Code | Done |
 | 26 | MFA for admins | Nothing in the repo sets up multi-factor sign-in; unless it was switched on in the portal, the admin signs in with a password alone. | Switch on email-code MFA in the Entra user flow, at least for `Platform.Admin` accounts. | S | Portal | Not started |
 | 27 | Email bounces | Failed deliveries from Communication Services are not processed, so Athlos keeps writing to dead addresses. | An Event Grid subscription on email events that marks bad addresses. | M | Code | Not started |
-| 28 | Rate limit across gateway replicas (#14) | Each gateway replica keeps its own buckets, so a coach's limit doubles at two replicas. | Divide the plan's limit by `maxReplicas`, or keep the buckets in PostgreSQL. Redis waits (item 28 below). | M | You | Not started |
+| 28 | Rate limit across gateway replicas (#14) | Each gateway replica keeps its own buckets, so a coach's limit doubles at two replicas. | Divide the plan's limit by `maxReplicas`, or keep the buckets in PostgreSQL. Redis waits (item 28 below). | M | You | Done |
 | 29 | Storefront floods (#15) | One client flooding a storefront spends that coach's budget, so their own visitors get 429s. | A per-client limit on storefront traffic. A CDN and firewall wait (item 29 below). | M | Code | Not started |
 | 30 | Infra what-if on pull requests | Design §11 promises an `az deployment what-if` on infra PRs; CI only lints Bicep. | Sign in with OIDC on infra PRs and post the what-if to the job summary. | S | Code | Not started |
 
@@ -155,7 +155,7 @@ Spending so far is about €3–4 a month against the €100 credit (from the Oc
 | How long a coach has before the admin refunds | Decided 26 October 2026: 3 working days | 9 |
 | Buyers' access after a coach leaves | Decided 26 October 2026: a read-only copy for buyers | 4, 16 |
 | Demo on prod or on staging | Decided 26 October 2026: staging, which has the demo data | 7 |
-| Which free rate limit across replicas | The plan's limit divided by `maxReplicas` (simplest) | 28 |
+| Which free rate limit across replicas | Decided 26 October 2026: the plan's limit divided by `maxReplicas` | 28 |
 | Test accounts (a coach, an admin, several customers) | Create them in the External ID tenant | 31, 32, 39 |
 | Deadline for accepting new coach terms | 30 days after a change | 47 |
 | Greek language | After deciding on a launch | 57 |

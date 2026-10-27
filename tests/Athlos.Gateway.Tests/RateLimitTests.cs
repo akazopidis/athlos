@@ -52,6 +52,17 @@ public sealed class RateLimitTests : IAsyncLifetime
         return _gateway.CreateClient();
     }
 
+    // Each replica enforces its share of a limit (design §4): at full scale the replicas together
+    // allow the limit, never more; a share is at least 1.
+    [Theory]
+    [InlineData(1, 100, 100)]
+    [InlineData(2, 100, 50)]
+    [InlineData(2, 3, 2)]
+    [InlineData(2, 1, 1)]
+    [InlineData(0, 20, 20)]
+    public void Each_replica_enforces_its_share_of_a_limit(int replicas, int limit, int share) =>
+        Assert.Equal(share, new RateLimits.Options { GatewayReplicas = replicas }.Share(limit));
+
     [Fact]
     public async Task A_flooding_coach_gets_429_and_another_coach_does_not()
     {

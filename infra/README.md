@@ -91,3 +91,8 @@ Services accept a request signed with their key, or with `gateway-signing-key-al
 3. **Drop the old key.** `az keyvault secret delete --vault-name kv-athlos-<env> -n gateway-signing-key-also` (purge it too, since soft delete keeps it 7 days), then redeploy.
 
 A compromised key goes the same way, as fast as three deploys allow. Per-service keys, so a compromised service could not sign as another, are future work (`docs/evaluation/limitations.md` #16).
+
+## Security patches
+
+- **Packages.** Dependabot opens version updates for NuGet and GitHub Actions weekly and for `src/web` and `tests/e2e` monthly, and security updates as they appear (`.github/dependabot.yml`).
+- **Base images.** Each image is built on the newest .NET base image (`mcr.microsoft.com/dotnet/aspnet`), so every build picks up the operating system's and runtime's patches. `deploy-dev.yml` also runs on the first of every month, so dev is rebuilt even when no code changed. Staging and prod get the patched images with the next release, which promotes dev's images; if a month passes without one, cut a patch release (`vX.Y.Z+1`).

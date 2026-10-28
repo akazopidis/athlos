@@ -48,6 +48,8 @@ var messaging = builder.AddAzureServiceBus("messaging").RunAsEmulator();
 messaging.AddServiceBusQueue("order-paid");
 messaging.AddServiceBusQueue("order-refunded");
 messaging.AddServiceBusQueue("notifications");
+// Communication Services bounce reports, from Event Grid in Azure (design §5.3); empty locally.
+messaging.AddServiceBusQueue("email-events");
 
 // Entra External ID (design §5). Locally the dev app registrations are used; set them with
 // dotnet user-secrets in src/AppHost: Entra:Authority, Entra:ApiClientId, Entra:SpaClientId.

@@ -140,6 +140,43 @@ namespace Athlos.Tenancy.Api.Data.Migrations
                     b.ToTable("content_reports", (string)null);
                 });
 
+            modelBuilder.Entity("Athlos.Tenancy.Api.Data.EmailSuppression", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AddressHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("address_hash")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_email_suppressions");
+
+                    b.HasIndex("AddressHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_email_suppressions_address_hash");
+
+                    b.HasIndex("RecordedAt")
+                        .HasDatabaseName("ix_email_suppressions_recorded_at");
+
+                    b.ToTable("email_suppressions", (string)null);
+                });
+
             modelBuilder.Entity("Athlos.Tenancy.Api.Data.Membership", b =>
                 {
                     b.Property<Guid>("Id")

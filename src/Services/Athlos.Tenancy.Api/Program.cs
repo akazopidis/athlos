@@ -139,8 +139,9 @@ app.MapPlatformAdmin();
 app.MapLookupMembership();
 app.MapGetTenantPlan();
 app.MapGetPayoutAccount();
-// The notifications-worker (signed): where a workspace's sale email goes
+// The notifications-worker (signed): where a workspace's sale email goes, and addresses that bounce
 app.MapGetOwnerEmails();
+app.MapEmailSuppressions();
 
 // Stripe, through the gateway (no user; the Stripe-Signature is the authentication): Connect account changes
 app.MapStripeConnectWebhook();

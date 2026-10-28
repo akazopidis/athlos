@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
+import { expectAccessible } from '../axe'
 import { desktopOnly, signIn, skipWithoutTestUser } from '../signIn'
 
 // A coach's studio from start to finish (design §3.4, §8), as the test customer: open a throwaway
@@ -7,7 +8,8 @@ import { desktopOnly, signIn, skipWithoutTestUser } from '../signIn'
 // payouts (the test customer has no Stripe account), see themselves as the team's owner, invite staff and
 // revoke the invite, download the workspace's data, add and remove a discount code, find no reviews yet,
 // and delete the workspace, which has no sales, so nothing holds it. A workspace accepts the Terms for
-// coaches in force when it opens, so the studio shows no notice to accept new ones (design §5.4).
+// coaches in force when it opens, so the studio shows no notice to accept new ones (design §5.4). Each
+// studio page is checked for accessibility on the way (design §8).
 // The workspace is deleted even when a step fails; its address (e2e-…) stays taken, like every deleted
 // workspace's.
 skipWithoutTestUser()
@@ -27,6 +29,7 @@ test('a coach opens a workspace, creates a program, and deletes the workspace', 
   try {
     await expect(page.getByLabel('Title')).toBeVisible()
     await expect(page.getByText('New Terms for coaches')).toBeHidden()
+    await expectAccessible(page, testInfo, 'studio overview')
 
     // The minimum price: the form refuses €9 before anything is sent.
     await page.getByLabel('Title').fill('E2E Program')
@@ -45,6 +48,7 @@ test('a coach opens a workspace, creates a program, and deletes the workspace', 
     await page.locator('#new-title').fill('Day one')
     await page.getByRole('button', { name: 'Save workout' }).click()
     await expect(page.getByText('Day one')).toBeVisible()
+    await expectAccessible(page, testInfo, 'program editor')
 
     // Without finished Stripe onboarding a program cannot go on sale.
     await page.getByRole('button', { name: 'Publish', exact: true }).click()
@@ -54,6 +58,7 @@ test('a coach opens a workspace, creates a program, and deletes the workspace', 
     const team = page.getByRole('region', { name: 'Team' }).or(page.locator('section', { has: page.getByRole('heading', { name: 'Team' }) }))
     await expect(team.getByText('(you)')).toBeVisible()
     await expect(team.getByText('Owner', { exact: true })).toBeVisible()
+    await expectAccessible(page, testInfo, 'studio settings')
 
     // Staff invites (design §5.2): the invite is listed until it is revoked. The address is at
     // example.com, reserved for examples, so the invite email reaches nobody; its bounce is recorded.
@@ -77,6 +82,7 @@ test('a coach opens a workspace, creates a program, and deletes the workspace', 
 
     // Discount codes (design §2.4): one is created for the workspace, listed, and deleted.
     await page.goto(`/studio/${slug}/discounts`)
+    await expectAccessible(page, testInfo, 'discount codes')
     await page.getByLabel('Code', { exact: true }).fill('e2e-10')
     await page.getByLabel('Percent off').fill('10')
     await page.getByRole('button', { name: 'Create code' }).click()
@@ -87,6 +93,10 @@ test('a coach opens a workspace, creates a program, and deletes the workspace', 
     // Reviews arrive once customers buy; a new workspace has none.
     await page.goto(`/studio/${slug}/reviews`)
     await expect(page.getByText('No reviews yet')).toBeVisible()
+    await expectAccessible(page, testInfo, 'studio reviews')
+
+    await page.goto(`/studio/${slug}/sales`)
+    await expectAccessible(page, testInfo, 'studio sales')
   } finally {
     await deleteWorkspace(page, slug)
   }

@@ -43,4 +43,13 @@ resource admin 'Microsoft.DBforPostgreSQL/flexibleServers/administrators@2024-08
   }
 }
 
+// The extensions the migrations may create; the server allows none that are not listed here.
+// pg_trgm: the marketplace search's typo tolerance (catalog, design §8). Dynamic, no restart.
+resource extensions 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2024-08-01' = {
+  parent: server
+  name: 'azure.extensions'
+  dependsOn: [admin]
+  properties: { value: 'PG_TRGM', source: 'user-override' }
+}
+
 output fqdn string = server.properties.fullyQualifiedDomainName

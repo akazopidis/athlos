@@ -56,6 +56,10 @@ builder.Services.AddHttpClient<IEntraUsers, GraphEntraUsers>();
 // The staff invite email leaves through the outbox to the notifications queue (design §5.2, §5.3).
 builder.AddOutbox<TenancyDbContext>();
 builder.Services.AddHostedService<Athlos.Tenancy.Api.Features.Payouts.PayoutReminders>();
+// Catalog-api's copy of each workspace's name, for the shop's search (design §8)
+builder.Services.AddHostedService<Athlos.Tenancy.Api.Features.Storefront.CoachNameCopies>();
+builder.Services.AddScoped<Athlos.Tenancy.Api.Features.Storefront.ICatalogCoachNames, Athlos.Tenancy.Api.Features.Storefront.ServiceCatalogCoachNames>();
+builder.Services.AddHttpClient(Athlos.Tenancy.Api.Features.Storefront.ServiceCatalogCoachNames.Catalog, http => http.BaseAddress = new Uri("https+http://catalog-api")).AddSignedRequests();
 
 // The coach's uploaded logo (design §8): ConnectionStrings:media is Azurite locally and the account's
 // blob endpoint in Azure (managed identity), the same container as catalog-api's program covers.

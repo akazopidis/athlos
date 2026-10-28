@@ -32,6 +32,7 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
             tenant.HasIndex(t => t.Slug).IsUnique();
             tenant.Property(t => t.Slug).HasMaxLength(40);
             tenant.Property(t => t.DisplayName).HasMaxLength(100);
+            tenant.Property(t => t.CatalogName).HasMaxLength(100);
             tenant.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
             tenant.Property(t => t.Plan).HasConversion<string>().HasMaxLength(20);
             tenant.OwnsOne(t => t.Branding, branding => branding.ToJson());

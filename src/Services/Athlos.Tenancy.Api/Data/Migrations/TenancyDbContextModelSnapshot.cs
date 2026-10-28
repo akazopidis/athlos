@@ -301,6 +301,11 @@ namespace Athlos.Tenancy.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("CatalogName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("catalog_name");
+
                     b.Property<DateTimeOffset?>("CoachTermsAcceptedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("coach_terms_accepted_at");

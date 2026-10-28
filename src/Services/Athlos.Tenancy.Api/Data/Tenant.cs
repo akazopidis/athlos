@@ -13,6 +13,10 @@ public sealed class Tenant : IHasTimestamps
 
     public required string DisplayName { get; set; }
 
+    // The name last copied to catalog-api for the shop's search (design §8); CoachNameCopies copies the
+    // name again whenever it differs. Null until the first copy.
+    public string? CatalogName { get; set; }
+
     public TenantStatus Status { get; set; } = TenantStatus.Active;
 
     public PlanName Plan { get; set; } = PlanName.Free;

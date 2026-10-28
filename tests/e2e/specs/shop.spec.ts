@@ -55,6 +55,14 @@ test('the header search finds programs from any page', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /Results for .strength./ })).toBeVisible()
 })
 
+// Search quality (design §8): a misspelt word still finds the demo's strength programs, best match first.
+test('a misspelt search still finds programs', async ({ page }) => {
+  await page.goto('/?q=strenght')
+
+  await expect(products(page).first()).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Sort by' }).locator('visible=true').first()).toHaveValue('Relevance')
+})
+
 test('a program goes into the cart, stays there, and leaves it', async ({ page }) => {
   await page.goto('/')
   const first = products(page).first()

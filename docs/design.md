@@ -4,7 +4,7 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17.8, built; v1.19.0 in production (2026-10-28)
 
-**Changes in v17.9 (next release):** the previous release's tests run on the new schema before every release (§12.2); messaging tests against the Service Bus emulator (§15.1).
+**Changes in v17.9 (next release):** payouts in the studio: the balance, the latest payouts and the Stripe Express dashboard (§2.2); the previous release's tests run on the new schema before every release (§12.2); messaging tests against the Service Bus emulator (§15.1).
 
 **Changes in v17.8 (v1.19.0):** Lighthouse after each staging deploy with a budget that fails on regressions (§8.1, §15.1); a ZAP baseline scan after each staging deploy, and the CSP names the stage's image and sign-in hosts, with Permissions-Policy and Cross-Origin-Resource-Policy added (§5.1, §15.1); accessibility checks on the account and studio pages (§8, §15.1); tests for the app roles the db-migrator prepares (§11); end-to-end tests for staff invites, the workspace export, the coach-terms notice and discount codes in the cart (§15.1); addresses that bounce are skipped: Communication Services' delivery reports reach the notifications-worker through Event Grid's free tier, and tenancy keeps the addresses as hashes (§5.3, §10).
 
@@ -187,6 +187,7 @@ The trade-off: the platform is the merchant of record, so refunds and disputes a
 - *Coach accounts that change.* A second Stripe endpoint, a Connect endpoint with its own secret (`stripe-connect-webhook-secret`), sends `account.updated` to tenancy-api's `POST /webhooks/stripe-connect`. It reads the account's status from Stripe again (so events out of order cannot set an old state) and stores it on the workspace holding the account: a restricted account stops selling at once (checkout finds no payout account), a fixed one sells again without the coach visiting the studio. All stages share one Stripe test account, so each stage also receives the others' account events and ignores accounts it does not hold.
   - *Admin.* The platform admin's page lists what waits (`GET /api/v1/admin/payouts`, ordering-api) and can retry one at once (`POST /api/v1/admin/payouts/{orderId}/retry`).
   - *No cross-tenant read.* The row carries what the list needs, so the admin never reads tenants' orders across tenants.
+- *Payouts in the studio (v17.9).* Once onboarding is complete, the studio overview shows the owner the account's balance (ready to pay out, still arriving) and its ten latest payouts to the bank, read from Stripe as the connected account (`GET /api/v1/studio/{slug}/payouts/history`; Athlos stores none of it), and opens the Stripe Express dashboard for bank details, the payout schedule and tax forms (`POST .../payouts/dashboard`, a one-time login link, so a POST asked for on the click). Owners only (`403` for staff: the money goes to the owner's bank), `409` before onboarding, another tenant's workspace `404`.
 
 ### 2.3 Data model essentials
 

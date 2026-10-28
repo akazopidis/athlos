@@ -16,6 +16,11 @@ public static partial class PayoutEndpoints
 
     public sealed record PayoutStatus(bool Connected, bool OnboardingComplete, bool PayoutsEnabled);
 
+    public sealed record DashboardLink(string Url);
+
+    // How many payouts the studio lists; the Stripe dashboard has the rest.
+    private const int HistoryCount = 10;
+
     public static void MapPayouts(this IEndpointRouteBuilder studio)
     {
         studio.MapPost("/payouts/onboarding", StartOnboarding)
@@ -25,6 +30,14 @@ public static partial class PayoutEndpoints
         studio.MapGet("/payouts", GetStatus)
             .AddEndpointFilter(StripeErrors)
             .WithName("GetPayoutStatus")
+            .WithTags("Payouts");
+        studio.MapPost("/payouts/dashboard", OpenDashboard)
+            .AddEndpointFilter(StripeErrors)
+            .WithName("OpenPayoutDashboard")
+            .WithTags("Payouts");
+        studio.MapGet("/payouts/history", GetHistory)
+            .AddEndpointFilter(StripeErrors)
+            .WithName("GetPayoutHistory")
             .WithTags("Payouts");
     }
 
@@ -118,6 +131,65 @@ public static partial class PayoutEndpoints
         }
 
         return TypedResults.Ok(new PayoutStatus(Connected: true, status.OnboardingComplete, status.PayoutsEnabled));
+    }
+
+    // Owners only, like onboarding: the account pays out to the owner's bank. A POST because Stripe's
+    // login link works once and expires within minutes; the studio opens it straight away.
+    private static async Task<Results<Ok<DashboardLink>, NotFound, ProblemHttpResult>> OpenDashboard(
+        string tenantSlug, ITenantContext tenant, TenancyDbContext db, IStripeConnect stripe, CancellationToken cancellationToken)
+    {
+        var owner = await OwnersAccount(tenantSlug, tenant, db, stripe, cancellationToken);
+        return owner switch
+        {
+            { NotFound: true } => TypedResults.NotFound(),
+            { Problem: { } problem } => problem,
+            _ => TypedResults.Ok(new DashboardLink(await stripe.CreateDashboardLinkAsync(owner.Account!, cancellationToken))),
+        };
+    }
+
+    // The balance (available and on its way) and the latest payouts to the bank, owners only.
+    private static async Task<Results<Ok<PayoutHistory>, NotFound, ProblemHttpResult>> GetHistory(
+        string tenantSlug, ITenantContext tenant, TenancyDbContext db, IStripeConnect stripe, CancellationToken cancellationToken)
+    {
+        var owner = await OwnersAccount(tenantSlug, tenant, db, stripe, cancellationToken);
+        return owner switch
+        {
+            { NotFound: true } => TypedResults.NotFound(),
+            { Problem: { } problem } => problem,
+            _ => TypedResults.Ok(await stripe.GetPayoutHistoryAsync(owner.Account!, HistoryCount, cancellationToken)),
+        };
+    }
+
+    private sealed record Owner(string? Account, bool NotFound = false, ProblemHttpResult? Problem = null);
+
+    // The workspace's Stripe account for its owner once onboarding is complete, or why not. Another
+    // tenant's workspace is a 404 (design §3.2), like every studio route.
+    private static async Task<Owner> OwnersAccount(
+        string tenantSlug, ITenantContext tenant, TenancyDbContext db, IStripeConnect stripe, CancellationToken cancellationToken)
+    {
+        var workspace = await db.Tenants.AsNoTracking()
+            .SingleOrDefaultAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug && t.Status != TenantStatus.Deleted, cancellationToken);
+        if (workspace is null)
+        {
+            return new Owner(null, NotFound: true);
+        }
+
+        if (tenant.Role != TenantRole.Owner)
+        {
+            return new Owner(null, Problem: TypedResults.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Only the owner sees the payouts."));
+        }
+
+        if (!stripe.IsConfigured)
+        {
+            return new Owner(null, Problem: StripeConnectExtensions.NotConfigured());
+        }
+
+        if (workspace.StripeAccountId is null || !workspace.StripeOnboardingComplete)
+        {
+            return new Owner(null, Problem: TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Finish setting up payouts first."));
+        }
+
+        return new Owner(workspace.StripeAccountId);
     }
 
     // The stage's public address (its gateway), set per environment (App:PublicUrl).

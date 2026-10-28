@@ -13,7 +13,20 @@ public interface IStripeConnect
     Task<string> CreateOnboardingLinkAsync(string accountId, Uri returnUrl, Uri refreshUrl, CancellationToken cancellationToken);
 
     Task<PayoutAccountStatus> GetStatusAsync(string accountId, CancellationToken cancellationToken);
+
+    // A one-time sign-in link to the coach's Stripe Express dashboard (bank details, payout schedule, tax forms).
+    Task<string> CreateDashboardLinkAsync(string accountId, CancellationToken cancellationToken);
+
+    // The account's balance and its latest payouts to the bank, read as the connected account.
+    Task<PayoutHistory> GetPayoutHistoryAsync(string accountId, int count, CancellationToken cancellationToken);
 }
+
+// Money in minor units with its currency (CLAUDE.md), as Stripe reports it.
+public sealed record Money(long Amount, string Currency);
+
+public sealed record PayoutToBank(long Amount, string Currency, DateTimeOffset ArrivalDate, string Status);
+
+public sealed record PayoutHistory(List<Money> Available, List<Money> Pending, List<PayoutToBank> Payouts);
 
 public sealed record PayoutAccountStatus(bool DetailsSubmitted, bool ChargesEnabled, bool PayoutsEnabled)
 {
@@ -67,6 +80,27 @@ public sealed class StripeConnect(IStripeClient stripe, TimeProvider time) : ISt
         var account = await new AccountService(stripe).GetAsync(accountId, cancellationToken: cancellationToken);
         return new PayoutAccountStatus(account.DetailsSubmitted, account.ChargesEnabled, account.PayoutsEnabled);
     }
+
+    public async Task<string> CreateDashboardLinkAsync(string accountId, CancellationToken cancellationToken)
+    {
+        var link = await new AccountLoginLinkService(stripe).CreateAsync(accountId, cancellationToken: cancellationToken);
+        return link.Url;
+    }
+
+    public async Task<PayoutHistory> GetPayoutHistoryAsync(string accountId, int count, CancellationToken cancellationToken)
+    {
+        var asAccount = new RequestOptions { StripeAccount = accountId };
+        var balance = await new BalanceService(stripe).GetAsync(asAccount, cancellationToken);
+        var payouts = await new PayoutService(stripe).ListAsync(new PayoutListOptions { Limit = count }, asAccount, cancellationToken);
+
+        static List<Money> Amounts(IEnumerable<BalanceAmount>? amounts) =>
+            (amounts ?? []).Select(a => new Money(a.Amount, a.Currency.ToUpperInvariant())).ToList();
+
+        return new PayoutHistory(
+            Amounts(balance.Available),
+            Amounts(balance.Pending),
+            payouts.Data.Select(p => new PayoutToBank(p.Amount, p.Currency.ToUpperInvariant(), p.ArrivalDate, p.Status)).ToList());
+    }
 }
 
 // Without a Stripe key (for example a fresh local setup) payments are off: endpoints answer 503
@@ -80,6 +114,10 @@ public sealed class StripeNotConfigured : IStripeConnect
     public Task<string> CreateOnboardingLinkAsync(string accountId, Uri returnUrl, Uri refreshUrl, CancellationToken cancellationToken) => throw new InvalidOperationException("Stripe is not configured.");
 
     public Task<PayoutAccountStatus> GetStatusAsync(string accountId, CancellationToken cancellationToken) => throw new InvalidOperationException("Stripe is not configured.");
+
+    public Task<string> CreateDashboardLinkAsync(string accountId, CancellationToken cancellationToken) => throw new InvalidOperationException("Stripe is not configured.");
+
+    public Task<PayoutHistory> GetPayoutHistoryAsync(string accountId, int count, CancellationToken cancellationToken) => throw new InvalidOperationException("Stripe is not configured.");
 }
 
 public static class StripeConnectExtensions

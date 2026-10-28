@@ -33,6 +33,17 @@ public sealed class FakeStripeConnect : IStripeConnect
     public Task<PayoutAccountStatus> GetStatusAsync(string accountId, CancellationToken cancellationToken) =>
         Task.FromResult(_accounts[accountId]);
 
+    public Task<string> CreateDashboardLinkAsync(string accountId, CancellationToken cancellationToken) =>
+        Task.FromResult($"https://connect.stripe.test/express/{accountId}");
+
+    // A balance and two payouts, the newest first, as Stripe lists them.
+    public Task<PayoutHistory> GetPayoutHistoryAsync(string accountId, int count, CancellationToken cancellationToken) =>
+        Task.FromResult(new PayoutHistory(
+            [new Money(4410, "EUR")],
+            [new Money(1764, "EUR")],
+            [new PayoutToBank(8820, "EUR", new DateTimeOffset(2026, 10, 27, 0, 0, 0, TimeSpan.Zero), "paid"),
+             new PayoutToBank(4410, "EUR", new DateTimeOffset(2026, 10, 20, 0, 0, 0, TimeSpan.Zero), "paid")]));
+
     // What Stripe reports once the coach has finished onboarding.
     public void CompleteOnboarding(Guid tenantId) => _accounts[$"acct_test_{tenantId:N}"] = new PayoutAccountStatus(true, true, true);
 

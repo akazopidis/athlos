@@ -1,10 +1,13 @@
+import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 import { desktopOnly, signIn, skipWithoutTestUser } from '../signIn'
 
 // A coach's studio from start to finish (design §3.4, §8), as the test customer: open a throwaway
 // workspace, create a program (the €10 minimum holds), add a workout, see publishing refused without
-// payouts (the test customer has no Stripe account), see themselves as the team's owner, add and remove a
-// discount code, find no reviews yet, and delete the workspace, which has no sales, so nothing holds it.
+// payouts (the test customer has no Stripe account), see themselves as the team's owner, invite staff and
+// revoke the invite, download the workspace's data, add and remove a discount code, find no reviews yet,
+// and delete the workspace, which has no sales, so nothing holds it. A workspace accepts the Terms for
+// coaches in force when it opens, so the studio shows no notice to accept new ones (design §5.4).
 // The workspace is deleted even when a step fails; its address (e2e-…) stays taken, like every deleted
 // workspace's.
 skipWithoutTestUser()
@@ -22,6 +25,9 @@ test('a coach opens a workspace, creates a program, and deletes the workspace', 
   await page.waitForURL(new RegExp(`/studio/${slug}$`))
 
   try {
+    await expect(page.getByLabel('Title')).toBeVisible()
+    await expect(page.getByText('New Terms for coaches')).toBeHidden()
+
     // The minimum price: the form refuses €9 before anything is sent.
     await page.getByLabel('Title').fill('E2E Program')
     await page.getByLabel('Address').fill('e2e-program')
@@ -48,6 +54,26 @@ test('a coach opens a workspace, creates a program, and deletes the workspace', 
     const team = page.getByRole('region', { name: 'Team' }).or(page.locator('section', { has: page.getByRole('heading', { name: 'Team' }) }))
     await expect(team.getByText('(you)')).toBeVisible()
     await expect(team.getByText('Owner', { exact: true })).toBeVisible()
+
+    // Staff invites (design §5.2): the invite is listed until it is revoked. The address is at
+    // example.com, reserved for examples, so the invite email reaches nobody; its bounce is recorded.
+    const invitee = `${slug}@example.com`
+    await page.getByLabel('Invite staff by email').fill(invitee)
+    await page.getByRole('button', { name: 'Send invite' }).click()
+    await expect(page.getByText('Invite sent.')).toBeVisible()
+    const invite = page.getByRole('listitem').filter({ hasText: invitee })
+    await expect(invite).toBeVisible()
+    await invite.getByRole('button', { name: 'Revoke' }).click()
+    await expect(invite).toBeHidden()
+
+    // The owner's export (design §5.4): one JSON file with the workspace and its program.
+    const download = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Download workspace data' }).click()
+    const file = await download
+    expect(file.suggestedFilename()).toMatch(new RegExp(`^athlos-${slug}-\\d{4}-\\d{2}-\\d{2}\\.json$`))
+    const exported = JSON.parse(await readFile((await file.path())!, 'utf8'))
+    expect(exported.workspace.slug).toBe(slug)
+    expect(JSON.stringify(exported.programs)).toContain('E2E Program')
 
     // Discount codes (design §2.4): one is created for the workspace, listed, and deleted.
     await page.goto(`/studio/${slug}/discounts`)

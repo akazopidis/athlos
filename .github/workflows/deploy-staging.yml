@@ -125,3 +125,23 @@ jobs:
           name: e2e-report
           path: tests/e2e/playwright-report
           retention-days: 14
+
+  # OWASP ZAP baseline scan of the deployed staging (design §5.1, §15.1): ZAP spiders the shop for a
+  # minute and checks the responses passively (headers, cookies, leaks); it sends no attacks. It
+  # reports and does not block: the HTML report is an artifact, and no GitHub issue is opened.
+  zap:
+    needs: deploy
+    if: ${{ !cancelled() && needs.deploy.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+        with:
+          target: ${{ vars.E2E_BASE_URL || 'https://ca-athlos-gateway-staging.ashybush-033a4967.italynorth.azurecontainerapps.io' }}
+          rules_file_name: .zap/rules.tsv
+          cmd_options: -a
+          allow_issue_writing: false
+          fail_action: false
+          artifact_name: zap-report

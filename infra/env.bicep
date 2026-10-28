@@ -528,6 +528,8 @@ module gateway 'modules/container-app.bicep' = if (deployApps) {
       // SPA sign-in settings, served by GET /config.json (design §8.1).
       { name: 'Spa__EntraClientId', value: spaClientId }
       { name: 'Spa__EntraAuthority', value: authAuthority }
+      // Covers and logos are signed blob links; the CSP allows images from this endpoint only (design §5.1).
+      { name: 'Spa__ImageOrigin', value: storage.outputs.blobEndpoint }
       { name: 'Spa__ApiScope', value: apiScope }
       // Service discovery: the gateway's "https+http://tenancy-api" address resolves to this, as it does under Aspire.
       { name: 'services__tenancy-api__https__0', value: 'https://${tenancyApi!.outputs.fqdn}' }

@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -19,11 +19,12 @@ const topics: Record<string, string> = {
 // opens links unsubscribes nobody.
 export function Unsubscribe() {
   const { api } = useApp()
-  const [token] = useState(() => {
-    const fromLink = window.location.hash.slice(1)
-    if (fromLink) window.history.replaceState(null, '', window.location.pathname)
-    return fromLink
-  })
+  // Read during render, cleared from the address bar only once the page is on screen: under Suspense a
+  // first render can be thrown away and the initializer run again, which must still find the token.
+  const [token] = useState(() => window.location.hash.slice(1))
+  useEffect(() => {
+    if (window.location.hash) window.history.replaceState(null, '', window.location.pathname)
+  }, [])
   useTitle('Unsubscribe')
 
   const unsubscribe = useMutation({

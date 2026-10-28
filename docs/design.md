@@ -4,7 +4,7 @@
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
 **Status:** v17.8, built; v1.19.0 in production (2026-10-28)
 
-**Changes in v17.9 (next release):** messaging tests against the Service Bus emulator (§15.1).
+**Changes in v17.9 (next release):** the previous release's tests run on the new schema before every release (§12.2); messaging tests against the Service Bus emulator (§15.1).
 
 **Changes in v17.8 (v1.19.0):** Lighthouse after each staging deploy with a budget that fails on regressions (§8.1, §15.1); a ZAP baseline scan after each staging deploy, and the CSP names the stage's image and sign-in hosts, with Permissions-Policy and Cross-Origin-Resource-Policy added (§5.1, §15.1); accessibility checks on the account and studio pages (§8, §15.1); tests for the app roles the db-migrator prepares (§11); end-to-end tests for staff invites, the workspace export, the coach-terms notice and discount codes in the cart (§15.1); addresses that bounce are skipped: Communication Services' delivery reports reach the notifications-worker through Event Grid's free tier, and tenancy keeps the addresses as hashes (§5.3, §10).
 
@@ -830,7 +830,7 @@ Merge style: squash-merge feature branches into `dev` (one clean commit per feat
 - **Build once, promote.** Images are built on `dev` and tagged with the commit SHA (`sha-3f2a1c9`). Staging deploys those same images. A release does not rebuild either: it adds the version tag to the exact images staging is running (`az acr import` within the same registry), then deploys that tag to prod. What you tested is byte-for-byte what you ship.
 - The version is passed to each container app as the `APP_VERSION` environment variable and reported as the OpenTelemetry `service.version`, on `/version`, and in the SPA footer.
 - **Rollback** is redeploying the previous tag: run the release workflow manually with `v0.2.0`.
-- **Expand, then contract (v1.18.0).** Migrations only go forward, so after a rollback the previous release runs on the newest schema, and it must keep working there. A migration may add tables, nullable columns, and required columns with a default (the previous release inserts rows without them). It drops or renames a column or table only once no released version uses it, a release later, with a `// Contract step:` comment in `Up` naming the release that stopped using it. `MigrationRuleTests` (contract tests) fails any migration that breaks this without that comment; review checks the claim.
+- **Expand, then contract (v1.18.0).** Migrations only go forward, so after a rollback the previous release runs on the newest schema, and it must keep working there. A migration may add tables, nullable columns, and required columns with a default (the previous release inserts rows without them). It drops or renames a column or table only once no released version uses it, a release later, with a `// Contract step:` comment in `Up` naming the release that stopped using it. `MigrationRuleTests` (contract tests) fails any migration that breaks this without that comment; review checks the claim. Since v17.9 the behaviour is checked too: on every release PR into main, the `previous-release` CI job runs the latest release's backend tests against the PR's schema (`ATHLOS_TEST_NEWER_MIGRATOR` in the test fixture; first check by hand: v1.18.0's 483 tests pass on v1.19.0's schema, `docs/evaluation/old-code-new-schema.md`).
 
 ### 12.3 Workflows
 

@@ -24,7 +24,7 @@ The limitations fall into three kinds:
 | 7 | Some refund cases are settled by hand | Trade-off | Payments |
 | 8 | Disputes cost the platform, not the coach | Trade-off | Payments |
 | 9 | Coach plans are not billed | Scope | Business model |
-| 10 | Backups kept 7 days in one region, restore not yet timed | Budget | Operations |
+| 10 | Backups kept 7 days in one region | Budget | Operations |
 | 11 | One PostgreSQL server for all three stages | Budget | Operations, isolation |
 | 12 | One Container Apps environment for all three stages | Budget | Operations, isolation |
 | 13 | Cold starts of about 90 seconds | Budget | Performance |
@@ -109,11 +109,11 @@ The limitations fall into three kinds:
 
 ## Operations
 
-### 10. Backups kept 7 days in one region, restore not yet timed
-- **Missing:** a restore drill, and backups kept outside `italynorth`. PostgreSQL Flexible Server keeps automatic backups for 7 days (`backupRetentionDays: 7`, `geoRedundantBackup: Disabled`). Blob Storage (cover images) has no soft delete or versioning.
+### 10. Backups kept 7 days in one region
+- **Missing:** backups kept outside `italynorth` (the restore itself is drilled and timed). PostgreSQL Flexible Server keeps automatic backups for 7 days (`backupRetentionDays: 7`, `geoRedundantBackup: Disabled`). Blob Storage (cover images) has no soft delete or versioning.
 - **Why:** budget and the single allowed region (§10). Geo-redundant backups need a paired region the subscription's policy blocks.
-- **Impact:** a lost region loses everything. A bad migration found more than 7 days later cannot be undone. Nobody knows how long a restore takes, so there is no measured recovery time (RTO).
-- **Solution:** a scripted point-in-time restore to a temporary server, timed and recorded like the other evaluation numbers: `tests/evaluation/restore_drill.sh`, results in `restore-drill.md` once it has run (`pg_dump` cannot serve: FORCE RLS hides every tenant row from the owner too). Then longer retention, Blob soft delete, and with another region, geo-redundant backups.
+- **Impact:** a lost region loses everything. A bad migration found more than 7 days later cannot be undone. A mistake inside the 7 days is undone in about 10 minutes (the drill's recovery time).
+- **Solution:** a scripted point-in-time restore to a temporary server, timed and recorded like the other evaluation numbers: `tests/evaluation/restore_drill.sh`, run on 28 October 2026: a restored server answers after about 10 minutes, `restore-drill.md` (`pg_dump` cannot serve: FORCE RLS hides every tenant row from the owner too). Then longer retention, Blob soft delete, and with another region, geo-redundant backups.
 
 ### 11. One PostgreSQL server for all three stages
 - **Missing:** separate database servers per stage. Dev, staging and prod have separate databases and roles on one Burstable B1ms server (free for 12 months), within one connection budget: the app roles share 35 connections, so since v1.18.0 each service replica has a pool of 2, database services run at most 2 replicas in staging and 1 in dev and prod, and each database is capped (design §7).

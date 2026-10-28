@@ -68,3 +68,17 @@ The phone's first paint is now about 3.6 s on every page (1 s sooner), and the l
 - ~~**Load MSAL only when it is needed.**~~ Done in v1.15.0 (round 2 above).
 - **Server-side rendering or a static shell** for the public pages, so the heading paints before the JavaScript runs. This is a larger change to how the gateway serves the SPA (§8.1).
 - **Resize existing covers once**, or serve sized variants, so cards do not load a 1,600 px image (`srcset`).
+
+## In CI: a budget after every staging deploy (backlog item 40)
+
+Since v17.8 the `lighthouse` job in `deploy-staging.yml` runs `tests/evaluation/lighthouse.sh` (the five pages, phone and desktop, median of three runs) after each staging deploy and checks the medians with `tests/evaluation/lighthouse_budget.py`. A result over budget fails the job; the reports are the `lighthouse-report` artifact and the table is in the run's summary.
+
+| Budget | Desktop | Phone |
+|---|---|---|
+| Performance | at least 85 | at least 50 |
+| Accessibility, best practices, SEO | at least 95, 90, 90 | at least 95, 90, 90 |
+| Largest contentful paint | at most 2.5 s | at most 12 s |
+| Total blocking time | at most 300 ms | at most 600 ms |
+| Layout shift | at most 0.1 | at most 0.1 |
+
+The limits sit below the measured numbers, with room for a GitHub runner's slower and noisier CPU: they catch a regression (a heavier bundle, a layout shift, a blocking script), not a slow run. A check of the script on staging at v1.18.0 (28 October 2026, one run per page from this machine, [`tests/evaluation/results/lighthouse-staging-v1.18.0.csv`](../../tests/evaluation/results/lighthouse-staging-v1.18.0.csv)): desktop 98–99, phone 64–77, accessibility, best practices and SEO 100 everywhere, layout shift 0, all within budget. The phone home page is the closest, at 64, with a largest paint of 8.1 s: its eight covers.

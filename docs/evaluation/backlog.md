@@ -81,7 +81,7 @@ The backend suites are strong (about 320 test methods, a third of them for isola
 | 37 | Frontend unit tests | About 20 pages have none: the storefront, orders, checkout confirmation, the studio overview, team and programs, the account menu and more. | Vitest tests, pages with logic first. | M | Code | Not started |
 | 38 | Security scan | No automated security testing runs against a deployed stage. | An OWASP ZAP baseline scan against staging after each deploy (free). | S | Code | Done (v17.8: `zap` job after each staging deploy, reports without blocking; first run 0 failures, 8 warnings; the CSP now names the stage's hosts, Permissions-Policy and CORP added; `docs/evaluation/security-scan.md`) |
 | 39 | Write load test (#22) | Reads are load- and stress-tested; checkout and webhooks are not. | A k6 scenario with many test accounts against Stripe's test mode, within its rate limits. | M | Code, You (test accounts) | Not started |
-| 40 | Lighthouse in CI | Performance is measured by hand (`tests/evaluation/lighthouse.sh`). | Run it after staging deploys with a budget that fails on regressions. | S | Code | Not started |
+| 40 | Lighthouse in CI | Performance is measured by hand (`tests/evaluation/lighthouse.sh`). | Run it after staging deploys with a budget that fails on regressions. | S | Code | Done (v17.8: `lighthouse` job, median of three runs, `tests/evaluation/lighthouse_budget.py`; staging at v1.18.0 is within budget) |
 | 41 | Old code on a new schema | No test shows that the previous release still runs after the next release's migrations (pairs with item 21). | Run the previous release's tests against the new schema in CI. | M | Code | Not started |
 
 ## Priority 5: product gaps to close

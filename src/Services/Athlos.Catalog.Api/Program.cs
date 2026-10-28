@@ -127,6 +127,9 @@ app.MapGroup("/internal")
 // Ordering-api only (signed): the discount code a workspace shows on its programs (design §2.4); the handler enters that tenant
 app.MapGroup("/internal")
     .MapSetPublicDiscount();
+// Tenancy-api only (signed): a workspace's name, which the shop's search matches (design §8); the handler enters that tenant
+app.MapGroup("/internal")
+    .MapSetCoachName();
 // Tenancy-api only (signed): erase a deleted account's saved programs (design §5.2)
 app.MapGroup("/internal")
     .MapEraseCustomer();

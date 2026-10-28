@@ -83,6 +83,28 @@ test('the controls ask for their change: sort, price range and category', async 
   expect(update.mock.calls).toEqual([[{ sort: null }], [{ minPrice: 15, maxPrice: null }], [{ category: 'Running' }]])
 })
 
+// With a search, the best match comes first unless another sort is chosen (design §8); without one,
+// "Best match" is not offered.
+test('a search sorts by best match unless the shopper picks another order', async () => {
+  const { searches, update } = renderCatalog({ q: 'yoga' })
+  await screen.findByText('Strong start')
+  const sort = screen.getByRole('combobox', { name: 'Sort by' })
+
+  expect(sort).toHaveValue('Relevance')
+  expect(searches[0]!.get('Sort')).toBeNull()
+  fireEvent.change(sort, { target: { value: 'Newest' } })
+  fireEvent.change(sort, { target: { value: 'Relevance' } })
+  expect(update.mock.calls).toEqual([[{ sort: 'Newest' }], [{ sort: null }]])
+})
+
+test('without a search there is no best match to sort by', async () => {
+  renderCatalog({})
+  await screen.findByText('Strong start')
+
+  expect(screen.getByRole('combobox', { name: 'Sort by' })).toHaveValue('Newest')
+  expect(screen.queryByRole('option', { name: 'Best match' })).toBeNull()
+})
+
 test('no match offers to clear the filters', async () => {
   const { clear } = renderCatalog({ category: 'Mobility', maxPrice: 10 }, { items: [] })
 

@@ -326,6 +326,57 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal([coach.Slug], withSpaces.Items.Select(i => i.CoachSlug));
     }
 
+    // Search quality (design §8, v17.9): the words of the title and description, a misspelt title
+    // word, and the best matches first when no sort is chosen.
+    [Fact]
+    public async Task The_search_matches_words_and_typos_and_ranks_title_matches_first()
+    {
+        var coach = NewCoach();
+        var inTitle = await _api.CreateProgram(coach, title: "Yoga for runners", publish: true);
+        var inDescription = await _api.CreateProgram(coach, title: "Mobility basics", publish: true);
+        var update = await _api.AsCoach(coach, HttpMethod.Put, $"/programs/{inDescription.Id}",
+            new { title = "Mobility basics", description = "Gentle yoga to open the hips.", category = "Mobility", durationWeeks = 4, priceAmount = 2000, currency = "EUR" });
+        await _api.CreateProgram(coach, title: "Ketlebell swings", publish: true);
+
+        // Both words, apart and stemmed ("hips"), in the description: only the full-text match finds it.
+        var words = await Search($"?coach={coach.Slug}&q=open%20hip");
+        var misspelt = await Search($"?coach={coach.Slug}&q=kettlebell");
+        var ranked = await Search($"?coach={coach.Slug}&q=yoga");
+        var newest = await Search($"?coach={coach.Slug}&q=yoga&sort=Newest");
+
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        Assert.Equal(["Mobility basics"], words.Items.Select(i => i.Title));
+        Assert.Equal(["Ketlebell swings"], misspelt.Items.Select(i => i.Title));
+        Assert.Equal([inTitle.Slug, inDescription.Slug], ranked.Items.Select(i => i.Slug));
+        Assert.Equal([inDescription.Slug, inTitle.Slug], newest.Items.Select(i => i.Slug));
+    }
+
+    // A coach's name, copied from tenancy-api, finds their programs, misspelt too; another coach's do not
+    // come with them.
+    [Fact]
+    public async Task The_search_finds_a_coachs_programs_by_their_name()
+    {
+        var (coach, other) = (NewCoach(), NewCoach());
+        var name = $"Zelinda Quornwick {Guid.NewGuid():N}"[..26];
+        await _api.CreateProgram(coach, title: "Unrelated title", publish: true);
+        await _api.CreateProgram(coach, title: "Another one", publish: true);
+        await _api.CreateProgram(other, title: "Third", publish: true);
+        var copied = await SetCoachName(coach.TenantId, name);
+        await SetCoachName(other.TenantId, "Somebody Else");
+        var renamed = await SetCoachName(coach.TenantId, name);
+
+        var byName = await Search($"?q={Uri.EscapeDataString("Zelinda Quornwick")}");
+        var misspelt = await Search($"?q={Uri.EscapeDataString("Zelinda Qournwick")}");
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (copied.StatusCode, renamed.StatusCode));
+        Assert.Equal(2, byName.Items.Count(i => i.CoachSlug == coach.Slug));
+        Assert.DoesNotContain(byName.Items, i => i.CoachSlug == other.Slug);
+        Assert.Equal(2, misspelt.Items.Count(i => i.CoachSlug == coach.Slug));
+    }
+
+    private Task<HttpResponseMessage> SetCoachName(Guid tenantId, string displayName) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{tenantId}/coach-name") { Content = JsonContent.Create(new { displayName }) });
+
     [Fact]
     public async Task Page_size_is_capped_at_50()
     {

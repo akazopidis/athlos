@@ -4,11 +4,15 @@ using Athlos.Media;
 using Athlos.Tenancy.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using NpgsqlTypes;
 
 namespace Athlos.Catalog.Api.Features.Marketplace;
 
 // Browse and search every coach's published programs (design §8, "/"): the shop's catalog, with
 // filters (category, coach, price, length), sorting and a coach facet.
+// Search (v17.9) matches the words of the title and description (English stemming: "runs" finds
+// "running"), a misspelt title ("strenght"), the coach's name or address, or any part of the title or
+// description; with a query and no sort chosen, the best matches come first.
 // CROSS-TENANT SLICE (design §3.2): ignores the tenant filter, runs in the public-read scope, and
 // filters on is_published (and a suspended coach, design §3.4) itself; RLS enforces the same rule, so
 // drafts cannot leak even if this filter were wrong.
@@ -39,9 +43,13 @@ public static class SearchPrograms
 
         // Best average first, programs without reviews last; more reviews break a tie.
         TopRated,
+
+        // How well the program matches the query; newest first without one.
+        Relevance,
     }
 
     // Prices in minor units, compared whatever the currency (programs are priced in EUR today).
+    // Sort: Relevance with a query, Newest without, unless chosen.
     public sealed record Query(
         string? Q,
         ProgramCategory? Category,
@@ -50,7 +58,7 @@ public static class SearchPrograms
         [property: Range(0, long.MaxValue)] long? MaxPrice,
         [property: Range(1, 520)] int? MinWeeks,
         [property: Range(1, 520)] int? MaxWeeks,
-        Sort Sort = Sort.Newest,
+        Sort? Sort = null,
         [property: Range(1, 10_000)] int Page = 1,
         [property: Range(1, MaxPageSize)] int PageSize = 20);
 
@@ -66,15 +74,23 @@ public static class SearchPrograms
             .IgnoreQueryFilters([TenantDbContext.TenantFilter])
             .Where(p => p.IsPublished && !p.TenantSuspended);
 
-        if (!string.IsNullOrWhiteSpace(query.Q))
+        // The copies of the coaches' names (design §8), public like their programs (RLS public-read).
+        var coachNames = db.CoachNames.IgnoreQueryFilters([TenantDbContext.TenantFilter]);
+        var text = query.Q?.Trim() ?? "";
+        if (text.Length > 0)
         {
-            var pattern = $"%{EscapeLike(query.Q.Trim())}%";
+            var pattern = $"%{EscapeLike(text)}%";
             // The escape character must be explicit: without it Npgsql emits ESCAPE '' (no escaping).
-            // The coach's address too ("forge" finds demo-forge's programs; spaces stand for its dashes):
-            // catalog knows coaches only by slug (design §2.1).
-            var slugPattern = $"%{EscapeLike(query.Q.Trim().ToLowerInvariant().Replace(' ', '-'))}%";
-            programs = programs.Where(p => EF.Functions.ILike(p.Title, pattern, @"\") || EF.Functions.ILike(p.Description, pattern, @"\")
-                || EF.Functions.ILike(p.CoachSlug, slugPattern, @"\"));
+            // The coach's address too ("forge" finds demo-forge's programs; spaces stand for its dashes).
+            var slugPattern = $"%{EscapeLike(text.ToLowerInvariant().Replace(' ', '-'))}%";
+            // TrigramsAreWordSimilar is pg_trgm's <%: the query is close to a word or run of words of the
+            // title or the coach's name (word similarity at least 0.6), which forgives a typo or two.
+            programs = programs.Where(p => EF.Property<NpgsqlTsVector>(p, CatalogDbContext.SearchVector).Matches(EF.Functions.WebSearchToTsQuery("english", text))
+                || EF.Functions.TrigramsAreWordSimilar(text, p.Title)
+                || EF.Functions.ILike(p.Title, pattern, @"\") || EF.Functions.ILike(p.Description, pattern, @"\")
+                || EF.Functions.ILike(p.CoachSlug, slugPattern, @"\")
+                || coachNames.Any(c => c.TenantId == p.TenantId
+                    && (EF.Functions.TrigramsAreWordSimilar(text, c.DisplayName) || EF.Functions.ILike(c.DisplayName, pattern, @"\"))));
         }
 
         if (query.Category is { } category)
@@ -115,8 +131,15 @@ public static class SearchPrograms
         }
 
         var total = await programs.CountAsync(cancellationToken);
-        var sorted = query.Sort switch
+        var sorted = (query.Sort ?? (text.Length > 0 ? Sort.Relevance : Sort.Newest)) switch
         {
+            // Matching words count most (title above description), then how close the title and the
+            // coach's name are to the query; ties go to the newest.
+            Sort.Relevance when text.Length > 0 => programs
+                .OrderByDescending(p => EF.Property<NpgsqlTsVector>(p, CatalogDbContext.SearchVector).Rank(EF.Functions.WebSearchToTsQuery("english", text))
+                    + EF.Functions.TrigramsWordSimilarity(text, p.Title)
+                    + (coachNames.Where(c => c.TenantId == p.TenantId).Select(c => (double?)EF.Functions.TrigramsWordSimilarity(text, c.DisplayName)).FirstOrDefault() ?? 0))
+                .ThenByDescending(p => p.PublishedAt),
             Sort.PriceLowToHigh => programs.OrderBy(p => p.PriceAmount).ThenByDescending(p => p.PublishedAt),
             Sort.PriceHighToLow => programs.OrderByDescending(p => p.PriceAmount).ThenByDescending(p => p.PublishedAt),
             Sort.TopRated => programs.OrderByDescending(p => p.RatingAverage).ThenByDescending(p => p.RatingCount).ThenByDescending(p => p.PublishedAt),

@@ -86,6 +86,7 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         { "PUT", $"/internal/tenants/{Guid.Empty}/programs/{Guid.Empty}/block" },
         { "PUT", $"/internal/tenants/{Guid.Empty}/public-discount" },
         { "DELETE", $"/internal/tenants/{Guid.Empty}/public-discount" },
+        { "PUT", $"/internal/tenants/{Guid.Empty}/coach-name" },
         { "GET", $"/internal/tenants/{Guid.Empty}/export" },
     };
 
@@ -137,6 +138,8 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Equal(HttpStatusCode.OK, (await _api.UploadCover(_b, bProgram.Id, Png())).StatusCode);
         await ShowDiscount(_a.TenantId, "ALPHA");
         await ShowDiscount(_b.TenantId, "BRAVO");
+        await SetCoachName(_a.TenantId, "Alpha Coach");
+        await SetCoachName(_b.TenantId, "Bravo Coach");
 
         var erased = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/tenants/{_a.TenantId}"));
         var again = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Delete, $"/internal/tenants/{_a.TenantId}"));
@@ -145,6 +148,7 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Equal((0L, 0L), (await RowsOf("programs", _a.TenantId), await RowsOf("workouts", _a.TenantId)));
         Assert.Equal((1L, 1L), (await RowsOf("programs", _b.TenantId), await RowsOf("workouts", _b.TenantId)));
         Assert.Equal((0L, 1L), (await RowsOf("public_discounts", _a.TenantId), await RowsOf("public_discounts", _b.TenantId)));
+        Assert.Equal((0L, 1L), (await RowsOf("coach_names", _a.TenantId), await RowsOf("coach_names", _b.TenantId)));
         Assert.Equal((0, 1), (await BlobsOf(_a.TenantId), await BlobsOf(_b.TenantId)));
     }
 
@@ -476,6 +480,39 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Equal((1L, 0), (visible, changed));
         Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, planted.SqlState);
     }
+
+    // The copy of a coach's name (design §8) is public like the shown code, for SELECT only: B cannot
+    // change, delete or plant A's name, and naming A in the internal call writes A's row only.
+    [Theory]
+    [InlineData("UPDATE coach_names SET display_name = 'Mallory' WHERE tenant_id = '{0}'")]
+    [InlineData("DELETE FROM coach_names WHERE tenant_id = '{0}'")]
+    public async Task RLS_public_read_does_not_allow_changing_As_coach_name(string sql)
+    {
+        await SetCoachName(_a.TenantId, "Alpha Coach");
+        await SetCoachName(_b.TenantId, "Bravo Coach");
+
+        var visible = await AsAppRole(_b.TenantId, scope: "public-read", connection => Count(connection, $"SELECT count(*) FROM coach_names WHERE tenant_id = '{_a.TenantId}' AND display_name = 'Alpha Coach'"));
+        var changed = await AsAppRole(_b.TenantId, scope: "public-read", async connection =>
+        {
+            await using var command = new NpgsqlCommand(string.Format(System.Globalization.CultureInfo.InvariantCulture, sql, _a.TenantId), connection);
+            return await command.ExecuteNonQueryAsync(Cancel);
+        });
+        var planted = await Assert.ThrowsAsync<PostgresException>(() => AsAppRole(_b.TenantId, scope: "public-read", async connection =>
+        {
+            await using var command = new NpgsqlCommand($"INSERT INTO coach_names (tenant_id, display_name, updated_at) VALUES ('{_a.TenantId}', 'Mallory', now()) ON CONFLICT (tenant_id) DO UPDATE SET display_name = 'Mallory'", connection);
+            return await command.ExecuteNonQueryAsync(Cancel);
+        }));
+
+        Assert.Equal((1L, 0), (visible, changed));
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, planted.SqlState);
+        Assert.Equal(1L, await RowsOf("coach_names", _b.TenantId));
+    }
+
+    private Task<HttpResponseMessage> SetCoachName(Guid tenantId, string displayName) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{tenantId}/coach-name")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new { displayName }),
+        });
 
     private Task<HttpResponseMessage> ShowDiscount(Guid tenantId, string code) =>
         _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{tenantId}/public-discount")

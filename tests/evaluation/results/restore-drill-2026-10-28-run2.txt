@@ -1,0 +1,20 @@
+Restoring psql-athlos-shared as it was at 2026-10-28T09:14:29Z into psql-athlos-drill-202610280929...
+Restored in 492 s.
+
+| Database | Tables | Tables holding data | Size with indexes | Applied migrations |
+|---|---|---|---|---|
+| `athlos_catalog_dev` | 4 | 3 | 288kB | 10 |
+| `athlos_catalog_prod` | 4 | 0 | 96kB | 10 |
+| `athlos_catalog_staging` | 4 | 3 | 280kB | 10 |
+| `athlos_enrollment_dev` | 7 | 5 | 440kB | 7 |
+| `athlos_enrollment_prod` | 7 | 0 | 240kB | 7 |
+| `athlos_enrollment_staging` | 7 | 4 | 408kB | 7 |
+| `athlos_ordering_dev` | 9 | 5 | 448kB | 10 |
+| `athlos_ordering_prod` | 9 | 1 | 240kB | 10 |
+| `athlos_ordering_staging` | 9 | 6 | 472kB | 10 |
+| `athlos_tenancy_dev` | 7 | 5 | 312kB | 7 |
+| `athlos_tenancy_prod` | 7 | 3 | 256kB | 7 |
+| `athlos_tenancy_staging` | 7 | 4 | 312kB | 7 |
+
+Restore point: 2026-10-28T09:14:29Z. Restore took 492 s; ready to query after 629 s.
+Deleting psql-athlos-drill-202610280929...

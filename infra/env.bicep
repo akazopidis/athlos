@@ -174,14 +174,15 @@ module notificationsAcrPull 'modules/acr-pull.bicep' = {
 var serviceBusName = 'sb-athlos-${environmentName}'
 
 // Events between services (design §2.2): ordering sends OrderPaid and OrderRefunded, enrollment receives
-// them; ordering, enrollment and tenancy queue emails, the notifications-worker receives them (design §5.3).
+// them; ordering, enrollment and tenancy queue emails, the notifications-worker receives them (design §5.3),
+// and Communication Services' bounce reports from Event Grid (email-events).
 // Roles are on the namespace: every identity here is one of this stage's own services.
 module serviceBus 'modules/servicebus.bicep' = {
   name: 'servicebus'
   params: {
     name: serviceBusName
     location: location
-    queues: ['order-paid', 'order-refunded', 'notifications']
+    queues: ['order-paid', 'order-refunded', 'notifications', 'email-events']
     senderPrincipalIds: [orderingIdentity.outputs.principalId, enrollmentIdentity.outputs.principalId, tenancyIdentity.outputs.principalId]
     receiverPrincipalIds: [enrollmentIdentity.outputs.principalId, notificationsIdentity.outputs.principalId]
   }
@@ -194,6 +195,17 @@ module email 'modules/email.bicep' = {
     communicationServiceName: 'acs-athlos-${environmentName}'
     emailServiceName: 'ecs-athlos-${environmentName}'
     senderPrincipalIds: [notificationsIdentity.outputs.principalId]
+  }
+}
+
+// Bounces reach the worker through Event Grid's free tier (design §5.3, §10).
+module emailEvents 'modules/email-events.bicep' = {
+  name: 'email-events'
+  dependsOn: [email, serviceBus]
+  params: {
+    communicationServiceName: 'acs-athlos-${environmentName}'
+    serviceBusName: serviceBusName
+    queueName: 'email-events'
   }
 }
 
@@ -436,7 +448,7 @@ module enrollmentApi 'modules/container-app.bicep' = if (deployApps) {
   }
 }
 
-// No HTTP API (design §2.1): no ingress, scales from zero on the notifications queue only.
+// No HTTP API (design §2.1): no ingress, scales from zero on its two queues.
 module notificationsWorker 'modules/container-app.bicep' = if (deployApps) {
   name: 'ca-notifications-worker'
   dependsOn: [notificationsAcrPull]
@@ -460,6 +472,18 @@ module notificationsWorker 'modules/container-app.bicep' = if (deployApps) {
           metadata: {
             namespace: serviceBusName
             queueName: 'notifications'
+            messageCount: '10'
+          }
+        }
+      }
+      {
+        name: 'email-events-queue'
+        custom: {
+          type: 'azure-servicebus'
+          identity: notificationsIdentity.outputs.id
+          metadata: {
+            namespace: serviceBusName
+            queueName: 'email-events'
             messageCount: '10'
           }
         }
@@ -504,6 +528,8 @@ module gateway 'modules/container-app.bicep' = if (deployApps) {
       // SPA sign-in settings, served by GET /config.json (design §8.1).
       { name: 'Spa__EntraClientId', value: spaClientId }
       { name: 'Spa__EntraAuthority', value: authAuthority }
+      // Covers and logos are signed blob links; the CSP allows images from this endpoint only (design §5.1).
+      { name: 'Spa__ImageOrigin', value: storage.outputs.blobEndpoint }
       { name: 'Spa__ApiScope', value: apiScope }
       // Service discovery: the gateway's "https+http://tenancy-api" address resolves to this, as it does under Aspire.
       { name: 'services__tenancy-api__https__0', value: 'https://${tenancyApi!.outputs.fqdn}' }

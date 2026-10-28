@@ -1,0 +1,4 @@
+# ZAP baseline rules (deploy-staging.yml): <rule id>	<IGNORE|INFO|WARN|FAIL>	<reason>.
+# Every rule not listed is reported as ZAP decides. Add a rule here only with the reason it does not apply.
+10094	IGNORE	Base64 Disclosure: the matches are Vite's content hashes in asset file names, not data.
+90005	IGNORE	Sec-Fetch-* headers are request headers browsers send; ZAP's own client leaves them out.

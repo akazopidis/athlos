@@ -8,10 +8,11 @@
 # superuser, so a logical dump reads no tenant rows. The physical point-in-time restore is the
 # backup that holds everything.
 #
-# The check reads the catalog's row estimates (pg_class.reltuples, kept by autovacuum's ANALYZE),
-# which RLS does not filter, so no tenant is entered and no row is read. The live-row statistics would
-# not do: a point-in-time restore is a recovery, which resets them. To connect, the script makes you the
-# temporary server's Entra admin and opens its firewall to your IP only.
+# The check reads what RLS cannot hide, so no tenant is entered and no row is read: the tables and
+# applied migrations, how many tables hold data pages on disk (pg_relation_size of the heap) and the
+# tables' size with indexes. Row estimates would not do: pg_class.reltuples stays -1 until ANALYZE, which
+# autovacuum skips for small tables, and the recovery resets the live-row statistics. To connect, the
+# script makes you the temporary server's Entra admin and opens its firewall to your IP only.
 #
 # Run it yourself, signed in with az (Azure for Students), with psql installed or Docker running:
 #     bash tests/evaluation/restore_drill.sh [minutes-ago]     (default 15: restore to 15 minutes ago)
@@ -45,13 +46,13 @@ az_ postgres flexible-server restore --resource-group "$GROUP" --name "$DRILL" -
 restored=$(date +%s)
 echo "Restored in $((restored - started)) s."
 
-me=$(az_ ad signed-in-user show --query id --output tsv)
-upn=$(az_ ad signed-in-user show --query userPrincipalName --output tsv)
+me=$(az ad signed-in-user show --query id --output tsv)
+upn=$(az ad signed-in-user show --query userPrincipalName --output tsv)
 ip=$(curl -s https://api.ipify.org)
 az_ postgres flexible-server microsoft-entra-admin create --resource-group "$GROUP" --server-name "$DRILL" \
   --object-id "$me" --display-name "$upn" --type User --output none
-az_ postgres flexible-server firewall-rule create --resource-group "$GROUP" --name "$DRILL" \
-  --rule-name drill-client --start-ip-address "$ip" --end-ip-address "$ip" --output none
+az_ postgres flexible-server firewall-rule create --resource-group "$GROUP" --server-name "$DRILL" \
+  --name drill-client --start-ip-address "$ip" --end-ip-address "$ip" --output none
 
 host=$(az_ postgres flexible-server show --resource-group "$GROUP" --name "$DRILL" --query fullyQualifiedDomainName --output tsv)
 export PGPASSWORD
@@ -61,13 +62,13 @@ export PGSSLMODE=require
 databases=$(psql_ "host=$host dbname=postgres user=$upn" -Atc "SELECT datname FROM pg_database WHERE datname LIKE 'athlos_%' ORDER BY datname")
 ready=$(date +%s)
 echo
-echo "| Database | Tables | Rows (estimate) | Applied migrations |"
-echo "|---|---|---|---|"
+echo "| Database | Tables | Tables holding data | Size with indexes | Applied migrations |"
+echo "|---|---|---|---|---|"
 for db in $databases; do
-  read -r tables rows < <(psql_ "host=$host dbname=$db user=$upn" -Atc \
-    "SELECT count(*), coalesce(sum(greatest(c.reltuples, 0))::bigint, 0) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname <> '__EFMigrationsHistory'" | tr '|' ' ')
+  read -r tables holding size < <(psql_ "host=$host dbname=$db user=$upn" -Atc \
+    "SELECT count(*), count(*) FILTER (WHERE pg_relation_size(c.oid) > 0), replace(pg_size_pretty(coalesce(sum(pg_total_relation_size(c.oid)), 0)), ' ', '') FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname <> '__EFMigrationsHistory'" | tr '|' ' ')
   migrations=$(psql_ "host=$host dbname=$db user=$upn" -Atc "SELECT count(*) FROM \"__EFMigrationsHistory\"" 2>/dev/null || echo "?")
-  echo "| \`$db\` | $tables | $rows | $migrations |"
+  echo "| \`$db\` | $tables | $holding | $size | $migrations |"
 done
 echo
 echo "Restore point: $RESTORE_TO. Restore took $((restored - started)) s; ready to query after $((ready - started)) s."

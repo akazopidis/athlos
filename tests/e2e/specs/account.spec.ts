@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { expectAccessible } from '../axe'
 import { desktopOnly, signIn, skipWithoutTestUser } from '../signIn'
 
 const programPath = process.env.E2E_PROGRAM_PATH || undefined
@@ -83,4 +84,22 @@ test('a customer downloads their data', async ({ page }, testInfo) => {
   expect(file.suggestedFilename()).toMatch(/^athlos-data-\d{4}-\d{2}-\d{2}\.json$/)
   const data = JSON.parse(await (await import('node:fs/promises')).readFile((await file.path())!, 'utf-8'))
   expect(Object.keys(data)).toEqual(expect.arrayContaining(['account', 'workspaces', 'orders', 'programs', 'saved']))
+})
+
+// Accessibility of the account pages (design §8), as in quality.spec.ts for the public ones.
+test('the account pages have no serious accessibility problems', async ({ page }, testInfo) => {
+  desktopOnly(testInfo.project.name)
+  await signIn(page)
+
+  for (const [name, path, heading] of [
+    ['my programs', '/me', 'My programs'],
+    ['saved programs', '/me/saved', 'Saved programs'],
+    ['orders', '/me/orders', 'Orders'],
+    ['workspaces', '/me/workspaces', 'Workspaces'],
+    ['account settings', '/me/account', 'Account settings'],
+  ]) {
+    await page.goto(path)
+    await expect(page.getByRole('heading', { level: 2, name: heading })).toBeVisible()
+    await expectAccessible(page, testInfo, name)
+  }
 })

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.Extensions.Configuration;
 
 namespace Athlos.Gateway.Tests;
 
@@ -43,6 +44,28 @@ public sealed class GatewayTests(GatewayFactory factory) : IClassFixture<Gateway
         Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
         Assert.Equal("DENY", Assert.Single(response.Headers.GetValues("X-Frame-Options")));
         Assert.Contains("frame-ancestors 'none'", Assert.Single(response.Headers.GetValues("Content-Security-Policy")));
+        Assert.Contains("camera=()", Assert.Single(response.Headers.GetValues("Permissions-Policy")));
+        Assert.Equal("same-origin", Assert.Single(response.Headers.GetValues("Cross-Origin-Resource-Policy")));
+    }
+
+    // With the stage's hosts configured, the policy names them instead of wildcards (ZAP's 10055).
+    [Fact]
+    public void The_content_security_policy_names_the_stage_s_sign_in_and_image_hosts()
+    {
+        var configured = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Spa:EntraAuthority"] = "https://athlos.ciamlogin.com/0000-tenant/v2.0",
+            ["Spa:ImageOrigin"] = "https://stathlosstaging.blob.core.windows.net/",
+        }).Build();
+
+        var policy = SecurityHeaders.ContentSecurityPolicy(configured);
+        var fallback = SecurityHeaders.ContentSecurityPolicy(new ConfigurationBuilder().Build());
+
+        Assert.Contains("img-src 'self' data: https://stathlosstaging.blob.core.windows.net;", policy, StringComparison.Ordinal);
+        Assert.Contains("connect-src 'self' https://athlos.ciamlogin.com https://login.microsoftonline.com;", policy, StringComparison.Ordinal);
+        Assert.Contains("frame-src https://athlos.ciamlogin.com;", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("*", policy, StringComparison.Ordinal);
+        Assert.Contains("img-src 'self' data: https:;", fallback, StringComparison.Ordinal);
     }
 
     [Theory]

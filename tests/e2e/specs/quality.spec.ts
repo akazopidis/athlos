@@ -1,9 +1,8 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
+import { expectAccessible } from '../axe'
 
 // Accessibility and the not-found pages (design §8), signed out, with the demo coaches (design §15.2).
-// axe checks each page against WCAG 2.1 A and AA; a serious or critical violation fails the test, and
-// the full list is attached to the report.
+// The signed-in pages are checked in account.spec.ts and studio.spec.ts.
 
 const pages = [
   { name: 'marketplace', path: '/' },
@@ -19,16 +18,7 @@ const pages = [
 for (const { name, path } of pages) {
   test(`the ${name} has no serious accessibility problems`, async ({ page }, testInfo) => {
     await page.goto(path)
-    await expect(page.locator('main')).toBeVisible()
-    // The catalog keeps showing earlier results while it loads (aria-busy); wait until it is done.
-    await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
-
-    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-    await testInfo.attach('axe', { body: JSON.stringify(results.violations, null, 2), contentType: 'application/json' })
-    const serious = results.violations
-      .filter((v) => v.impact === 'serious' || v.impact === 'critical')
-      .map((v) => `${v.id} (${v.impact}): ${v.help} — ${v.nodes.length} element(s), e.g. ${v.nodes[0]?.target.join(' ')}`)
-    expect(serious).toEqual([])
+    await expectAccessible(page, testInfo, name)
   })
 }
 

@@ -17,6 +17,8 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
 
     public DbSet<ContentReport> ContentReports => Set<ContentReport>();
 
+    public DbSet<EmailSuppression> EmailSuppressions => Set<EmailSuppression>();
+
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public DbSet<AdminAction> AdminActions => Set<AdminAction>();
@@ -70,6 +72,14 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
             report.Property(r => r.Subject).HasMaxLength(120);
             report.Property(r => r.CoachSlug).HasMaxLength(40);
             report.Property(r => r.Note).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<EmailSuppression>(suppression =>
+        {
+            suppression.HasIndex(s => s.AddressHash).IsUnique();
+            suppression.HasIndex(s => s.RecordedAt);
+            suppression.Property(s => s.AddressHash).HasMaxLength(64).IsFixedLength();
+            suppression.Property(s => s.Status).HasMaxLength(20);
         });
 
         modelBuilder.ConfigureOutbox();

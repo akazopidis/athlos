@@ -28,6 +28,7 @@
     <Project Path="tests/Athlos.Enrollment.Api.IntegrationTests/Athlos.Enrollment.Api.IntegrationTests.csproj" />
     <Project Path="tests/Athlos.Gateway.Tests/Athlos.Gateway.Tests.csproj" />
     <Project Path="tests/Athlos.IsolationTests/Athlos.IsolationTests.csproj" />
+    <Project Path="tests/Athlos.Messaging.Tests/Athlos.Messaging.Tests.csproj" />
     <Project Path="tests/Athlos.Notifications.Worker.Tests/Athlos.Notifications.Worker.Tests.csproj" />
     <Project Path="tests/Athlos.Ordering.Api.IntegrationTests/Athlos.Ordering.Api.IntegrationTests.csproj" />
     <Project Path="tests/Athlos.Tenancy.Api.IntegrationTests/Athlos.Tenancy.Api.IntegrationTests.csproj" />

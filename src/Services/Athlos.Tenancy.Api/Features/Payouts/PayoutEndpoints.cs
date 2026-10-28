@@ -63,7 +63,7 @@ public static partial class PayoutEndpoints
 
     // Owners only: this creates the Stripe account that receives the workspace's money.
     private static async Task<Results<Ok<OnboardingLink>, NotFound, ProblemHttpResult>> StartOnboarding(
-        string tenantSlug, ITenantContext tenant, TenancyDbContext db, IStripeConnect stripe, IConfiguration configuration,
+        string tenantSlug, ITenantContext tenant, TenancyDbContext db, IStripeConnect stripe, IConfiguration configuration, TimeProvider time,
         CancellationToken cancellationToken)
     {
         var workspace = await db.Tenants.SingleOrDefaultAsync(t => t.Id == tenant.TenantId && t.Slug == tenantSlug && t.Status != TenantStatus.Deleted, cancellationToken);
@@ -85,6 +85,8 @@ public static partial class PayoutEndpoints
         if (workspace.StripeAccountId is null)
         {
             workspace.StripeAccountId = await stripe.CreateExpressAccountAsync(workspace.Id, cancellationToken);
+            // One reminder if payouts are still not set up three days from now (PayoutReminders).
+            db.PayoutReminders.Add(new PayoutReminder { TenantId = workspace.Id, DueAt = time.GetUtcNow() + PayoutReminders.After });
             await db.SaveChangesAsync(cancellationToken);
         }
 

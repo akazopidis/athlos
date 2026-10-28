@@ -1,0 +1,6 @@
+Subject: Finish setting up payouts for {{workspaceName}}
+You started setting up payouts for {{workspaceName}} with Stripe a few days ago, but Stripe still needs a few details. Until then you cannot publish programs or take payments.
+
+It takes a few minutes, and you continue where you stopped: {{studioUrl}}
+
+Athlos

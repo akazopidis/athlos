@@ -4,6 +4,7 @@ using Athlos.Messaging.Contracts;
 using Athlos.Notifications.Worker;
 using Athlos.Tenancy;
 using Athlos.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Athlos.Tenancy.Api.IntegrationTests;
 
@@ -94,6 +95,44 @@ public sealed class WorkspaceEmailTests(AthlosDatabases database) : IAsyncLifeti
         await Send(workspace, workspace.OwnerId, TenantRole.Owner, HttpMethod.Get, "/payouts");
 
         Render(await Single(EmailTemplates.PayoutsReady, workspace.TenantId));
+    }
+
+    // One reminder three days after onboarding started (backlog item 46), and none once it is finished.
+    [Fact]
+    public async Task Unfinished_payouts_get_one_reminder_once_it_is_due()
+    {
+        var stuck = await _api.CreateWorkspace();
+        var finished = await _api.CreateWorkspace();
+        foreach (var workspace in new[] { stuck, finished })
+        {
+            await Send(workspace, workspace.OwnerId, TenantRole.Owner, HttpMethod.Post, "/payouts/onboarding");
+            await Send(workspace, workspace.OwnerId, TenantRole.Owner, HttpMethod.Post, "/payouts/onboarding");
+        }
+
+        _stripe.CompleteOnboarding(finished.TenantId);
+        await Send(finished, finished.OwnerId, TenantRole.Owner, HttpMethod.Get, "/payouts");
+        var notYetDue = await RemindDue();
+        await MakeDue(stuck, finished);
+        var due = await RemindDue();
+        var again = await RemindDue();
+
+        Assert.Equal((0, 1, 0), (notYetDue, due, again));
+        var reminder = Render(await Single(EmailTemplates.PayoutsReminder, stuck.TenantId));
+        Assert.Contains($"/studio/{stuck.Slug}", reminder.PlainText, StringComparison.Ordinal);
+        Assert.DoesNotContain(await _api.QueuedEmails(), e => e.Template == EmailTemplates.PayoutsReminder && e.ToOwnersOfTenant == finished.TenantId);
+    }
+
+    private Task<int> RemindDue() =>
+        Athlos.Tenancy.Api.Features.Payouts.PayoutReminders.RemindDueAsync(_api.Services.GetRequiredService<IServiceScopeFactory>(), TestContext.Current.CancellationToken);
+
+    // Three days pass: the reminders of these workspaces fall due.
+    private async Task MakeDue(params TenancyArrange.Workspace[] workspaces)
+    {
+        await using var connection = new Npgsql.NpgsqlConnection(database.OwnerConnectionString("tenancy"));
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var command = new Npgsql.NpgsqlCommand("UPDATE payout_reminders SET due_at = now() - interval '1 minute' WHERE tenant_id = ANY(@ids)", connection);
+        command.Parameters.AddWithValue("ids", workspaces.Select(w => w.TenantId).ToArray());
+        Assert.Equal(workspaces.Length, await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]

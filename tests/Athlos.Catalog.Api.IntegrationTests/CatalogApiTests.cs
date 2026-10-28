@@ -178,6 +178,24 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.Conflict, HttpStatusCode.OK), (week13.StatusCode, shorter.StatusCode, stillLongEnough.StatusCode));
     }
 
+    // Link rules (backlog item 45): a workout's video is an https link on YouTube or Vimeo.
+    [Theory]
+    [InlineData("https://www.youtube.com/watch?v=abc", HttpStatusCode.Created)]
+    [InlineData("https://youtu.be/abc", HttpStatusCode.Created)]
+    [InlineData("https://vimeo.com/123", HttpStatusCode.Created)]
+    [InlineData("http://www.youtube.com/watch?v=abc", HttpStatusCode.BadRequest)]
+    [InlineData("https://videos.example/abc.mp4", HttpStatusCode.BadRequest)]
+    [InlineData("https://youtube.com.evil.example/watch", HttpStatusCode.BadRequest)]
+    public async Task A_workout_video_is_an_https_link_on_YouTube_or_Vimeo(string videoUrl, HttpStatusCode expected)
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach);
+
+        var response = await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/workouts", new { week = 1, day = 1, title = "Day one", videoUrl });
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
     // Customers' progress names a sold program's workouts: they can be edited, not deleted. A draft's can.
     [Fact]
     public async Task Workouts_of_a_program_that_has_been_on_sale_cannot_be_deleted()

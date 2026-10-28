@@ -15,7 +15,7 @@ public static class WorkoutEndpoints
         [property: Range(1, 7)] int Day,
         [property: Required, StringLength(120, MinimumLength = 1)] string Title,
         [property: StringLength(20000)] string? Content,
-        [property: Url, StringLength(500)] string? VideoUrl,
+        [property: Url, VideoUrl, StringLength(500)] string? VideoUrl,
         bool IsSample = false);
 
     public sealed record WorkoutDetails(Guid Id, int Week, int Day, string Title, string Content, string? VideoUrl, bool IsSample)

@@ -33,8 +33,12 @@ public sealed class CoachProfileTests(AthlosDatabases database, AthlosStorage st
             youTubeUrl = "https://youtube.com/@forge", websiteUrl = "https://forge.example",
         });
         var notALink = await _api.AsOwner(workspace, HttpMethod.Put, "/workspace", new { displayName = "Forge", instagramUrl = "javascript:alert(1)" });
+        // Link rules (backlog item 45): https only, for links and a linked logo.
+        var plainHttp = await _api.AsOwner(workspace, HttpMethod.Put, "/workspace", new { displayName = "Forge", websiteUrl = "http://forge.example" });
+        var httpLogo = await _api.AsOwner(workspace, HttpMethod.Put, "/workspace", new { displayName = "Forge", logoUrl = "http://forge.example/logo.png" });
 
         Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.BadRequest), (update.StatusCode, notALink.StatusCode));
+        Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.BadRequest), (plainHttp.StatusCode, httpLogo.StatusCode));
         var profile = (await ReadStorefront(workspace.Slug)).Branding;
         Assert.Equal(("Strength coach for ten years.", "https://instagram.com/forge", "https://forge.example"), (profile.Bio, profile.InstagramUrl, profile.WebsiteUrl));
     }

@@ -577,6 +577,72 @@
         }
       }
     },
+    "/api/v1/studio/{tenantSlug}/payouts/dashboard": {
+      "post": {
+        "tags": [
+          "Payouts"
+        ],
+        "operationId": "OpenPayoutDashboard",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutEndpointsDashboardLink"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/studio/{tenantSlug}/payouts/history": {
+      "get": {
+        "tags": [
+          "Payouts"
+        ],
+        "operationId": "GetPayoutHistory",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutHistory"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/v1/studio/{tenantSlug}/invites": {
       "get": {
         "tags": [
@@ -2135,6 +2201,37 @@
           }
         }
       },
+      "Money": {
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "PayoutEndpointsDashboardLink": {
+        "required": [
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "PayoutEndpointsOnboardingLink": {
         "required": [
           "url"
@@ -2162,6 +2259,63 @@
           },
           "payoutsEnabled": {
             "type": "boolean"
+          }
+        }
+      },
+      "PayoutHistory": {
+        "required": [
+          "available",
+          "pending",
+          "payouts"
+        ],
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Money"
+            }
+          },
+          "pending": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Money"
+            }
+          },
+          "payouts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayoutToBank"
+            }
+          }
+        }
+      },
+      "PayoutToBank": {
+        "required": [
+          "amount",
+          "currency",
+          "arrivalDate",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "arrivalDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
           }
         }
       },

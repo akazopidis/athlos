@@ -151,6 +151,45 @@ public sealed class PayoutTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, start.StatusCode);
     }
 
+    // Payouts in the studio (backlog item 42): once Stripe has the coach's details, the owner opens the
+    // Express dashboard and sees the balance and the latest payouts to the bank.
+    [Fact]
+    public async Task After_onboarding_the_owner_opens_the_Stripe_dashboard_and_sees_the_payouts()
+    {
+        var workspace = await _api.CreateWorkspace();
+        await AsOwner(workspace, HttpMethod.Post, "/payouts/onboarding");
+        _stripe.CompleteOnboarding(workspace.TenantId);
+        await AsOwner(workspace, HttpMethod.Get, "/payouts");
+
+        var dashboard = await AsOwner(workspace, HttpMethod.Post, "/payouts/dashboard");
+        var history = await AsOwner(workspace, HttpMethod.Get, "/payouts/history");
+        var payouts = await history.Content.ReadFromJsonAsync<History>(Cancel);
+
+        Assert.Equal(HttpStatusCode.OK, dashboard.StatusCode);
+        Assert.Equal($"https://connect.stripe.test/express/{FakeStripeConnect.AccountOf(workspace.TenantId)}", (await dashboard.Content.ReadFromJsonAsync<Link>(Cancel))!.Url);
+        Assert.Equal(HttpStatusCode.OK, history.StatusCode);
+        Assert.Equal([new Money(4410, "EUR")], payouts!.Available);
+        Assert.Equal([8820L, 4410L], payouts.Payouts.Select(p => p.Amount));
+    }
+
+    [Fact]
+    public async Task Before_onboarding_there_is_no_dashboard_and_staff_never_see_the_payouts()
+    {
+        var workspace = await _api.CreateWorkspace();
+        var staff = await _databases.AddMember(workspace.TenantId, TenantRole.Staff);
+        await AsOwner(workspace, HttpMethod.Post, "/payouts/onboarding");
+
+        var notYet = await AsOwner(workspace, HttpMethod.Post, "/payouts/dashboard");
+        var noHistory = await AsOwner(workspace, HttpMethod.Get, "/payouts/history");
+        _stripe.CompleteOnboarding(workspace.TenantId);
+        await AsOwner(workspace, HttpMethod.Get, "/payouts");
+        var asStaff = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/studio/{workspace.Slug}/payouts/history"), staff, workspace.TenantId, TenantRole.Staff);
+        var staffDashboard = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, $"/api/v1/studio/{workspace.Slug}/payouts/dashboard"), staff, workspace.TenantId, TenantRole.Staff);
+
+        Assert.Equal((HttpStatusCode.Conflict, HttpStatusCode.Conflict), (notYet.StatusCode, noHistory.StatusCode));
+        Assert.Equal((HttpStatusCode.Forbidden, HttpStatusCode.Forbidden), (asStaff.StatusCode, staffDashboard.StatusCode));
+    }
+
     [Fact]
     public async Task Without_a_Stripe_key_onboarding_is_unavailable_not_faked()
     {
@@ -172,6 +211,12 @@ public sealed class PayoutTests : IAsyncLifetime
     public ValueTask DisposeAsync() => _api.DisposeAsync();
 
     private sealed record Link(string Url);
+
+    private sealed record Money(long Amount, string Currency);
+
+    private sealed record Payout(long Amount, string Currency, DateTimeOffset ArrivalDate, string Status);
+
+    private sealed record History(List<Money> Available, List<Money> Pending, List<Payout> Payouts);
 
     private sealed record Status(bool Connected, bool OnboardingComplete, bool PayoutsEnabled);
 

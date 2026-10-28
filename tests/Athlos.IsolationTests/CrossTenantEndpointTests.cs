@@ -99,6 +99,8 @@ public sealed class CrossTenantEndpointTests(AthlosDatabases database) : IAsyncL
     [Theory]
     [InlineData("POST", "/payouts/onboarding")]
     [InlineData("GET", "/payouts")]
+    [InlineData("POST", "/payouts/dashboard")]
+    [InlineData("GET", "/payouts/history")]
     public async Task B_cannot_reach_As_payouts(string method, string path)
     {
         var response = await AsOwnerOfB(new HttpMethod(method), $"/api/v1/studio/{_a.Slug}{path}");

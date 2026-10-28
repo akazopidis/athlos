@@ -767,6 +767,10 @@
           },
           "reviewReplies": {
             "type": "boolean"
+          },
+          "priceDrops": {
+            "type": "boolean",
+            "default": true
           }
         }
       },

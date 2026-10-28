@@ -10,6 +10,7 @@ type Preferences = components['schemas']['EmailPreferenceEndpointsPreferences']
 const choices: { key: keyof Preferences; label: string; hint: string }[] = [
   { key: 'programUpdates', label: 'New workouts', hint: 'When a coach adds a workout to a program you own (at most once a day).' },
   { key: 'reviewReplies', label: 'Replies to your reviews', hint: 'When a coach replies to a review you wrote.' },
+  { key: 'priceDrops', label: 'Price drops', hint: 'When a program you saved costs less (at most once a week).' },
 ]
 
 // The optional emails (design §5.3): each toggle saves at once. Purchase, refund and account emails

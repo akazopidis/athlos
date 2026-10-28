@@ -10,6 +10,7 @@ public enum EmailTopic : byte
 {
     ProgramUpdates = 1,
     ReviewReplies = 2,
+    PriceDrops = 3,
 }
 
 // The token in an email's unsubscribe link (design §5.3, v17.9): the customer and the email, with an

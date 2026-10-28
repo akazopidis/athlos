@@ -39,22 +39,23 @@ function renderWith(page: React.ReactNode, answer: (request: Request) => Respons
 test('each optional email is a toggle that saves at once', async () => {
   const requests = renderWith(<EmailPreferences />, (request) =>
     request.method === 'GET'
-      ? Response.json({ programUpdates: true, reviewReplies: true })
-      : Response.json({ programUpdates: false, reviewReplies: true }),
+      ? Response.json({ programUpdates: true, reviewReplies: true, priceDrops: true })
+      : Response.json({ programUpdates: false, reviewReplies: true, priceDrops: true }),
   )
 
   const workouts = await screen.findByRole('checkbox', { name: /New workouts/ })
   expect(workouts).toBeChecked()
   expect(screen.getByRole('checkbox', { name: /Replies to your reviews/ })).toBeChecked()
+  expect(screen.getByRole('checkbox', { name: /Price drops/ })).toBeChecked()
   fireEvent.click(workouts)
 
   await waitFor(() => expect(screen.getByRole('checkbox', { name: /New workouts/ })).not.toBeChecked())
-  expect(requests.at(-1)).toEqual({ method: 'PUT', path: '/api/v1/me/email-preferences', body: { programUpdates: false, reviewReplies: true } })
+  expect(requests.at(-1)).toEqual({ method: 'PUT', path: '/api/v1/me/email-preferences', body: { programUpdates: false, reviewReplies: true, priceDrops: true } })
 })
 
 test('a failed save says so and keeps the saved choice', async () => {
   renderWith(<EmailPreferences />, (request) =>
-    request.method === 'GET' ? Response.json({ programUpdates: true, reviewReplies: true }) : new Response(null, { status: 500 }),
+    request.method === 'GET' ? Response.json({ programUpdates: true, reviewReplies: true, priceDrops: true }) : new Response(null, { status: 500 }),
   )
 
   fireEvent.click(await screen.findByRole('checkbox', { name: /Replies to your reviews/ }))

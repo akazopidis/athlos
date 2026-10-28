@@ -108,5 +108,7 @@ app.MapEraseCustomer();
 app.MapExportCustomer();
 // Catalog-api only (signed): a program on sale got a new workout; its customers are emailed (design §5.3)
 app.MapProgramUpdated();
+// Catalog-api only (signed): a saved program costs less; the customers who saved it are emailed, at most weekly (design §2.4)
+app.MapPriceDropped();
 
 app.Run();

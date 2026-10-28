@@ -22,6 +22,11 @@ public sealed partial class SendEmail(
             recipients.AddRange(await owners.GetOwnerEmailsAsync(tenantId, cancellationToken));
         }
 
+        if (message.ToUser is { } userId && await owners.GetUserEmailAsync(userId, cancellationToken) is { } address)
+        {
+            recipients.Add(address);
+        }
+
         var distinct = recipients.Where(r => !string.IsNullOrWhiteSpace(r)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var skipped = await suppressions.SuppressedAsync(distinct, cancellationToken);
         var sendTo = distinct.Where(r => !skipped.Contains(r)).ToList();

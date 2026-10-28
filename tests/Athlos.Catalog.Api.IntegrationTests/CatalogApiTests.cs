@@ -374,6 +374,37 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal(2, misspelt.Items.Count(i => i.CoachSlug == coach.Slug));
     }
 
+    // A lower price on a program in the shop tells enrollment-api who saved it (design §2.4); a higher
+    // price, or a lower one on a program off sale, tells nobody.
+    [Fact]
+    public async Task A_lower_price_on_a_saved_program_names_its_savers()
+    {
+        var coach = NewCoach();
+        var onSale = await _api.CreateProgram(coach, publish: true);
+        var draft = await _api.CreateProgram(coach);
+        var savers = new[] { Guid.CreateVersion7(), Guid.CreateVersion7() };
+        foreach (var saver in savers)
+        {
+            Assert.Equal(HttpStatusCode.NoContent, (await AsCustomer(saver, HttpMethod.Put, $"/saved/{onSale.Id}")).StatusCode);
+        }
+
+        await SetPrice(coach, onSale.Id, 5900);
+        await SetPrice(coach, onSale.Id, 3900);
+        await SetPrice(coach, draft.Id, 1500);
+
+        var drop = Assert.Single(_api.Updates.PriceDrops, d => d.ProgramId == onSale.Id);
+        Assert.Equal((5900L, 3900L, "EUR", onSale.Slug, coach.Slug), (drop.OldPriceAmount, drop.NewPriceAmount, drop.Currency, drop.ProgramSlug, drop.CoachSlug));
+        Assert.Equal(savers.Order(), drop.CustomerIds.Order());
+        Assert.DoesNotContain(_api.Updates.PriceDrops, d => d.ProgramId == draft.Id);
+    }
+
+    private async Task SetPrice(Coach coach, Guid programId, long priceAmount)
+    {
+        var response = await _api.AsCoach(coach, HttpMethod.Put, $"/programs/{programId}",
+            new { title = "Priced program", category = "Powerlifting", durationWeeks = 12, priceAmount, currency = "EUR" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     private Task<HttpResponseMessage> SetCoachName(Guid tenantId, string displayName) =>
         _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{tenantId}/coach-name") { Content = JsonContent.Create(new { displayName }) });
 

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Catalog.Api.Data;
+using Athlos.Catalog.Api.Features.Workouts;
 using Athlos.Media;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,9 @@ namespace Athlos.Catalog.Api.Features.Programs;
 
 // Edits apply to published programs too. A price change affects only future purchases, because
 // ordering copies the price at purchase time (design §2.3). The slug is fixed once created.
+// A lower price on a program in the shop tells the customers who saved it (design §2.4, v17.9): their
+// ids are read here, inside the tenant (RLS tenant_savers_read), and enrollment-api is called after the
+// response, once the change is committed.
 public static class UpdateProgram
 {
     public sealed record Request(
@@ -24,7 +28,8 @@ public static class UpdateProgram
             .WithTags("Programs");
 
     private static async Task<Results<Ok<ProgramDetails>, NotFound, ProblemHttpResult>> Handle(
-        Guid programId, Request request, CatalogDbContext db, MediaStore media, CancellationToken cancellationToken)
+        Guid programId, Request request, CatalogDbContext db, MediaStore media, IProgramUpdates updates, HttpContext http,
+        CancellationToken cancellationToken)
     {
         var program = await db.Programs.SingleOrDefaultAsync(p => p.Id == programId, cancellationToken);
         if (program is null)
@@ -40,6 +45,7 @@ public static class UpdateProgram
                 title: $"This program has workouts in week {lastWeek}; move or delete them before making it shorter.");
         }
 
+        var oldPrice = program.PriceAmount;
         program.Title = request.Title.Trim();
         program.Description = request.Description?.Trim() ?? "";
         program.Category = request.Category;
@@ -47,6 +53,16 @@ public static class UpdateProgram
         program.PriceAmount = request.PriceAmount;
         program.Currency = request.Currency;
         await db.SaveChangesAsync(cancellationToken);
+
+        if (program.PriceAmount < oldPrice && program is { IsPublished: true, TenantSuspended: false, BlockedAt: null })
+        {
+            var savers = await db.SavedPrograms.AsNoTracking().Where(s => s.ProgramId == programId).Select(s => s.CustomerId).ToListAsync(cancellationToken);
+            if (savers.Count > 0)
+            {
+                var drop = new PriceDrop(program.Id, program.Title, program.CoachSlug, program.Slug, oldPrice, program.PriceAmount, program.Currency, savers);
+                http.Response.OnCompleted(() => updates.PriceDroppedAsync(drop, CancellationToken.None));
+            }
+        }
 
         return TypedResults.Ok(await ProgramDetails.FromAsync(program, media, cancellationToken));
     }

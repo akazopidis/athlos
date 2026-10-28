@@ -134,6 +134,48 @@ public sealed class EmailPreferenceTests(AthlosDatabases databases) : IAsyncLife
         Assert.Equal(new Prefs(true, true), await Preferences(_customer));
     }
 
+    // A lower price on a saved program (design §2.4): each saver who keeps these emails on gets one,
+    // addressed to them (the worker asks tenancy-api), at most once a week; the link turns them off.
+    [Fact]
+    public async Task A_price_drop_emails_each_saver_at_most_once_a_week()
+    {
+        var (keen, optedOut, other) = (Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7());
+        var title = $"Saved {Guid.NewGuid():N}"[..20];
+        await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Put, "/api/v1/me/email-preferences") { Content = JsonContent.Create(new { programUpdates = true, reviewReplies = true, priceDrops = false }) },
+            optedOut);
+
+        var first = await PriceDrop(title, 4900, 3900, keen, optedOut);
+        var again = await PriceDrop(title, 3900, 2900, keen, other);
+        var raised = await PriceDrop(title, 2900, 3900, Guid.CreateVersion7());
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent, HttpStatusCode.NoContent), (first.StatusCode, again.StatusCode, raised.StatusCode));
+        var emails = Emails().Where(e => e.Template == EmailTemplates.PriceDrop && e.Data["programTitle"] == title).ToList();
+        Assert.Equal(new[] { keen, other }.Order(), emails.Select(e => e.ToUser!.Value).Order());
+        Assert.All(emails, e => Assert.Empty(e.To));
+        var keens = emails.Single(e => e.ToUser == keen);
+        Assert.Equal(("49.00 EUR", "39.00 EUR"), (keens.Data["oldPrice"], keens.Data["newPrice"]));
+        Assert.EndsWith($"/c/anna/programs/{title.ToLowerInvariant()}", keens.Data["programUrl"], StringComparison.Ordinal);
+
+        Assert.Equal(HttpStatusCode.OK, (await Unsubscribe(Token(keens), signedIn: null)).StatusCode);
+        Assert.Equal(new Prefs(true, true, false), await Preferences(keen));
+    }
+
+    private Task<HttpResponseMessage> PriceDrop(string title, long oldPrice, long newPrice, params Guid[] customerIds) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Post, "/internal/price-drops")
+        {
+            Content = JsonContent.Create(new
+            {
+                programTitle = title,
+                coachSlug = "anna",
+                programSlug = title.ToLowerInvariant(),
+                oldPriceAmount = oldPrice,
+                newPriceAmount = newPrice,
+                currency = "EUR",
+                customerIds,
+            }),
+        });
+
     private async Task<Prefs> Preferences(Guid customerId)
     {
         var response = await _api.AsCustomer(customerId, HttpMethod.Get, "/email-preferences");
@@ -173,7 +215,7 @@ public sealed class EmailPreferenceTests(AthlosDatabases databases) : IAsyncLife
 
     public ValueTask DisposeAsync() => _api.DisposeAsync();
 
-    private sealed record Prefs(bool ProgramUpdates, bool ReviewReplies);
+    private sealed record Prefs(bool ProgramUpdates, bool ReviewReplies, bool PriceDrops = true);
 
     private sealed record Unsubscribed(string Topic);
 

@@ -58,6 +58,43 @@ jobs:
             dotnet publish "$project" --no-build --configuration Release --output "$RUNNER_TEMP/publish/$(basename "$project")"
           done
 
+  # Old code on a new schema (design §12.2, backlog item 41): the latest release's backend tests run
+  # against this code's schema, as the released apps do while a deploy rolls out or after a rollback.
+  # This code's db-migrator prepares each test database first (ATHLOS_TEST_NEWER_MIGRATOR, read by
+  # tests/Athlos.Testing/AthlosDatabases.cs), then the release's own tests run unchanged. On release PRs
+  # into main, and by hand. A release from before the seam existed is skipped with a notice.
+  previous-release:
+    if: github.base_ref == 'main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Latest release and this code's db-migrator
+        id: previous
+        run: |
+          tag=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          git worktree add "$RUNNER_TEMP/previous" "$tag"
+          if grep -q ATHLOS_TEST_NEWER_MIGRATOR "$RUNNER_TEMP/previous/tests/Athlos.Testing/AthlosDatabases.cs"; then
+            echo "seam=true" >> "$GITHUB_OUTPUT"
+            dotnet build src/Tools/Athlos.DbMigrator --configuration Release --output "$RUNNER_TEMP/migrator"
+          else
+            echo "::notice::$tag's tests cannot take a newer schema yet (no ATHLOS_TEST_NEWER_MIGRATOR); skipped."
+          fi
+
+      - name: The release's tests on this schema
+        if: steps.previous.outputs.seam == 'true'
+        working-directory: ${{ runner.temp }}/previous
+        env:
+          ATHLOS_TEST_NEWER_MIGRATOR: ${{ runner.temp }}/migrator/Athlos.DbMigrator.dll
+        run: dotnet test Athlos.slnx --configuration Release
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

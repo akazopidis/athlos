@@ -86,6 +86,8 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
     // What suspending a workspace asks catalog-api to do (design §3.4).
     public FakeTenantSuspension Suspension { get; } = new();
 
+    public FakeCatalogCoachNames CoachNames { get; } = new();
+
     // What reporting a program and the admin's decisions ask catalog-api (design §2.4).
     public FakeReportedPrograms ReportedPrograms { get; } = new();
 
@@ -107,6 +109,12 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
         builder.UseSetting("ConnectionStrings:messaging", "Endpoint=sb://localhost;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
         builder.ConfigureTestServices(services =>
         {
+            // Tests run the reminders' pass themselves (PayoutReminders.RemindDueAsync). Left on, every
+            // test app's timer makes a pass when it starts and can take another test's due reminder.
+            services.Remove(services.Single(d => d.ImplementationType == typeof(PayoutReminders)));
+            // The same for the coach name copies (CoachNameCopies.CopyAsync).
+            services.Remove(services.Single(d => d.ImplementationType == typeof(Athlos.Tenancy.Api.Features.Storefront.CoachNameCopies)));
+            services.AddSingleton<Athlos.Tenancy.Api.Features.Storefront.ICatalogCoachNames>(CoachNames);
             services.AddSingleton<IMessageSender>(Messages);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Workspace.ITenantErasure>(Erasure);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Account.ICustomerErasure>(CustomerErasure);

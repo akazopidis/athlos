@@ -260,6 +260,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/studio/{tenantSlug}/payouts/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["OpenPayoutDashboard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/studio/{tenantSlug}/payouts/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetPayoutHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/studio/{tenantSlug}/invites": {
         parameters: {
             query?: never;
@@ -734,6 +766,14 @@ export interface components {
             /** Format: int32 */
             totalCount: number | string;
         };
+        Money: {
+            /** Format: int64 */
+            amount: number | string;
+            currency: string;
+        };
+        PayoutEndpointsDashboardLink: {
+            url: string;
+        };
         PayoutEndpointsOnboardingLink: {
             url: string;
         };
@@ -741,6 +781,19 @@ export interface components {
             connected: boolean;
             onboardingComplete: boolean;
             payoutsEnabled: boolean;
+        };
+        PayoutHistory: {
+            available: components["schemas"]["Money"][];
+            pending: components["schemas"]["Money"][];
+            payouts: components["schemas"]["PayoutToBank"][];
+        };
+        PayoutToBank: {
+            /** Format: int64 */
+            amount: number | string;
+            currency: string;
+            /** Format: date-time */
+            arrivalDate: string;
+            status: string;
         };
         Plan: {
             name: components["schemas"]["PlanName"];
@@ -1306,6 +1359,64 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayoutEndpointsPayoutStatus"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OpenPayoutDashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutEndpointsDashboardLink"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GetPayoutHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutHistory"];
                 };
             };
             /** @description Not Found */

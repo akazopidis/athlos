@@ -178,6 +178,24 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.Conflict, HttpStatusCode.OK), (week13.StatusCode, shorter.StatusCode, stillLongEnough.StatusCode));
     }
 
+    // Link rules (backlog item 45): a workout's video is an https link on YouTube or Vimeo.
+    [Theory]
+    [InlineData("https://www.youtube.com/watch?v=abc", HttpStatusCode.Created)]
+    [InlineData("https://youtu.be/abc", HttpStatusCode.Created)]
+    [InlineData("https://vimeo.com/123", HttpStatusCode.Created)]
+    [InlineData("http://www.youtube.com/watch?v=abc", HttpStatusCode.BadRequest)]
+    [InlineData("https://videos.example/abc.mp4", HttpStatusCode.BadRequest)]
+    [InlineData("https://youtube.com.evil.example/watch", HttpStatusCode.BadRequest)]
+    public async Task A_workout_video_is_an_https_link_on_YouTube_or_Vimeo(string videoUrl, HttpStatusCode expected)
+    {
+        var coach = NewCoach();
+        var program = await _api.CreateProgram(coach);
+
+        var response = await _api.AsCoach(coach, HttpMethod.Post, $"/programs/{program.Id}/workouts", new { week = 1, day = 1, title = "Day one", videoUrl });
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
     // Customers' progress names a sold program's workouts: they can be edited, not deleted. A draft's can.
     [Fact]
     public async Task Workouts_of_a_program_that_has_been_on_sale_cannot_be_deleted()
@@ -307,6 +325,88 @@ public sealed class CatalogApiTests(AthlosDatabases databases, AthlosStorage sto
         Assert.Equal([coach.Slug], bySlug.Items.Select(i => i.CoachSlug));
         Assert.Equal([coach.Slug], withSpaces.Items.Select(i => i.CoachSlug));
     }
+
+    // Search quality (design §8, v17.9): the words of the title and description, a misspelt title
+    // word, and the best matches first when no sort is chosen.
+    [Fact]
+    public async Task The_search_matches_words_and_typos_and_ranks_title_matches_first()
+    {
+        var coach = NewCoach();
+        var inTitle = await _api.CreateProgram(coach, title: "Yoga for runners", publish: true);
+        var inDescription = await _api.CreateProgram(coach, title: "Mobility basics", publish: true);
+        var update = await _api.AsCoach(coach, HttpMethod.Put, $"/programs/{inDescription.Id}",
+            new { title = "Mobility basics", description = "Gentle yoga to open the hips.", category = "Mobility", durationWeeks = 4, priceAmount = 2000, currency = "EUR" });
+        await _api.CreateProgram(coach, title: "Ketlebell swings", publish: true);
+
+        // Both words, apart and stemmed ("hips"), in the description: only the full-text match finds it.
+        var words = await Search($"?coach={coach.Slug}&q=open%20hip");
+        var misspelt = await Search($"?coach={coach.Slug}&q=kettlebell");
+        var ranked = await Search($"?coach={coach.Slug}&q=yoga");
+        var newest = await Search($"?coach={coach.Slug}&q=yoga&sort=Newest");
+
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        Assert.Equal(["Mobility basics"], words.Items.Select(i => i.Title));
+        Assert.Equal(["Ketlebell swings"], misspelt.Items.Select(i => i.Title));
+        Assert.Equal([inTitle.Slug, inDescription.Slug], ranked.Items.Select(i => i.Slug));
+        Assert.Equal([inDescription.Slug, inTitle.Slug], newest.Items.Select(i => i.Slug));
+    }
+
+    // A coach's name, copied from tenancy-api, finds their programs, misspelt too; another coach's do not
+    // come with them.
+    [Fact]
+    public async Task The_search_finds_a_coachs_programs_by_their_name()
+    {
+        var (coach, other) = (NewCoach(), NewCoach());
+        var name = $"Zelinda Quornwick {Guid.NewGuid():N}"[..26];
+        await _api.CreateProgram(coach, title: "Unrelated title", publish: true);
+        await _api.CreateProgram(coach, title: "Another one", publish: true);
+        await _api.CreateProgram(other, title: "Third", publish: true);
+        var copied = await SetCoachName(coach.TenantId, name);
+        await SetCoachName(other.TenantId, "Somebody Else");
+        var renamed = await SetCoachName(coach.TenantId, name);
+
+        var byName = await Search($"?q={Uri.EscapeDataString("Zelinda Quornwick")}");
+        var misspelt = await Search($"?q={Uri.EscapeDataString("Zelinda Qournwick")}");
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (copied.StatusCode, renamed.StatusCode));
+        Assert.Equal(2, byName.Items.Count(i => i.CoachSlug == coach.Slug));
+        Assert.DoesNotContain(byName.Items, i => i.CoachSlug == other.Slug);
+        Assert.Equal(2, misspelt.Items.Count(i => i.CoachSlug == coach.Slug));
+    }
+
+    // A lower price on a program in the shop tells enrollment-api who saved it (design §2.4); a higher
+    // price, or a lower one on a program off sale, tells nobody.
+    [Fact]
+    public async Task A_lower_price_on_a_saved_program_names_its_savers()
+    {
+        var coach = NewCoach();
+        var onSale = await _api.CreateProgram(coach, publish: true);
+        var draft = await _api.CreateProgram(coach);
+        var savers = new[] { Guid.CreateVersion7(), Guid.CreateVersion7() };
+        foreach (var saver in savers)
+        {
+            Assert.Equal(HttpStatusCode.NoContent, (await AsCustomer(saver, HttpMethod.Put, $"/saved/{onSale.Id}")).StatusCode);
+        }
+
+        await SetPrice(coach, onSale.Id, 5900);
+        await SetPrice(coach, onSale.Id, 3900);
+        await SetPrice(coach, draft.Id, 1500);
+
+        var drop = Assert.Single(_api.Updates.PriceDrops, d => d.ProgramId == onSale.Id);
+        Assert.Equal((5900L, 3900L, "EUR", onSale.Slug, coach.Slug), (drop.OldPriceAmount, drop.NewPriceAmount, drop.Currency, drop.ProgramSlug, drop.CoachSlug));
+        Assert.Equal(savers.Order(), drop.CustomerIds.Order());
+        Assert.DoesNotContain(_api.Updates.PriceDrops, d => d.ProgramId == draft.Id);
+    }
+
+    private async Task SetPrice(Coach coach, Guid programId, long priceAmount)
+    {
+        var response = await _api.AsCoach(coach, HttpMethod.Put, $"/programs/{programId}",
+            new { title = "Priced program", category = "Powerlifting", durationWeeks = 12, priceAmount, currency = "EUR" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    private Task<HttpResponseMessage> SetCoachName(Guid tenantId, string displayName) =>
+        _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, $"/internal/tenants/{tenantId}/coach-name") { Content = JsonContent.Create(new { displayName }) });
 
     [Fact]
     public async Task Page_size_is_capped_at_50()

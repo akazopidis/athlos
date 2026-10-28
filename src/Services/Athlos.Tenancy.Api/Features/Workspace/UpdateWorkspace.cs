@@ -11,13 +11,13 @@ public static class UpdateWorkspace
 {
     public sealed record Request(
         [property: Required, StringLength(100, MinimumLength = 1)] string DisplayName,
-        [property: Url, StringLength(500)] string? LogoUrl,
+        [property: Url, HttpsUrl, StringLength(500)] string? LogoUrl,
         [property: RegularExpression("^#[0-9a-fA-F]{6}$")] string? PrimaryColor,
         [property: EmailAddress, StringLength(254)] string? ContactEmail = null,
         [property: StringLength(1500)] string? Bio = null,
-        [property: Url, StringLength(300)] string? InstagramUrl = null,
-        [property: Url, StringLength(300)] string? YouTubeUrl = null,
-        [property: Url, StringLength(300)] string? WebsiteUrl = null);
+        [property: Url, HttpsUrl, StringLength(300)] string? InstagramUrl = null,
+        [property: Url, HttpsUrl, StringLength(300)] string? YouTubeUrl = null,
+        [property: Url, HttpsUrl, StringLength(300)] string? WebsiteUrl = null);
 
     public static void MapUpdateWorkspace(this IEndpointRouteBuilder app) =>
         app.MapPut("/workspace", Handle)

@@ -1,0 +1,6 @@
+Subject: {{programTitle}} is now {{newPrice}}
+A program you saved costs less: {{programTitle}} by {{coach}} is now {{newPrice}} (was {{oldPrice}}).
+
+See the program: {{programUrl}}
+
+Athlos

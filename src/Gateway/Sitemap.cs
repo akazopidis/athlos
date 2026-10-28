@@ -32,6 +32,7 @@ public sealed partial class Sitemap(IHttpClientFactory clients, GatewaySignature
         Disallow: /admin
         Disallow: /cart
         Disallow: /invites
+        Disallow: /unsubscribe
         Sitemap: {origin}/sitemap.xml
 
         """;

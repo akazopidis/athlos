@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using NpgsqlTypes;
 
 #nullable disable
 
@@ -20,7 +21,37 @@ namespace Athlos.Catalog.Api.Data.Migrations
                 .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("Athlos.Catalog.Api.Data.CoachName", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("display_name");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("TenantId")
+                        .HasName("pk_coach_names");
+
+                    b.HasIndex("DisplayName")
+                        .HasDatabaseName("ix_coach_names_display_name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("DisplayName"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("DisplayName"), new[] { "gin_trgm_ops" });
+
+                    b.ToTable("coach_names", (string)null);
+                });
 
             modelBuilder.Entity("Athlos.Catalog.Api.Data.PublicDiscount", b =>
                 {
@@ -163,6 +194,12 @@ namespace Athlos.Catalog.Api.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("rating_count");
 
+                    b.Property<NpgsqlTsVector>("SearchVector")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("tsvector")
+                        .HasColumnName("search_vector")
+                        .HasComputedColumnSql("setweight(to_tsvector('english', title), 'A') || setweight(to_tsvector('english', description), 'B')", true);
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(60)
@@ -189,6 +226,17 @@ namespace Athlos.Catalog.Api.Data.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_programs");
+
+                    b.HasIndex("SearchVector")
+                        .HasDatabaseName("ix_programs_search_vector");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "gin");
+
+                    b.HasIndex("Title")
+                        .HasDatabaseName("ix_programs_title");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Title"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Title"), new[] { "gin_trgm_ops" });
 
                     b.HasIndex("IsPublished", "PublishedAt")
                         .HasDatabaseName("ix_programs_is_published_published_at");

@@ -22,6 +22,8 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
 
     public DbSet<ProgramCopy> ProgramCopies => Set<ProgramCopy>();
 
+    public DbSet<EmailPreference> EmailPreferences => Set<EmailPreference>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ProgramEnrollment>(enrollment =>
@@ -90,6 +92,14 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
             copy.Property(c => c.Title).HasMaxLength(120);
             copy.Property(c => c.Category).HasMaxLength(40);
             copy.Property(c => c.Workouts).HasColumnType("jsonb");
+        });
+
+        modelBuilder.Entity<EmailPreference>(preference =>
+        {
+            preference.ToTable("email_preferences");
+            preference.HasKey(p => p.CustomerId);
+            // Rows from before price drops existed get them on, like everyone else.
+            preference.Property(p => p.PriceDrops).HasDefaultValue(true).HasSentinel(true);
         });
 
         modelBuilder.ConfigureOutbox();

@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/api/v1/email-preferences/unsubscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["Unsubscribe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/programs": {
         parameters: {
             query?: never;
@@ -13,6 +29,22 @@ export interface paths {
         };
         get: operations["ListMyPrograms"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/email-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetMyEmailPreferences"];
+        put: operations["UpdateMyEmailPreferences"];
         post?: never;
         delete?: never;
         options?: never;
@@ -214,6 +246,18 @@ export interface components {
             /** Format: date-time */
             at: string;
         };
+        EmailPreferenceEndpointsPreferences: {
+            programUpdates: boolean;
+            reviewReplies: boolean;
+            /** @default true */
+            priceDrops: boolean;
+        };
+        EmailPreferenceEndpointsUnsubscribeRequest: {
+            token: string;
+        };
+        EmailPreferenceEndpointsUnsubscribed: {
+            topic: string;
+        };
         GetMyProgramResponse: {
             /** Format: uuid */
             programId: string;
@@ -396,6 +440,37 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    Unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailPreferenceEndpointsUnsubscribeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailPreferenceEndpointsUnsubscribed"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     ListMyPrograms: {
         parameters: {
             query?: {
@@ -415,6 +490,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyEnrollmentsMyProgramsPage"];
+                };
+            };
+        };
+    };
+    GetMyEmailPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailPreferenceEndpointsPreferences"];
+                };
+            };
+        };
+    };
+    UpdateMyEmailPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailPreferenceEndpointsPreferences"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailPreferenceEndpointsPreferences"];
                 };
             };
         };

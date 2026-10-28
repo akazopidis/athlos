@@ -13,7 +13,7 @@ import { useMyWorkspaces } from '@/lib/useMyWorkspaces'
 import { useOwnedPrograms } from '@/lib/useOwnedPrograms'
 import { cn } from '@/lib/utils'
 import { ProductCard } from '@/components/product-card'
-import { activeFilters, Lengths, PageSize, Sorts, type ProgramSearch, type SearchChange, type Sort } from './useProgramSearch.ts'
+import { activeFilters, defaultSort, Lengths, PageSize, Sorts, type ProgramSearch, type SearchChange, type Sort } from './useProgramSearch.ts'
 
 type Results = components['schemas']['SearchProgramsSearchResults']
 
@@ -94,10 +94,10 @@ export function Catalog({
               <select
                 aria-label="Sort by"
                 className={cn(selectClassName, 'h-9 w-auto')}
-                value={search.sort ?? 'Newest'}
-                onChange={(e) => update({ sort: e.target.value === 'Newest' ? null : (e.target.value as Sort) })}
+                value={search.sort ?? defaultSort(search.q)}
+                onChange={(e) => update({ sort: e.target.value === defaultSort(search.q) ? null : (e.target.value as Sort) })}
               >
-                {Sorts.map((s) => (
+                {Sorts.filter((s) => s.value !== 'Relevance' || defaultSort(search.q) === 'Relevance').map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}
                   </option>

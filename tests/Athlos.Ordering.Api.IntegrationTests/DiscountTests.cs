@@ -114,6 +114,44 @@ public sealed class DiscountTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.Equal(1, once.MaxRedemptions);
     }
 
+    // Discount code rules (backlog item 48): once per customer, and a customer who reopens checkout does
+    // not block themselves with their own open payment page.
+    [Fact]
+    public async Task A_code_is_used_once_per_customer_and_reopening_checkout_keeps_it()
+    {
+        var first = _api.Sellers.Sell(_coach.TenantId, _coach.Slug);
+        var second = _api.Sellers.Sell(_coach.TenantId, _coach.Slug);
+        await CreateCode(_coach, new { code = "WELCOME", percentOff = 20 });
+        await CreateCode(_coach, new { code = "LAST", percentOff = 20, maxRedemptions = 1 });
+
+        await _api.Pay(await Checkout(_customer, "WELCOME", first.ProgramId));
+        var again = await CheckDiscount(_customer, "WELCOME", second.ProgramId);
+        var someoneElse = await CheckDiscount(Guid.CreateVersion7(), "WELCOME", second.ProgramId);
+        var opened = await StartCheckout(_customer, "LAST", second.ProgramId);
+        var reopened = await StartCheckout(_customer, "LAST", second.ProgramId);
+
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.OK), (again.StatusCode, someoneElse.StatusCode));
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (opened.StatusCode, reopened.StatusCode));
+    }
+
+    // Two buyers start checkout with a code's last use at the same moment: the code's lock lets one
+    // through and closes the other's payment page.
+    [Fact]
+    public async Task Two_buyers_cannot_both_take_a_codes_last_use()
+    {
+        var program = _api.Sellers.Sell(_coach.TenantId, _coach.Slug);
+        await CreateCode(_coach, new { code = "RACE", percentOff = 50, maxRedemptions = 1 });
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ => StartCheckout(Guid.CreateVersion7(), "RACE", program.ProgramId)));
+
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
+        Assert.Single(responses, r => r.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.BadRequest);
+        await using var connection = new Npgsql.NpgsqlConnection(databases.OwnerConnectionString("ordering"));
+        await connection.OpenAsync(Cancel);
+        await using var count = new Npgsql.NpgsqlCommand("SELECT count(*) FROM orders WHERE discount_code = 'RACE' AND status = 'Pending'", connection);
+        Assert.Equal(1L, (long)(await count.ExecuteScalarAsync(Cancel))!);
+    }
+
     [Fact]
     public async Task Codes_are_unique_per_workspace_and_can_be_deleted()
     {

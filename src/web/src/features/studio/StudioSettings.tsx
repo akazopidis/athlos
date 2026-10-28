@@ -85,8 +85,8 @@ export function StudioSettings() {
                   <Field id="ws-name" label="Name">
                     <Input id="ws-name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
                   </Field>
-                  <Field id="ws-logo" label="Logo URL (optional)" hint="A link to a square image, for example from your website.">
-                    <Input id="ws-logo" type="url" maxLength={500} value={logo} onChange={(e) => setLogo(e.target.value)} />
+                  <Field id="ws-logo" label="Logo URL (optional)" hint="A https:// link to a square image, for example from your website.">
+                    <Input id="ws-logo" type="url" pattern="https://.+" title="A link that starts with https://" maxLength={500} value={logo} onChange={(e) => setLogo(e.target.value)} />
                   </Field>
                   <Field
                     id="ws-contact"
@@ -100,13 +100,13 @@ export function StudioSettings() {
                   </Field>
                   <div className="grid gap-4 sm:grid-cols-3">
                     <Field id="ws-instagram" label="Instagram">
-                      <Input id="ws-instagram" type="url" maxLength={300} placeholder="https://instagram.com/…" value={instagram} onChange={(e) => setInstagram(e.target.value)} />
+                      <Input id="ws-instagram" type="url" pattern="https://.+" title="A link that starts with https://" maxLength={300} placeholder="https://instagram.com/…" value={instagram} onChange={(e) => setInstagram(e.target.value)} />
                     </Field>
                     <Field id="ws-youtube" label="YouTube">
-                      <Input id="ws-youtube" type="url" maxLength={300} placeholder="https://youtube.com/@…" value={youTube} onChange={(e) => setYouTube(e.target.value)} />
+                      <Input id="ws-youtube" type="url" pattern="https://.+" title="A link that starts with https://" maxLength={300} placeholder="https://youtube.com/@…" value={youTube} onChange={(e) => setYouTube(e.target.value)} />
                     </Field>
                     <Field id="ws-website" label="Website">
-                      <Input id="ws-website" type="url" maxLength={300} placeholder="https://…" value={website} onChange={(e) => setWebsite(e.target.value)} />
+                      <Input id="ws-website" type="url" pattern="https://.+" title="A link that starts with https://" maxLength={300} placeholder="https://…" value={website} onChange={(e) => setWebsite(e.target.value)} />
                     </Field>
                   </div>
                   <Field id="ws-color" label="Brand color">

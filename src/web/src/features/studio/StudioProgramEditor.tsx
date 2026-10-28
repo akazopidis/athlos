@@ -380,7 +380,7 @@ function WorkoutRow({ slug, programId, weeks, workout }: { slug: string; program
             </Badge>
           )}
         </p>
-        {workout.content && <p className="line-clamp-2 text-sm text-muted-foreground">{workout.content}</p>}
+        {workout.content && <p className="line-clamp-2 text-sm whitespace-pre-line text-muted-foreground">{workout.content}</p>}
         {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}
       </div>
       <div className="flex shrink-0 gap-1">
@@ -456,11 +456,24 @@ function WorkoutForm({
       <Field id={`${prefix}-title`} label="Title">
         <Input id={`${prefix}-title`} name="title" required maxLength={120} defaultValue={initial.title} />
       </Field>
-      <Field id={`${prefix}-content`} label="Instructions" className="sm:col-span-2">
+      <Field
+        id={`${prefix}-content`}
+        label="Instructions"
+        hint="Plain text: customers see it as written, line breaks included. Put each exercise on its own line, for example 5×5 back squat @ 80%."
+        className="sm:col-span-2"
+      >
         <Textarea id={`${prefix}-content`} name="content" rows={4} defaultValue={initial.content} />
       </Field>
-      <Field id={`${prefix}-video`} label="Video link (optional)" hint="An unlisted YouTube or Vimeo link; videos are not uploaded to Athlos." className="sm:col-span-2">
-        <Input id={`${prefix}-video`} name="videoUrl" type="url" defaultValue={initial.videoUrl ?? ''} />
+      <Field id={`${prefix}-video`} label="Video link (optional)" hint="An unlisted YouTube or Vimeo link, starting with https://; videos are not uploaded to Athlos." className="sm:col-span-2">
+        <Input
+          id={`${prefix}-video`}
+          name="videoUrl"
+          type="url"
+          // The same hosts catalog-api accepts (VideoUrlAttribute, backlog item 45).
+          pattern="https://(www\.|m\.|player\.)?(youtube\.com|youtu\.be|youtube-nocookie\.com|vimeo\.com)/.*"
+          title="A YouTube or Vimeo link that starts with https://"
+          defaultValue={initial.videoUrl ?? ''}
+        />
       </Field>
       <label className="flex items-start gap-3 text-sm sm:col-span-2">
         <input type="checkbox" name="isSample" defaultChecked={Boolean(initial.isSample)} className="mt-0.5 size-4 accent-primary" />

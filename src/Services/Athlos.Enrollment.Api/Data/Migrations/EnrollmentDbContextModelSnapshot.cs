@@ -22,6 +22,41 @@ namespace Athlos.Enrollment.Api.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Athlos.Enrollment.Api.Data.EmailPreference", b =>
+                {
+                    b.Property<Guid>("CustomerId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<DateTimeOffset?>("PriceDropEmailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("price_drop_emailed_at");
+
+                    b.Property<bool>("PriceDrops")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("price_drops");
+
+                    b.Property<bool>("ProgramUpdates")
+                        .HasColumnType("boolean")
+                        .HasColumnName("program_updates");
+
+                    b.Property<bool>("ReviewReplies")
+                        .HasColumnType("boolean")
+                        .HasColumnName("review_replies");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("CustomerId")
+                        .HasName("pk_email_preferences");
+
+                    b.ToTable("email_preferences", (string)null);
+                });
+
             modelBuilder.Entity("Athlos.Enrollment.Api.Data.ProgramCopy", b =>
                 {
                     b.Property<Guid>("ProgramId")

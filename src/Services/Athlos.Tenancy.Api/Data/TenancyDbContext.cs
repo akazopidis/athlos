@@ -19,6 +19,8 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
 
     public DbSet<EmailSuppression> EmailSuppressions => Set<EmailSuppression>();
 
+    public DbSet<PayoutReminder> PayoutReminders => Set<PayoutReminder>();
+
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public DbSet<AdminAction> AdminActions => Set<AdminAction>();
@@ -30,6 +32,7 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
             tenant.HasIndex(t => t.Slug).IsUnique();
             tenant.Property(t => t.Slug).HasMaxLength(40);
             tenant.Property(t => t.DisplayName).HasMaxLength(100);
+            tenant.Property(t => t.CatalogName).HasMaxLength(100);
             tenant.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
             tenant.Property(t => t.Plan).HasConversion<string>().HasMaxLength(20);
             tenant.OwnsOne(t => t.Branding, branding => branding.ToJson());
@@ -72,6 +75,12 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
             report.Property(r => r.Subject).HasMaxLength(120);
             report.Property(r => r.CoachSlug).HasMaxLength(40);
             report.Property(r => r.Note).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<PayoutReminder>(reminder =>
+        {
+            reminder.HasKey(r => r.TenantId);
+            reminder.HasIndex(r => r.DueAt);
         });
 
         modelBuilder.Entity<EmailSuppression>(suppression =>

@@ -219,6 +219,26 @@ namespace Athlos.Tenancy.Api.Data.Migrations
                     b.ToTable("memberships", (string)null);
                 });
 
+            modelBuilder.Entity("Athlos.Tenancy.Api.Data.PayoutReminder", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("DueAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("due_at");
+
+                    b.HasKey("TenantId")
+                        .HasName("pk_payout_reminders");
+
+                    b.HasIndex("DueAt")
+                        .HasDatabaseName("ix_payout_reminders_due_at");
+
+                    b.ToTable("payout_reminders", (string)null);
+                });
+
             modelBuilder.Entity("Athlos.Tenancy.Api.Data.StaffInvite", b =>
                 {
                     b.Property<Guid>("Id")
@@ -280,6 +300,11 @@ namespace Athlos.Tenancy.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<string>("CatalogName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("catalog_name");
 
                     b.Property<DateTimeOffset?>("CoachTermsAcceptedAt")
                         .HasColumnType("timestamp with time zone")

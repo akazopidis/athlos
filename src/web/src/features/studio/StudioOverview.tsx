@@ -13,6 +13,7 @@ import { useApp } from '@/lib/AppContext'
 import { formatMoney } from '@/lib/money'
 import { problemTitle } from '@/lib/problem'
 import { formatRating } from '@/lib/rating'
+import { StudioPayouts } from './StudioPayouts.tsx'
 import { StudioPrograms } from './StudioPrograms.tsx'
 import { useStudio } from './useStudio.ts'
 
@@ -20,7 +21,7 @@ import { useStudio } from './useStudio.ts'
 // to share, the numbers and the latest reviews once there are some, payout setup (needed before
 // publishing, design §3.4) and the programs.
 export function StudioOverview() {
-  const { slug, workspace } = useStudio()
+  const { slug, workspace, isOwner } = useStudio()
   const { api } = useApp()
   const params = { params: { path: { tenantSlug: slug } } }
 
@@ -91,10 +92,7 @@ export function StudioOverview() {
         {payouts.isPending ? (
           <Skeleton className="h-20 w-full rounded-xl" />
         ) : payouts.data?.onboardingComplete ? (
-          <Alert>
-            <CircleCheck aria-hidden />
-            <AlertDescription>Payouts are set up. You can publish programs.</AlertDescription>
-          </Alert>
+          <StudioPayouts slug={slug} isOwner={isOwner} />
         ) : (
           <Card className="border-volt bg-volt/15">
             <CardContent className="flex flex-wrap items-center gap-4">

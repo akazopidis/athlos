@@ -300,7 +300,7 @@ export interface components {
             coaches: components["schemas"]["SearchProgramsCoachFacet"][];
         };
         /** @enum {unknown} */
-        SearchProgramsSort: "Newest" | "PriceLowToHigh" | "PriceHighToLow" | "TopRated";
+        Sort: "Newest" | "PriceLowToHigh" | "PriceHighToLow" | "TopRated" | "Relevance" | null;
         UpdateProgramRequest: {
             title: string;
             description: null | string;
@@ -354,7 +354,7 @@ export interface operations {
                 MaxPrice?: number | string;
                 MinWeeks?: number | string;
                 MaxWeeks?: number | string;
-                Sort?: components["schemas"]["SearchProgramsSort"];
+                Sort?: components["schemas"]["Sort"];
                 Page?: number | string;
                 PageSize?: number | string;
             };

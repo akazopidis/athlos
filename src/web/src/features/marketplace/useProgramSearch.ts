@@ -1,9 +1,11 @@
 import { useSearchParams } from 'react-router'
 import { isCategory, type Category } from '@/lib/categories'
 
-export type Sort = 'Newest' | 'TopRated' | 'PriceLowToHigh' | 'PriceHighToLow'
+export type Sort = 'Relevance' | 'Newest' | 'TopRated' | 'PriceLowToHigh' | 'PriceHighToLow'
 
+// Best match is offered with a search only, and is then the default (design §8); Newest otherwise.
 export const Sorts: { value: Sort; label: string }[] = [
+  { value: 'Relevance', label: 'Best match' },
   { value: 'Newest', label: 'Newest' },
   { value: 'TopRated', label: 'Top rated' },
   { value: 'PriceLowToHigh', label: 'Price: low to high' },
@@ -19,6 +21,9 @@ export const Lengths = [
 ] as const
 
 export type Length = (typeof Lengths)[number]['value']
+
+// What the API sorts by when the search names no sort.
+export const defaultSort = (q: string | undefined): Sort => (q?.trim() ? 'Relevance' : 'Newest')
 
 export interface ProgramSearch {
   q?: string

@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Athlos.Enrollment.Api.Data;
+using Athlos.Enrollment.Api.Features.EmailPreferences;
 using Athlos.Enrollment.Api.Features.Enrollments;
 using Athlos.Enrollment.Api.Features.MyPrograms;
 using Athlos.Enrollment.Api.Features.Reviews;
@@ -24,6 +25,7 @@ builder.Services.AddTenantDbContext<EnrollmentDbContext>(options => options
         npgsql => npgsql.ConfigureDataSource(dataSource => dataSource.UseEntraTokenIfNoPassword(builder.Configuration["AZURE_CLIENT_ID"])))
     .UseSnakeCaseNamingConvention());
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<UnsubscribeTokens>();
 
 // OrderPaid arrives from ordering-api through Service Bus (design §2.2).
 builder.AddQueueConsumer<OrderPaid, EnrollOnOrderPaid>(OrderPaid.Queue);
@@ -67,9 +69,11 @@ app.MapDefaultEndpoints();
 // Customer: the programs they bought, across coaches. Reads are their own rows (MyEnrollments);
 // the program page and progress writes manage their own transactions around the call to catalog.
 var me = app.MapGroup("/api/v1/me").RequireAuthorization();
-me.MapGroup("")
-    .WithTenantTransaction<EnrollmentDbContext>()
-    .MapListMyPrograms();
+var myRows = me.MapGroup("")
+    .WithTenantTransaction<EnrollmentDbContext>();
+myRows.MapListMyPrograms();
+// Which optional emails the customer wants (design §5.3)
+myRows.MapMyEmailPreferences();
 me.MapGetMyProgram();
 me.MapWorkoutCompletion();
 me.MapMyReview();
@@ -80,6 +84,9 @@ var marketplace = app.MapGroup("/api/v1/marketplace")
     .UsePublicReadScope();
 marketplace.MapProgramReviews();
 marketplace.MapReportReview();
+
+// Public: an email's unsubscribe link turns that email off for the customer its signed token names (design §5.3)
+app.MapUnsubscribe();
 
 // Platform admin (Entra app role Platform.Admin): reported reviews, hidden or kept (design §2.4)
 app.MapAdminReviews();
@@ -101,5 +108,7 @@ app.MapEraseCustomer();
 app.MapExportCustomer();
 // Catalog-api only (signed): a program on sale got a new workout; its customers are emailed (design §5.3)
 app.MapProgramUpdated();
+// Catalog-api only (signed): a saved program costs less; the customers who saved it are emailed, at most weekly (design §2.4)
+app.MapPriceDropped();
 
 app.Run();

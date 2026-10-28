@@ -1,0 +1,17 @@
+{
+  "UserConfig": {
+    "Namespaces": [
+      {
+        "Name": "sbemulatorns",
+        "Queues": [
+          { "Name": "outbox-test", "Properties": { "MaxDeliveryCount": 3, "LockDuration": "PT30S", "DefaultMessageTimeToLive": "PT1H", "DeadLetteringOnMessageExpiration": true, "DuplicateDetectionHistoryTimeWindow": "PT20S", "ForwardDeadLetteredMessagesTo": "", "ForwardTo": "", "RequiresDuplicateDetection": false, "RequiresSession": false } },
+          { "Name": "consumer-ok", "Properties": { "MaxDeliveryCount": 3, "LockDuration": "PT30S", "DefaultMessageTimeToLive": "PT1H", "DeadLetteringOnMessageExpiration": true, "DuplicateDetectionHistoryTimeWindow": "PT20S", "ForwardDeadLetteredMessagesTo": "", "ForwardTo": "", "RequiresDuplicateDetection": false, "RequiresSession": false } },
+          { "Name": "consumer-fails", "Properties": { "MaxDeliveryCount": 3, "LockDuration": "PT30S", "DefaultMessageTimeToLive": "PT1H", "DeadLetteringOnMessageExpiration": true, "DuplicateDetectionHistoryTimeWindow": "PT20S", "ForwardDeadLetteredMessagesTo": "", "ForwardTo": "", "RequiresDuplicateDetection": false, "RequiresSession": false } },
+          { "Name": "consumer-unreadable", "Properties": { "MaxDeliveryCount": 3, "LockDuration": "PT30S", "DefaultMessageTimeToLive": "PT1H", "DeadLetteringOnMessageExpiration": true, "DuplicateDetectionHistoryTimeWindow": "PT20S", "ForwardDeadLetteredMessagesTo": "", "ForwardTo": "", "RequiresDuplicateDetection": false, "RequiresSession": false } }
+        ],
+        "Topics": []
+      }
+    ],
+    "Logging": { "Type": "File" }
+  }
+}

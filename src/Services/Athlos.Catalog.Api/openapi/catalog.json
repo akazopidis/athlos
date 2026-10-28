@@ -93,8 +93,7 @@
             "name": "Sort",
             "in": "query",
             "schema": {
-              "default": "Newest",
-              "$ref": "#/components/schemas/SearchProgramsSort"
+              "$ref": "#/components/schemas/Sort"
             }
           },
           {
@@ -1355,12 +1354,14 @@
           }
         }
       },
-      "SearchProgramsSort": {
+      "Sort": {
         "enum": [
           "Newest",
           "PriceLowToHigh",
           "PriceHighToLow",
-          "TopRated"
+          "TopRated",
+          "Relevance",
+          null
         ]
       },
       "UpdateProgramRequest": {

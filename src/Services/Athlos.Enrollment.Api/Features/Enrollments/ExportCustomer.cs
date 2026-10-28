@@ -1,4 +1,5 @@
 using Athlos.Enrollment.Api.Data;
+using Athlos.Enrollment.Api.Features.EmailPreferences;
 using Athlos.Tenancy;
 using Athlos.Tenancy.Data;
 using Microsoft.EntityFrameworkCore;
@@ -6,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Enrollment.Api.Features.Enrollments;
 
 // A customer's data export (design §5.4), called by tenancy-api: the programs they own, the workouts
-// they completed and their reviews, with every coach.
+// they completed and their reviews, with every coach, and which optional emails they get.
 //
 // CROSS-TENANT SLICE (design §3.2, "a customer's own rows, for their export"): acts for that user, so
 // the reads ignore the tenant filter and rely on the customer filter below and on RLS
@@ -20,7 +21,7 @@ public static class ExportCustomer
 
     public sealed record ExportedCompletion(Guid WorkoutId, DateTimeOffset CompletedAt);
 
-    public sealed record Export(List<ExportedProgram> Programs);
+    public sealed record Export(List<ExportedProgram> Programs, EmailPreferenceEndpoints.Preferences EmailPreferences);
 
     public static void MapExportCustomer(this IEndpointRouteBuilder app) =>
         app.MapGet("/internal/customers/{customerId:guid}/export", Handle)
@@ -43,10 +44,12 @@ public static class ExportCustomer
             .IgnoreQueryFilters([TenantDbContext.TenantFilter])
             .Where(r => r.CustomerId == customerId)
             .ToListAsync(cancellationToken);
+        var preferences = await db.EmailPreferences.AsNoTracking().SingleOrDefaultAsync(p => p.CustomerId == customerId, cancellationToken);
 
         return TypedResults.Ok(new Export([.. enrollments.Select(e => new ExportedProgram(
             e.ProgramId, e.ProgramTitle, e.CoachSlug, e.EnrolledAt,
             [.. progress.Where(p => p.EnrollmentId == e.Id).OrderBy(p => p.CompletedAt).Select(p => new ExportedCompletion(p.WorkoutId, p.CompletedAt))],
-            reviews.Where(r => r.EnrollmentId == e.Id).Select(r => new ExportedReview(r.Rating, r.Comment, r.AuthorName, r.CreatedAt, r.Reply)).SingleOrDefault()))]));
+            reviews.Where(r => r.EnrollmentId == e.Id).Select(r => new ExportedReview(r.Rating, r.Comment, r.AuthorName, r.CreatedAt, r.Reply)).SingleOrDefault()))],
+            new EmailPreferenceEndpoints.Preferences(preferences?.ProgramUpdates ?? true, preferences?.ReviewReplies ?? true, preferences?.PriceDrops ?? true)));
     }
 }

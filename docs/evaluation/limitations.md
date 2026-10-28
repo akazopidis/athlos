@@ -193,8 +193,8 @@ The limitations fall into three kinds:
 ### 20. Email from a Microsoft-managed domain
 - **Missing:** email from Athlos's own domain. Athlos's emails come from an Azure-managed `azurecomm.net` address. Entra's sign-up and password-reset emails come from a Microsoft sender with Athlos branding (§5.2, §5.3).
 - **Why:** no owned domain. A custom domain for Entra's own emails needs a custom email provider extension.
-- **Impact:** a weaker brand and lower deliverability: shared domains are more likely to land in spam. There is also no handling of bounces or complaints.
-- **Solution:** an owned domain with SPF, DKIM and DMARC in Azure Communication Services, and an event subscription for bounces.
+- **Impact:** a weaker brand and lower deliverability: shared domains are more likely to land in spam. Bounces are handled (v17.8: an address that bounces is skipped for 180 days); complaints are not, since an Azure-managed domain reports none.
+- **Solution:** an owned domain with SPF, DKIM and DMARC in Azure Communication Services.
 
 ## Product and quality
 

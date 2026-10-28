@@ -20,6 +20,7 @@ public sealed class NotificationsWorkerTests
     private static readonly Guid Tenant = Guid.CreateVersion7();
 
     private readonly FakeOwners _owners = new();
+    private readonly FakeSuppressions _suppressions = new();
     private readonly RecordingSender _sender = new();
 
     private static CancellationToken Cancel => TestContext.Current.CancellationToken;
@@ -46,6 +47,40 @@ public sealed class NotificationsWorkerTests
         await Deliver(SaleEmail() with { ToOwnersOfTenant = Guid.CreateVersion7() });
 
         Assert.Single(_sender.Sent);
+    }
+
+    [Fact]
+    public async Task An_address_that_bounced_before_is_skipped()
+    {
+        _owners.Emails[Tenant] = ["owner@coach.test", "gone@coach.test"];
+        _suppressions.Hashes[AddressHash.Of("Gone@Coach.test ")] = "Bounced";
+
+        var outcome = await Deliver(SaleEmail());
+
+        Assert.Equal("completed", outcome);
+        Assert.Equal(["owner@coach.test"], _sender.Sent.Select(s => s.To));
+    }
+
+    [Theory]
+    [InlineData("Bounced", true)]
+    [InlineData("Suppressed", true)]
+    [InlineData("Delivered", false)]
+    [InlineData("FilteredSpam", false)]
+    public async Task A_bounce_report_puts_the_address_on_the_list(string status, bool recorded)
+    {
+        var outcome = await DeliverRaw(DeliveryReport("buyer@test.local", status), EmailDeliveryReport.Queue);
+
+        Assert.Equal("completed", outcome);
+        Assert.Equal(recorded ? status : null, _suppressions.Hashes.GetValueOrDefault(AddressHash.Of("buyer@test.local")));
+    }
+
+    [Fact]
+    public async Task Another_event_type_is_completed_without_effect()
+    {
+        var other = BinaryData.FromString("""{"eventType":"Microsoft.Communication.EmailEngagementTrackingReportReceived","data":{"recipient":"a@test.local","status":"Bounced"}}""");
+
+        Assert.Equal("completed", await DeliverRaw(other, EmailDeliveryReport.Queue));
+        Assert.Empty(_suppressions.Hashes);
     }
 
     [Fact]
@@ -156,20 +191,55 @@ public sealed class NotificationsWorkerTests
     private Task<string> Deliver(EmailNotification message) =>
         DeliverRaw(BinaryData.FromString(JsonSerializer.Serialize(message, JsonSerializerOptions.Web)));
 
-    private async Task<string> DeliverRaw(BinaryData body)
+    // Communication Services' report as Event Grid puts it on the queue (Event Grid schema).
+    private static BinaryData DeliveryReport(string recipient, string status) => BinaryData.FromString($$"""
+        {
+          "id": "{{Guid.NewGuid()}}",
+          "topic": "/subscriptions/x/resourceGroups/rg/providers/Microsoft.Communication/communicationServices/acs-athlos-dev",
+          "subject": "sender/DoNotReply@example.azurecomm.net/message/{{Guid.NewGuid()}}",
+          "eventType": "Microsoft.Communication.EmailDeliveryReportReceived",
+          "eventTime": "2026-10-28T10:00:00Z",
+          "data": {
+            "sender": "DoNotReply@example.azurecomm.net",
+            "recipient": "{{recipient}}",
+            "messageId": "{{Guid.NewGuid()}}",
+            "status": "{{status}}",
+            "deliveryStatusDetails": { "statusMessage": "550 5.1.1 mailbox unavailable" },
+            "deliveryAttemptTimeStamp": "2026-10-28T10:00:00Z"
+          },
+          "dataVersion": "1.0",
+          "metadataVersion": "1"
+        }
+        """);
+
+    private Task<string> DeliverRaw(BinaryData body) => DeliverRaw(body, EmailNotification.Queue);
+
+    private async Task<string> DeliverRaw(BinaryData body, string queue)
     {
         var services = new ServiceCollection()
             .AddLogging()
             .AddSingleton<EmailRenderer>()
             .AddSingleton<IOwnerDirectory>(_owners)
+            .AddSingleton<ISuppressionList>(_suppressions)
             .AddSingleton<IEmailSender>(_sender)
             .AddScoped<IMessageHandler<EmailNotification>, SendEmail>()
+            .AddScoped<IMessageHandler<EmailDeliveryReport>, RecordDeliveryReport>()
             .BuildServiceProvider();
-        var consumer = new QueueConsumer<EmailNotification>(
-            services, services.GetRequiredService<IServiceScopeFactory>(), EmailNotification.Queue, NullLogger<QueueConsumer<EmailNotification>>.Instance);
+        var scopes = services.GetRequiredService<IServiceScopeFactory>();
 
         var settlement = new Settlement();
-        await consumer.ProcessAsync(body, Guid.NewGuid().ToString(), deliveryCount: 1, settlement, Cancel);
+        var messageId = Guid.NewGuid().ToString();
+        if (queue == EmailDeliveryReport.Queue)
+        {
+            await new QueueConsumer<EmailDeliveryReport>(services, scopes, queue, NullLogger<QueueConsumer<EmailDeliveryReport>>.Instance)
+                .ProcessAsync(body, messageId, deliveryCount: 1, settlement, Cancel);
+        }
+        else
+        {
+            await new QueueConsumer<EmailNotification>(services, scopes, queue, NullLogger<QueueConsumer<EmailNotification>>.Instance)
+                .ProcessAsync(body, messageId, deliveryCount: 1, settlement, Cancel);
+        }
+
         return settlement.Outcome;
     }
 
@@ -179,6 +249,21 @@ public sealed class NotificationsWorkerTests
 
         public Task<IReadOnlyList<string>> GetOwnerEmailsAsync(Guid tenantId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<string>>(Emails.GetValueOrDefault(tenantId) ?? []);
+    }
+
+    // The list as tenancy-api keeps it: by hash.
+    private sealed class FakeSuppressions : ISuppressionList
+    {
+        public ConcurrentDictionary<string, string> Hashes { get; } = new();
+
+        public Task<IReadOnlySet<string>> SuppressedAsync(IReadOnlyCollection<string> addresses, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlySet<string>>(addresses.Where(a => Hashes.ContainsKey(AddressHash.Of(a))).ToHashSet());
+
+        public Task RecordAsync(string address, string status, CancellationToken cancellationToken)
+        {
+            Hashes[AddressHash.Of(address)] = status;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class RecordingSender : IEmailSender

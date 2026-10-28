@@ -459,8 +459,16 @@ function WorkoutForm({
       <Field id={`${prefix}-content`} label="Instructions" className="sm:col-span-2">
         <Textarea id={`${prefix}-content`} name="content" rows={4} defaultValue={initial.content} />
       </Field>
-      <Field id={`${prefix}-video`} label="Video link (optional)" hint="An unlisted YouTube or Vimeo link; videos are not uploaded to Athlos." className="sm:col-span-2">
-        <Input id={`${prefix}-video`} name="videoUrl" type="url" defaultValue={initial.videoUrl ?? ''} />
+      <Field id={`${prefix}-video`} label="Video link (optional)" hint="An unlisted YouTube or Vimeo link, starting with https://; videos are not uploaded to Athlos." className="sm:col-span-2">
+        <Input
+          id={`${prefix}-video`}
+          name="videoUrl"
+          type="url"
+          // The same hosts catalog-api accepts (VideoUrlAttribute, backlog item 45).
+          pattern="https://(www\.|m\.|player\.)?(youtube\.com|youtu\.be|youtube-nocookie\.com|vimeo\.com)/.*"
+          title="A YouTube or Vimeo link that starts with https://"
+          defaultValue={initial.videoUrl ?? ''}
+        />
       </Field>
       <label className="flex items-start gap-3 text-sm sm:col-span-2">
         <input type="checkbox" name="isSample" defaultChecked={Boolean(initial.isSample)} className="mt-0.5 size-4 accent-primary" />

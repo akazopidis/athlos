@@ -29,6 +29,9 @@ public static class EmailTemplates
     // To the coach's owners, queued by tenancy-api (design §5.3): the workspace's life and its team.
     public const string WorkspaceWelcome = "workspace-welcome";
     public const string PayoutsReady = "payouts-ready";
+
+    // Once, three days after the owner started Stripe onboarding, if payouts are still not set up (design §5.3).
+    public const string PayoutsReminder = "payouts-reminder";
     public const string InviteAccepted = "invite-accepted";
     public const string MemberLeft = "member-left";
     public const string OwnershipReceived = "ownership-received";

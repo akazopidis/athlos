@@ -55,6 +55,7 @@ builder.Services.Configure<EntraAccountDeletionOptions>(builder.Configuration.Ge
 builder.Services.AddHttpClient<IEntraUsers, GraphEntraUsers>();
 // The staff invite email leaves through the outbox to the notifications queue (design §5.2, §5.3).
 builder.AddOutbox<TenancyDbContext>();
+builder.Services.AddHostedService<Athlos.Tenancy.Api.Features.Payouts.PayoutReminders>();
 
 // The coach's uploaded logo (design §8): ConnectionStrings:media is Azurite locally and the account's
 // blob endpoint in Azure (managed identity), the same container as catalog-api's program covers.

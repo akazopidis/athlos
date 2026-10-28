@@ -145,3 +145,34 @@ jobs:
           allow_issue_writing: false
           fail_action: false
           artifact_name: zap-report
+
+  # Lighthouse on five public pages, phone and desktop, the median of three runs (design §8.1,
+  # docs/evaluation/lighthouse.md), against a budget that fails on a regression
+  # (tests/evaluation/lighthouse_budget.py). The reports are kept as an artifact.
+  lighthouse:
+    needs: deploy
+    if: ${{ !cancelled() && needs.deploy.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Lighthouse
+        env:
+          BASE: ${{ vars.E2E_BASE_URL || 'https://ca-athlos-gateway-staging.ashybush-033a4967.italynorth.azurecontainerapps.io' }}
+        # GitHub's bash runs with -eo pipefail: an over-budget result fails the step through tee.
+        run: |
+          mkdir -p lighthouse
+          bash tests/evaluation/lighthouse.sh "$BASE" lighthouse 3 | tee lighthouse/summary.csv
+          python3 -I tests/evaluation/lighthouse_budget.py < lighthouse/summary.csv | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: lighthouse-report
+          path: lighthouse
+          retention-days: 14

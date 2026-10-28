@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
 using Athlos.Ordering.Api.Features.Checkout;
+using Athlos.Tenancy;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Athlos.Ordering.Api.Features.Discounts;
@@ -27,8 +28,13 @@ public static class CheckDiscount
             .WithTags("Orders");
 
     private static async Task<Results<Ok<Response>, ProblemHttpResult>> Handle(
-        Request request, ISellerDirectory sellers, IServiceScopeFactory scopes, TimeProvider time, CancellationToken cancellationToken)
+        Request request, ITenantContext tenant, ISellerDirectory sellers, IServiceScopeFactory scopes, TimeProvider time, CancellationToken cancellationToken)
     {
+        if (tenant.UserId is not { } customerId)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Sign in to use a discount code.");
+        }
+
         var code = DiscountRules.Normalize(request.Code);
         var offers = new List<ProgramOffer>();
         if (Regex.IsMatch(code, DiscountRules.CodePattern))
@@ -42,10 +48,10 @@ public static class CheckDiscount
             }
         }
 
-        var applied = await DiscountRules.ApplyAsync(scopes, offers, code, time.GetUtcNow(), cancellationToken);
+        var applied = await DiscountRules.ApplyAsync(scopes, offers, code, customerId, time.GetUtcNow(), cancellationToken);
         if (applied.Count == 0)
         {
-            return TypedResults.Problem(statusCode: StatusCodes.Status404NotFound, title: "This code does not apply to the programs in your cart.");
+            return TypedResults.Problem(statusCode: StatusCodes.Status404NotFound, title: "This code does not apply to the programs in your cart, or you have used it before.");
         }
 
         return TypedResults.Ok(new Response(code, offers

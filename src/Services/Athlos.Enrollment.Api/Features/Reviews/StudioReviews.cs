@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Enrollment.Api.Data;
+using Athlos.Enrollment.Api.Features.EmailPreferences;
 using Athlos.Messaging;
 using Athlos.Messaging.Contracts;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -54,8 +55,8 @@ public static class StudioReviews
     }
 
     private static async Task<Results<NoContent, NotFound, ValidationProblem>> Reply(
-        string tenantSlug, Guid reviewId, ReplyRequest request, EnrollmentDbContext db, TimeProvider time, IConfiguration configuration,
-        CancellationToken cancellationToken)
+        string tenantSlug, Guid reviewId, ReplyRequest request, EnrollmentDbContext db, UnsubscribeTokens tokens, TimeProvider time,
+        IConfiguration configuration, CancellationToken cancellationToken)
     {
         var text = request.Text.Trim();
         if (text.Length == 0)
@@ -71,7 +72,9 @@ public static class StudioReviews
             return TypedResults.NotFound();
         }
 
-        if (found.Review.Reply is null && found.Enrollment.CustomerEmail is { } email)
+        // The first reply emails the customer, unless they turned these emails off (design §5.3).
+        if (found.Review.Reply is null && found.Enrollment.CustomerEmail is { } email
+            && !await EmailPreferenceEndpoints.TurnedOff(db, EmailTopic.ReviewReplies).ContainsAsync(found.Enrollment.CustomerId, cancellationToken))
         {
             var publicUrl = new Uri(configuration["App:PublicUrl"] ?? throw new InvalidOperationException("App:PublicUrl is not configured."));
             db.OutboxMessages.Add(OutboxMessage.For(EmailNotification.Queue, new EmailNotification(
@@ -81,6 +84,7 @@ public static class StudioReviews
                     ["coach"] = found.Enrollment.CoachSlug,
                     ["reply"] = text,
                     ["programUrl"] = new Uri(publicUrl, $"/me/programs/{found.Enrollment.ProgramId}").ToString(),
+                    ["unsubscribeUrl"] = EmailPreferenceEndpoints.UnsubscribeUrl(publicUrl, tokens, found.Enrollment.CustomerId, EmailTopic.ReviewReplies),
                 })));
         }
 

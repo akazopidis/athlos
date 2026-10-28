@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using Athlos.Enrollment.Api.Features.MyPrograms;
 using Athlos.Tenancy;
 using Athlos.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using static Athlos.Testing.EnrollmentArrange;
 using static Athlos.Testing.OrderingArrange;
@@ -48,6 +49,8 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         { "POST", $"/api/v1/admin/reviews/{Guid.Empty}/hide" },
         { "POST", $"/api/v1/admin/reviews/{Guid.Empty}/keep" },
         { "GET", "/api/v1/admin/reviews/actions" },
+        { "GET", "/api/v1/me/email-preferences" },
+        { "PUT", "/api/v1/me/email-preferences" },
     };
 
     // A workspace export (design §5.4) holds that coach's programs and reviews, and none of another's;
@@ -344,6 +347,62 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
 
         Assert.Equal((1L, 0L, 0L), (reviews, enrollments, progress));
         Assert.Equal((0, 0, 0L), (updated, deleted, outsideTheScope));
+    }
+
+    // Email preferences (design §5.3) are each customer's own: Bob's choice is not Alice's, and an
+    // unsubscribe link changes only the customer its token names. The link needs no sign-in but, like
+    // every route, the gateway signature.
+    [Fact]
+    public async Task Email_preferences_are_each_customers_own()
+    {
+        await Preferences(_bob, programUpdates: false);
+        var tokens = _api.Services.GetRequiredService<Athlos.Enrollment.Api.Features.EmailPreferences.UnsubscribeTokens>();
+        var link = new { token = tokens.Create(_alice, Athlos.Enrollment.Api.Features.EmailPreferences.EmailTopic.ReviewReplies) };
+
+        var alices = await _api.AsCustomer(_alice, HttpMethod.Get, "/email-preferences");
+        var unsigned = await _api.CreateClient().PostAsync("/api/v1/email-preferences/unsubscribe", System.Net.Http.Json.JsonContent.Create(link), Cancel);
+        var signed = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Post, "/api/v1/email-preferences/unsubscribe") { Content = System.Net.Http.Json.JsonContent.Create(link) }, _bob);
+        var bobs = await _api.AsCustomer(_bob, HttpMethod.Get, "/email-preferences");
+
+        Assert.Contains("\"programUpdates\":true", await alices.Content.ReadAsStringAsync(Cancel), StringComparison.Ordinal);
+        Assert.Equal((HttpStatusCode.Unauthorized, HttpStatusCode.OK), (unsigned.StatusCode, signed.StatusCode));
+        Assert.Contains("\"programUpdates\":false,\"reviewReplies\":true", await bobs.Content.ReadAsStringAsync(Cancel), StringComparison.Ordinal);
+    }
+
+    // Layer 4 alone: a customer reads only their own preferences; a coach's session (where the emails
+    // are sent) reads those of its own customers only and writes none.
+    [Fact]
+    public async Task RLS_a_tenant_reads_only_its_own_customers_preferences_and_writes_none()
+    {
+        await Preferences(_alice, programUpdates: false);
+        await Preferences(_bob, programUpdates: false);
+        var row = $"SELECT count(*) FROM email_preferences WHERE customer_id = '{_alice}'";
+
+        var own = await Scalar<long>(null, _alice, row);
+        var bobReadsAlices = await Scalar<long>(null, _bob, row);
+        var tenantA = await Scalar<long>(_a.TenantId, null, row);
+        var tenantB = await Scalar<long>(_b.TenantId, null, row);
+        var tenantBSeesBob = await Scalar<long>(_b.TenantId, null, $"SELECT count(*) FROM email_preferences WHERE customer_id = '{_bob}'");
+        var updated = await Execute(_a.TenantId, null, $"UPDATE email_preferences SET program_updates = true WHERE customer_id = '{_alice}'");
+        var deleted = await Execute(_a.TenantId, null, $"DELETE FROM email_preferences WHERE customer_id = '{_alice}'");
+        var inserted = await Assert.ThrowsAsync<PostgresException>(() => Execute(_a.TenantId, null,
+            $"INSERT INTO email_preferences (customer_id, program_updates, review_replies, updated_at) VALUES ('{Guid.CreateVersion7()}', true, true, now())"));
+
+        Assert.Equal((1L, 0L, 1L, 0L, 1L), (own, bobReadsAlices, tenantA, tenantB, tenantBSeesBob));
+        Assert.Equal((0, 0), (updated, deleted));
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, inserted.SqlState);
+    }
+
+    private async Task Preferences(Guid customerId, bool programUpdates)
+    {
+        var response = await _api.SendAsGateway(
+            new HttpRequestMessage(HttpMethod.Put, "/api/v1/me/email-preferences")
+            {
+                Content = System.Net.Http.Json.JsonContent.Create(new { programUpdates, reviewReplies = true }),
+            },
+            customerId);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private Task<HttpResponseMessage> Review(Guid customerId, Guid programId, int rating) =>

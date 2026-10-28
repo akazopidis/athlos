@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Athlos.Enrollment.Api.Data;
+using Athlos.Enrollment.Api.Features.EmailPreferences;
 using Athlos.Messaging;
 using Athlos.Messaging.Contracts;
 using Athlos.Tenancy;
@@ -11,7 +12,8 @@ namespace Athlos.Enrollment.Api.Features.Enrollments;
 // §5.3): its customers are emailed that the program has something new (program-updated), at most once
 // a day each, so a coach adding a week of workouts sends one email, not seven. The handler enters the
 // named tenant, so the tenant filter and RLS confine it to that coach's enrollments. Enrollments
-// without an address (from before v1.12.0) get nothing.
+// without an address (from before v1.12.0) get nothing, nor do customers who turned these emails off;
+// each email carries a link that turns them off (v17.9).
 public static class ProgramUpdated
 {
     public static readonly TimeSpan Quiet = TimeSpan.FromDays(1);
@@ -23,8 +25,8 @@ public static class ProgramUpdated
             .ExcludeFromDescription();
 
     private static async Task<IResult> Handle(
-        Guid tenantId, Guid programId, Request request, TenantContext tenant, EnrollmentDbContext db, TimeProvider time, IConfiguration configuration,
-        CancellationToken cancellationToken)
+        Guid tenantId, Guid programId, Request request, TenantContext tenant, EnrollmentDbContext db, UnsubscribeTokens tokens, TimeProvider time,
+        IConfiguration configuration, CancellationToken cancellationToken)
     {
         tenant.EnterTenant(tenantId, role: null);
         var now = time.GetUtcNow();
@@ -32,6 +34,7 @@ public static class ProgramUpdated
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var due = await db.Enrollments
             .Where(e => e.ProgramId == programId && e.CustomerEmail != null && (e.UpdateEmailedAt == null || e.UpdateEmailedAt < now - Quiet))
+            .Where(e => !EmailPreferenceEndpoints.TurnedOff(db, EmailTopic.ProgramUpdates).Contains(e.CustomerId))
             .ToListAsync(cancellationToken);
         foreach (var enrollment in due)
         {
@@ -43,6 +46,7 @@ public static class ProgramUpdated
                     ["workoutTitle"] = request.WorkoutTitle,
                     ["coach"] = enrollment.CoachSlug,
                     ["programUrl"] = new Uri(publicUrl, $"/me/programs/{programId}").ToString(),
+                    ["unsubscribeUrl"] = EmailPreferenceEndpoints.UnsubscribeUrl(publicUrl, tokens, enrollment.CustomerId, EmailTopic.ProgramUpdates),
                 })));
         }
 

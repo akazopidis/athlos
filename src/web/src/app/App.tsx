@@ -31,6 +31,7 @@ const MyWorkspaces = lazyPage(() => import('@/features/account/MyWorkspaces'), '
 const AccountSettings = lazyPage(() => import('@/features/account/AccountSettings'), 'AccountSettings')
 const MyProgramPage = lazyPage(() => import('@/features/account/MyProgramPage'), 'MyProgramPage')
 const Receipt = lazyPage(() => import('@/features/account/Receipt'), 'Receipt')
+const Unsubscribe = lazyPage(() => import('@/features/account/Unsubscribe'), 'Unsubscribe')
 const Studio = lazyPage(() => import('@/features/studio/Studio'), 'Studio')
 const StudioOverview = lazyPage(() => import('@/features/studio/StudioOverview'), 'StudioOverview')
 const StudioProgramEditor = lazyPage(() => import('@/features/studio/StudioProgramEditor'), 'StudioProgramEditor')
@@ -68,6 +69,7 @@ export default function App() {
                 <Route path="/legal/refunds" element={<Refunds />} />
                 <Route path="/legal/coaches" element={<CoachTerms />} />
                 <Route path="/invites/:slug" element={<AcceptInvite />} />
+                <Route path="/unsubscribe" element={<Unsubscribe />} />
                 <Route path="/studio/new" element={<CreateWorkspace />} />
                 <Route path="/studio/:slug" element={<Studio />}>
                   <Route index element={<StudioOverview />} />

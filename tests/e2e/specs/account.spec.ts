@@ -86,6 +86,29 @@ test('a customer downloads their data', async ({ page }, testInfo) => {
   expect(Object.keys(data)).toEqual(expect.arrayContaining(['account', 'workspaces', 'orders', 'programs', 'saved']))
 })
 
+// The optional emails (design §5.3): a choice is kept with the account; the test puts it back.
+test('a customer turns an optional email off and on again', async ({ page }, testInfo) => {
+  desktopOnly(testInfo.project.name)
+  await signIn(page)
+
+  await page.goto('/me/account')
+  const workouts = page.getByRole('checkbox', { name: /New workouts/ })
+  await expect(workouts).toBeChecked()
+  await workouts.click()
+  await expect(workouts).not.toBeChecked()
+  await page.reload()
+  await expect(workouts).not.toBeChecked()
+  await workouts.click()
+  await expect(workouts).toBeChecked()
+})
+
+// An unsubscribe link needs no sign-in; one that does not verify sends the reader to their account.
+test('an unsubscribe link that does not verify says so', async ({ page }) => {
+  await page.goto('/unsubscribe#not-a-real-token')
+  await page.getByRole('button', { name: 'Unsubscribe' }).click()
+  await expect(page.getByRole('alert')).toContainText('no longer works')
+})
+
 // Accessibility of the account pages (design §8), as in quality.spec.ts for the public ones.
 test('the account pages have no serious accessibility problems', async ({ page }, testInfo) => {
   desktopOnly(testInfo.project.name)

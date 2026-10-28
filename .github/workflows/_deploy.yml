@@ -103,7 +103,14 @@ jobs:
           }
 
           echo "::group::Supporting resources and migrator job"
-          deploy false base > /dev/null
+          # Once more if it fails: a role assigned in the same deployment can take a minute to reach the
+          # service that checks it (Event Grid validates its delivery identity when the bounce
+          # subscription is created, design §5.3). A deployment is idempotent, so repeating it is safe.
+          if ! deploy false base > /dev/null; then
+            echo "::warning::The base deployment failed; retrying once in 90 seconds (role assignments may still be propagating)"
+            sleep 90
+            deploy false base-retry > /dev/null
+          fi
           echo "::endgroup::"
 
           echo "::group::Database migrations"

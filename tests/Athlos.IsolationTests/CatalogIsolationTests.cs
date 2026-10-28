@@ -401,6 +401,30 @@ public sealed class CatalogIsolationTests(AthlosDatabases databases, AthlosStora
         Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, planted.SqlState);
     }
 
+    // Layer 4 alone: a coach's session reads who saved its own programs (to tell them about a lower
+    // price, design §2.4), and only that: B reads none of the savers of A's program, the public-read
+    // scope adds nobody, and A can neither change nor remove a saved row.
+    [Fact]
+    public async Task RLS_a_coach_reads_who_saved_its_own_programs_only()
+    {
+        var customer = Guid.CreateVersion7();
+        await AsCustomer(customer, HttpMethod.Put, $"/saved/{_aPublished.Id}");
+        var savers = $"SELECT count(*) FROM saved_programs WHERE customer_id = '{customer}'";
+
+        var a = await AsAppRole(_a.TenantId, scope: "", connection => Count(connection, savers), _a.OwnerId);
+        var b = await AsAppRole(_b.TenantId, scope: "", connection => Count(connection, savers), _b.OwnerId);
+        var bPublicRead = await AsAppRole(_b.TenantId, scope: "public-read", connection => Count(connection, savers), _b.OwnerId);
+        var changed = await AsAppRole(_a.TenantId, scope: "", async connection =>
+        {
+            await using var command = new NpgsqlCommand($"UPDATE saved_programs SET saved_at = now() WHERE customer_id = '{customer}'", connection);
+            var updated = await command.ExecuteNonQueryAsync(Cancel);
+            await using var delete = new NpgsqlCommand($"DELETE FROM saved_programs WHERE customer_id = '{customer}'", connection);
+            return updated + await delete.ExecuteNonQueryAsync(Cancel);
+        }, _a.OwnerId);
+
+        Assert.Equal((1L, 0L, 0L, 0), (a, b, bPublicRead, changed));
+    }
+
     // The rating copy (design §2.4) is written inside the tenant enrollment-api names: naming B for A's
     // program changes nothing.
     [Fact]

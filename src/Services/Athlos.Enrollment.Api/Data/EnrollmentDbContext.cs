@@ -98,6 +98,8 @@ public sealed class EnrollmentDbContext(DbContextOptions<EnrollmentDbContext> op
         {
             preference.ToTable("email_preferences");
             preference.HasKey(p => p.CustomerId);
+            // Rows from before price drops existed get them on, like everyone else.
+            preference.Property(p => p.PriceDrops).HasDefaultValue(true).HasSentinel(true);
         });
 
         modelBuilder.ConfigureOutbox();

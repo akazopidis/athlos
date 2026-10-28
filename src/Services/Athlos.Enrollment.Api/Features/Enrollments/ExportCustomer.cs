@@ -50,6 +50,6 @@ public static class ExportCustomer
             e.ProgramId, e.ProgramTitle, e.CoachSlug, e.EnrolledAt,
             [.. progress.Where(p => p.EnrollmentId == e.Id).OrderBy(p => p.CompletedAt).Select(p => new ExportedCompletion(p.WorkoutId, p.CompletedAt))],
             reviews.Where(r => r.EnrollmentId == e.Id).Select(r => new ExportedReview(r.Rating, r.Comment, r.AuthorName, r.CreatedAt, r.Reply)).SingleOrDefault()))],
-            new EmailPreferenceEndpoints.Preferences(preferences?.ProgramUpdates ?? true, preferences?.ReviewReplies ?? true)));
+            new EmailPreferenceEndpoints.Preferences(preferences?.ProgramUpdates ?? true, preferences?.ReviewReplies ?? true, preferences?.PriceDrops ?? true)));
     }
 }

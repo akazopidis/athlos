@@ -249,6 +249,8 @@ export interface components {
         EmailPreferenceEndpointsPreferences: {
             programUpdates: boolean;
             reviewReplies: boolean;
+            /** @default true */
+            priceDrops: boolean;
         };
         EmailPreferenceEndpointsUnsubscribeRequest: {
             token: string;

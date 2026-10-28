@@ -37,6 +37,34 @@ public sealed class NotificationsWorkerTests
         Assert.All(_sender.Sent, s => Assert.StartsWith("You made a sale: Strong start", s.Email.Subject, StringComparison.Ordinal));
     }
 
+    // An email to one user (ToUser, design §5.3) goes to their profile's address, which tenancy-api
+    // gives; a user without a profile gets nothing, and the message is done.
+    [Fact]
+    public async Task An_email_to_a_user_goes_to_their_address()
+    {
+        var (known, unknown) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        _owners.Users[known] = "saver@customer.test";
+        var data = new Dictionary<string, string>
+        {
+            ["programTitle"] = "Strong start",
+            ["coach"] = "anna",
+            ["oldPrice"] = "49.00 EUR",
+            ["newPrice"] = "39.00 EUR",
+            ["programUrl"] = "https://athlos.test/c/anna/programs/strong-start",
+            [EmailRenderer.UnsubscribeUrl] = "https://athlos.test/unsubscribe#token",
+        };
+
+        var sent = await Deliver(new EmailNotification(EmailTemplates.PriceDrop, To: [], ToOwnersOfTenant: null, Locale: "en", data, ToUser: known));
+        var nobody = await Deliver(new EmailNotification(EmailTemplates.PriceDrop, To: [], ToOwnersOfTenant: null, Locale: "en", data, ToUser: unknown));
+
+        Assert.Equal(("completed", "completed"), (sent, nobody));
+        var email = Assert.Single(_sender.Sent);
+        Assert.Equal("saver@customer.test", email.To);
+        Assert.Equal("Strong start is now 39.00 EUR", email.Email.Subject);
+        Assert.Contains("(was 49.00 EUR)", email.Email.PlainText, StringComparison.Ordinal);
+        Assert.Contains("Unsubscribe: https://athlos.test/unsubscribe#token", email.Email.PlainText, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Recipients_are_deduplicated_and_a_workspace_without_owners_gets_nothing()
     {
@@ -264,6 +292,11 @@ public sealed class NotificationsWorkerTests
 
         public Task<IReadOnlyList<string>> GetOwnerEmailsAsync(Guid tenantId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<string>>(Emails.GetValueOrDefault(tenantId) ?? []);
+
+        public ConcurrentDictionary<Guid, string> Users { get; } = new();
+
+        public Task<string?> GetUserEmailAsync(Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(Users.GetValueOrDefault(userId));
     }
 
     // The list as tenancy-api keeps it: by hash.

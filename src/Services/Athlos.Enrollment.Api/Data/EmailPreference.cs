@@ -13,5 +13,11 @@ public sealed class EmailPreference
     // review-replied: the coach replied to the customer's review.
     public bool ReviewReplies { get; set; } = true;
 
+    // price-drop: a program the customer saved costs less (v17.9), at most once a week.
+    public bool PriceDrops { get; set; } = true;
+
+    // When the last price-drop email was queued, for the once-a-week limit.
+    public DateTimeOffset? PriceDropEmailedAt { get; set; }
+
     public DateTimeOffset UpdatedAt { get; set; }
 }

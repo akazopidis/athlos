@@ -10,6 +10,7 @@ import { useTitle } from '@/lib/useTitle'
 const topics: Record<string, string> = {
   programUpdates: 'new workouts in your programs',
   reviewReplies: 'replies to your reviews',
+  priceDrops: 'lower prices on programs you saved',
 }
 
 // The unsubscribe link in an optional email: /unsubscribe#{token} (design §5.3). Like an invite link,

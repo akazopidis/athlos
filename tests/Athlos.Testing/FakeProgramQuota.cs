@@ -24,4 +24,12 @@ public sealed class FakeProgramUpdates : Athlos.Catalog.Api.Features.Workouts.IP
         Told.Enqueue((tenantId, programId, workoutTitle));
         return Task.CompletedTask;
     }
+
+    public System.Collections.Concurrent.ConcurrentQueue<Athlos.Catalog.Api.Features.Workouts.PriceDrop> PriceDrops { get; } = new();
+
+    public Task PriceDroppedAsync(Athlos.Catalog.Api.Features.Workouts.PriceDrop drop, CancellationToken cancellationToken)
+    {
+        PriceDrops.Enqueue(drop);
+        return Task.CompletedTask;
+    }
 }

@@ -4,15 +4,16 @@ namespace Athlos.Messaging.Contracts;
 
 // An email Athlos sends, on the notifications queue (design §5.3). Services queue it through their
 // outbox; the notifications-worker renders the template and sends it. Recipients are either explicit
-// addresses (To) or "the owners of this tenant" (ToOwnersOfTenant), which the worker resolves with
-// tenancy-api when it sends, so other services never handle coaches' addresses.
+// addresses (To), "the owners of this tenant" (ToOwnersOfTenant) or "this user" (ToUser, v17.9), which
+// the worker resolves with tenancy-api when it sends, so other services never handle those addresses.
 // Addresses travel in the message only; they are never logged.
 public sealed record EmailNotification(
     string Template,
     IReadOnlyList<string> To,
     Guid? ToOwnersOfTenant,
     string Locale,
-    IReadOnlyDictionary<string, string> Data)
+    IReadOnlyDictionary<string, string> Data,
+    Guid? ToUser = null)
 {
     public const string Queue = "notifications";
 }
@@ -76,6 +77,10 @@ public static class EmailTemplates
     // To the program's customers, queued by enrollment-api when the coach adds a workout to a program
     // that has been on sale, at most once a day per customer (design §5.3).
     public const string ProgramUpdated = "program-updated";
+
+    // To a customer who saved a program whose price fell, queued by enrollment-api for catalog-api, at
+    // most once a week per customer (design §2.4); addressed ToUser.
+    public const string PriceDrop = "price-drop";
 
     // To the invitee, queued by tenancy-api with the invite (design §5.2).
     public const string StaffInvite = "staff-invite";

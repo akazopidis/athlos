@@ -29,6 +29,16 @@ namespace Athlos.Enrollment.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("customer_id");
 
+                    b.Property<DateTimeOffset?>("PriceDropEmailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("price_drop_emailed_at");
+
+                    b.Property<bool>("PriceDrops")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("price_drops");
+
                     b.Property<bool>("ProgramUpdates")
                         .HasColumnType("boolean")
                         .HasColumnName("program_updates");

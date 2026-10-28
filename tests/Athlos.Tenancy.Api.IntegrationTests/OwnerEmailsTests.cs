@@ -31,6 +31,21 @@ public sealed class OwnerEmailsTests(AthlosDatabases databases) : IAsyncLifetime
         Assert.DoesNotContain($"{neverSignedIn}@test.local", owners);
     }
 
+    // GET /internal/users/{id}/email, for an email addressed to one user (ToUser, design §5.3): the
+    // profile's address; a user who never signed in has none.
+    [Fact]
+    public async Task A_users_address_is_their_profiles()
+    {
+        var (customer, neverSignedIn) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Put, "/api/v1/me/profile"), customer);
+
+        var found = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/users/{customer}/email"));
+        var missing = await _api.SendAsGateway(new HttpRequestMessage(HttpMethod.Get, $"/internal/users/{neverSignedIn}/email"));
+
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.NotFound), (found.StatusCode, missing.StatusCode));
+        Assert.Contains($"\"email\":\"{customer}@test.local\"", await found.Content.ReadAsStringAsync(Cancel), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task An_unknown_workspace_is_not_found()
     {

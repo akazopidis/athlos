@@ -53,6 +53,16 @@ public sealed class EnrollmentIsolationTests(AthlosDatabases databases) : IAsync
         { "PUT", "/api/v1/me/email-preferences" },
     };
 
+    // Catalog-api only: the customers who saved a program that costs less (design §2.4). Like every
+    // internal endpoint it needs the gateway signature.
+    [Fact]
+    public async Task Unsigned_price_drop_requests_are_rejected()
+    {
+        var response = await _api.CreateClient().PostAsync("/internal/price-drops", System.Net.Http.Json.JsonContent.Create(new { }), Cancel);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
     // A workspace export (design §5.4) holds that coach's programs and reviews, and none of another's;
     // like every internal endpoint it needs the gateway signature.
     [Fact]

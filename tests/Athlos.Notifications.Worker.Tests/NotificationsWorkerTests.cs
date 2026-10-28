@@ -93,6 +93,21 @@ public sealed class NotificationsWorkerTests
         Assert.Contains("<b>Abs</b> & more", email.PlainText, StringComparison.Ordinal);
     }
 
+    // An optional email (design §5.3) carries its unsubscribe link in the data; the worker adds the
+    // footer, so an email without the link (any other, or one queued before) renders as before.
+    [Fact]
+    public void An_unsubscribe_link_in_the_data_adds_a_footer()
+    {
+        var url = "https://athlos.test/unsubscribe#a&b";
+        var plain = new EmailRenderer().Render(EmailTemplates.SaleMade, Data());
+        var optional = new EmailRenderer().Render(EmailTemplates.SaleMade, new Dictionary<string, string>(Data()) { [EmailRenderer.UnsubscribeUrl] = url });
+
+        Assert.DoesNotContain("Unsubscribe", plain.Html + plain.PlainText, StringComparison.Ordinal);
+        Assert.EndsWith($"Unsubscribe: {url}\n", optional.PlainText, StringComparison.Ordinal);
+        Assert.Contains("href=\"https://athlos.test/unsubscribe#a&amp;b\">Unsubscribe</a>", optional.Html, StringComparison.Ordinal);
+        Assert.True(optional.Html.IndexOf(">Unsubscribe<", StringComparison.Ordinal) < optional.Html.IndexOf("</body>", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task A_message_the_template_cannot_render_is_retried_and_an_unreadable_one_dead_lettered()
     {

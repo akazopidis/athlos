@@ -107,6 +107,9 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
         builder.UseSetting("ConnectionStrings:messaging", "Endpoint=sb://localhost;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
         builder.ConfigureTestServices(services =>
         {
+            // Tests run the reminders' pass themselves (PayoutReminders.RemindDueAsync). Left on, every
+            // test app's timer makes a pass when it starts and can take another test's due reminder.
+            services.Remove(services.Single(d => d.ImplementationType == typeof(PayoutReminders)));
             services.AddSingleton<IMessageSender>(Messages);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Workspace.ITenantErasure>(Erasure);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Account.ICustomerErasure>(CustomerErasure);

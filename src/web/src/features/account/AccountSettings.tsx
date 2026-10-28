@@ -5,8 +5,9 @@ import { useApp } from '@/lib/AppContext'
 import { useTitle } from '@/lib/useTitle'
 import { DeleteAccount } from './DeleteAccount.tsx'
 import { DownloadMyData } from './DownloadMyData.tsx'
+import { EmailPreferences } from './EmailPreferences.tsx'
 
-// "/me/account": signing out, downloading your data (design §5.4), and deleting the account (§5.2). Sign-in details (password,
+// "/me/account": signing out, the optional emails (design §5.3), downloading your data (design §5.4), and deleting the account (§5.2). Sign-in details (password,
 // email) belong to Entra External ID, not to Athlos.
 export function AccountSettings() {
   const { auth } = useApp()
@@ -25,6 +26,7 @@ export function AccountSettings() {
             <LogOut aria-hidden /> Sign out
           </Button>
         </div>
+        <EmailPreferences />
         <DownloadMyData />
       </Section>
       <DeleteAccount />

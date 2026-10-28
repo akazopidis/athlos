@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Athlos.Enrollment.Api.Features.Enrollments;
 
 // Deleting a customer's account (design §5.2), called by tenancy-api: their enrollments and progress
-// and reviews go, in every coach's tenant, and the ratings of the programs they reviewed follow. (Their orders stay, anonymized, in ordering-api.)
+// and reviews go, in every coach's tenant, and the ratings of the programs they reviewed follow, then their email preferences. (Their orders stay, anonymized, in ordering-api.)
 //
 // CROSS-TENANT SLICE (design §3.2, "a customer's own rows, for account deletion"): finding the
 // tenants ignores the tenant filter and relies on the customer filter below and on RLS
@@ -55,6 +55,13 @@ public static class EraseCustomer
                     await ProgramRatings.PublishAsync(enrollment, ratings, tenantId, programId, cancellationToken);
                 }
             }, cancellationToken);
+        }
+
+        // The customer's own row (design §5.3), last: until then a coach's email could still be skipped.
+        await using (var transaction = await db.Database.BeginTransactionAsync(cancellationToken))
+        {
+            await db.EmailPreferences.Where(p => p.CustomerId == customerId).ExecuteDeleteAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
 
         return TypedResults.NoContent();

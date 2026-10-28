@@ -185,10 +185,10 @@ public static class StartCheckout
         var discounts = new Dictionary<Guid, DiscountRules.Applied>();
         if (!string.IsNullOrWhiteSpace(request.DiscountCode))
         {
-            discounts = await DiscountRules.ApplyAsync(scopes, offers, DiscountRules.Normalize(request.DiscountCode), time.GetUtcNow(), cancellationToken);
+            discounts = await DiscountRules.ApplyAsync(scopes, offers, DiscountRules.Normalize(request.DiscountCode), customerId, time.GetUtcNow(), cancellationToken);
             if (discounts.Count == 0)
             {
-                return Problem(StatusCodes.Status400BadRequest, "discountCode", "This discount code does not apply to the programs in your cart.", []);
+                return Problem(StatusCodes.Status400BadRequest, "discountCode", "This discount code does not apply to the programs in your cart, or you have used it before.", []);
             }
         }
 
@@ -255,10 +255,21 @@ public static class StartCheckout
             await transaction.CommitAsync(cancellationToken);
         }
 
+        var claimed = true;
         foreach (var coach in newOrders.GroupBy(o => o.TenantId))
         {
             await scopes.InTenantAsync<OrderingDbContext>(coach.Key, async orders =>
             {
+                // The code's uses are confirmed under its lock in the same transaction as the orders,
+                // so two buyers cannot both take its last use (backlog item 48).
+                var discounted = coach.Where(o => o.DiscountCode is not null).ToList();
+                if (discounted.Count > 0 && !await DiscountRules.ClaimAsync(
+                        orders, discounted[0].DiscountCode!, customerId, [.. coach.Select(o => o.ProgramId)], discounted.Count, cancellationToken))
+                {
+                    claimed = false;
+                    return;
+                }
+
                 foreach (var order in coach)
                 {
                     order.StripeCheckoutSessionId = session.Id;
@@ -268,6 +279,25 @@ public static class StartCheckout
 
                 await orders.SaveChangesAsync(cancellationToken);
             }, cancellationToken);
+            if (!claimed)
+            {
+                break;
+            }
+        }
+
+        if (!claimed)
+        {
+            // Someone took the last use since the cart was priced. The payment page just opened is closed
+            // (orders already written for another coach fail with it, through its webhook), and so is the
+            // checkout, so trying again without the code starts cleanly.
+            await checkout.ExpireAsync(session.Id, cancellationToken);
+            await using (var transaction = await db.Database.BeginTransactionAsync(cancellationToken))
+            {
+                await db.Checkouts.Where(c => c.Id == checkoutId).ExecuteDeleteAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+
+            return Problem(StatusCodes.Status409Conflict, "discountCode", "This code's last use was just taken.", []);
         }
 
         return TypedResults.Ok(new Response(checkoutId, session.Url));

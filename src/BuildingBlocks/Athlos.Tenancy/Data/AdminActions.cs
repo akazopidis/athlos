@@ -45,6 +45,7 @@ public enum AdminActionKind
     ProgramUnpublished,
     ProgramAllowed,
     ReportsKept,
+    WorkspaceDeleted,
 }
 
 public interface IHasAdminActions

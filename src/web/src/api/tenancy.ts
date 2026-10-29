@@ -404,6 +404,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/tenants/{tenantId}/deletion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AdminDeleteTenant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/tenants/{tenantId}/plan": {
         parameters: {
             query?: never;
@@ -547,7 +563,7 @@ export interface components {
             displayName: string;
         };
         /** @enum {unknown} */
-        AdminActionKind: "WorkspaceSuspended" | "WorkspaceReactivated" | "PlanChanged" | "ReviewHidden" | "ReviewKept" | "PayoutRetried" | "RefundIssued" | "ProgramUnpublished" | "ProgramAllowed" | "ReportsKept";
+        AdminActionKind: "WorkspaceSuspended" | "WorkspaceReactivated" | "PlanChanged" | "ReviewHidden" | "ReviewKept" | "PayoutRetried" | "RefundIssued" | "ProgramUnpublished" | "ProgramAllowed" | "ReportsKept" | "WorkspaceDeleted";
         AdminActionsItem: {
             /** Format: uuid */
             id: string;
@@ -559,6 +575,9 @@ export interface components {
             reason: string;
             /** Format: date-time */
             at: string;
+        };
+        AdminDeleteTenantRequest: {
+            reason: null | string;
         };
         Branding: {
             logoUrl?: null | string;
@@ -745,6 +764,8 @@ export interface components {
             displayName: string;
             role: components["schemas"]["TenantRole"];
             status: components["schemas"]["TenantStatus"];
+            /** @default false */
+            deletionPending: boolean;
         };
         ListTenantsItem: {
             /** Format: uuid */
@@ -756,6 +777,9 @@ export interface components {
             readyToSell: boolean;
             /** Format: date-time */
             createdAt: string;
+            /** @default false */
+            deletionPending: boolean;
+            lastDeletionError?: null | string;
         };
         ListTenantsTenantPage: {
             items: components["schemas"]["ListTenantsItem"][];
@@ -1176,6 +1200,13 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description No Content */
             204: {
                 headers: {
@@ -1651,6 +1682,44 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ListTenantsItem"];
                 };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AdminDeleteTenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminDeleteTenantRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Not Found */
             404: {

@@ -710,7 +710,8 @@
           "RefundIssued",
           "ProgramUnpublished",
           "ProgramAllowed",
-          "ReportsKept"
+          "ReportsKept",
+          "WorkspaceDeleted"
         ]
       },
       "AdminActionsItem": {

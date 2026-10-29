@@ -17,6 +17,7 @@ public static class PlatformAdmin
             .WithTags("Admin");
         admin.MapListTenants();
         admin.MapSetTenantStatus();
+        admin.MapAdminDeleteTenant();
         admin.MapSetTenantPlan();
         admin.MapGetPlatformMetrics();
         admin.MapAdminReports();

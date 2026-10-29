@@ -14,6 +14,9 @@ public sealed class FakeTenantErasure : ITenantErasure
 
     public void FailFor(Guid tenantId) => _failing[tenantId] = true;
 
+    // The service is back.
+    public void Recover(Guid tenantId) => _failing.TryRemove(tenantId, out _);
+
     // ordering-api refuses, as when sales can still be refunded.
     public void RefuseFor(Guid tenantId, string reason) => _refusals[tenantId] = reason;
 

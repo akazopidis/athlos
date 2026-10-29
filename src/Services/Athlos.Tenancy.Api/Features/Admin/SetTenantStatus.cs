@@ -18,7 +18,7 @@ namespace Athlos.Tenancy.Api.Features.Admin;
 // 2. Then the workspace's status changes, in a transaction that enters that tenant, so RLS
 //    (tenants_update) lets the write reach this one row only. The same transaction records the
 //    admin and their reason (admin_actions), and the suspension email tells the owners the reason.
-// Deleting stays with the owner (DeleteWorkspace); an admin deletion route is future work.
+// A workspace being deleted (WorkspaceDeletions) stays suspended: reactivating it is a 409.
 public static class SetTenantStatus
 {
     public sealed record Request(TenantStatus Status, string? Reason);
@@ -45,6 +45,11 @@ public static class SetTenantStatus
         if (!await db.Tenants.AnyAsync(t => t.Id == tenantId && t.Status != TenantStatus.Deleted, cancellationToken))
         {
             return TypedResults.NotFound();
+        }
+
+        if (await db.WorkspaceDeletions.AnyAsync(d => d.TenantId == tenantId, cancellationToken))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This workspace is being deleted.");
         }
 
         try

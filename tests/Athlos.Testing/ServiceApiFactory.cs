@@ -114,6 +114,8 @@ public sealed class TenancyApiFactory(AthlosDatabases databases, FakeStripeConne
             services.Remove(services.Single(d => d.ImplementationType == typeof(PayoutReminders)));
             // The same for the coach name copies (CoachNameCopies.CopyAsync).
             services.Remove(services.Single(d => d.ImplementationType == typeof(Athlos.Tenancy.Api.Features.Storefront.CoachNameCopies)));
+            // And for workspace deletions (WorkspaceDeletions.RunDueAsync).
+            services.Remove(services.Single(d => d.ImplementationType == typeof(Athlos.Tenancy.Api.Features.Workspace.WorkspaceDeletionRetries)));
             services.AddSingleton<Athlos.Tenancy.Api.Features.Storefront.ICatalogCoachNames>(CoachNames);
             services.AddSingleton<IMessageSender>(Messages);
             services.AddSingleton<Athlos.Tenancy.Api.Features.Workspace.ITenantErasure>(Erasure);

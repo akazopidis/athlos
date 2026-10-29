@@ -366,6 +366,9 @@
           "204": {
             "description": "No Content"
           },
+          "202": {
+            "description": "Accepted"
+          },
           "404": {
             "description": "Not Found"
           }
@@ -971,6 +974,46 @@
         }
       }
     },
+    "/api/v1/admin/tenants/{tenantId}/deletion": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "AdminDeleteTenant",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminDeleteTenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "202": {
+            "description": "Accepted"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/v1/admin/tenants/{tenantId}/plan": {
       "put": {
         "tags": [
@@ -1280,7 +1323,8 @@
           "RefundIssued",
           "ProgramUnpublished",
           "ProgramAllowed",
-          "ReportsKept"
+          "ReportsKept",
+          "WorkspaceDeleted"
         ]
       },
       "AdminActionsItem": {
@@ -1321,6 +1365,20 @@
           "at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "AdminDeleteTenantRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -2120,6 +2178,10 @@
           },
           "status": {
             "$ref": "#/components/schemas/TenantStatus"
+          },
+          "deletionPending": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -2157,6 +2219,16 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "deletionPending": {
+            "type": "boolean",
+            "default": false
+          },
+          "lastDeletionError": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

@@ -409,6 +409,43 @@ namespace Athlos.Tenancy.Api.Data.Migrations
                     b.ToTable("user_profiles", (string)null);
                 });
 
+            modelBuilder.Entity("Athlos.Tenancy.Api.Data.WorkspaceDeletion", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("last_error");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<DateTimeOffset>("RequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at");
+
+                    b.Property<Guid>("RequestedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by");
+
+                    b.HasKey("TenantId")
+                        .HasName("pk_workspace_deletions");
+
+                    b.HasIndex("NextAttemptAt")
+                        .HasDatabaseName("ix_workspace_deletions_next_attempt_at");
+
+                    b.ToTable("workspace_deletions", (string)null);
+                });
+
             modelBuilder.Entity("Athlos.Tenancy.Data.AdminAction", b =>
                 {
                     b.Property<Guid>("Id")

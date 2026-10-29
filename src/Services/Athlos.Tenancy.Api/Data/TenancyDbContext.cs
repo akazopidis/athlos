@@ -21,6 +21,8 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
 
     public DbSet<PayoutReminder> PayoutReminders => Set<PayoutReminder>();
 
+    public DbSet<WorkspaceDeletion> WorkspaceDeletions => Set<WorkspaceDeletion>();
+
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public DbSet<AdminAction> AdminActions => Set<AdminAction>();
@@ -75,6 +77,14 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
             report.Property(r => r.Subject).HasMaxLength(120);
             report.Property(r => r.CoachSlug).HasMaxLength(40);
             report.Property(r => r.Note).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<WorkspaceDeletion>(deletion =>
+        {
+            deletion.ToTable("workspace_deletions");
+            deletion.HasKey(d => d.TenantId);
+            deletion.HasIndex(d => d.NextAttemptAt);
+            deletion.Property(d => d.LastError).HasMaxLength(300);
         });
 
         modelBuilder.Entity<PayoutReminder>(reminder =>

@@ -31,12 +31,16 @@ test('each workspace opens its studio with the role, except a suspended one', as
     { tenantId: 't-1', slug: 'anna', displayName: 'Anna Coaching', role: 'Owner', status: 'Active' },
     { tenantId: 't-2', slug: 'ben', displayName: 'Ben Runs', role: 'Staff', status: 'Active' },
     { tenantId: 't-3', slug: 'gone', displayName: 'Gone Gym', role: 'Owner', status: 'Suspended' },
+    { tenantId: 't-4', slug: 'closing', displayName: 'Closing Club', role: 'Owner', status: 'Suspended', deletionPending: true },
   ])
 
   expect(await screen.findByRole('link', { name: /Anna Coaching.*Owner/ })).toHaveAttribute('href', '/studio/anna')
   expect(screen.getByRole('link', { name: /Ben Runs.*Staff/ })).toHaveAttribute('href', '/studio/ben')
   expect(screen.getByText('Gone Gym').closest('a')).toBeNull()
   expect(screen.getByText(/Suspended by Athlos/)).toBeInTheDocument()
+  // A deletion still finishing (design §3.4) says so instead.
+  expect(screen.getByText('Closing Club').closest('a')).toBeNull()
+  expect(screen.getByText(/Being deleted/)).toBeInTheDocument()
 })
 
 test('without a workspace the page offers to open one', async () => {

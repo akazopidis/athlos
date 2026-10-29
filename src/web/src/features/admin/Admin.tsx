@@ -442,8 +442,17 @@ function Workspaces({ reason }: { reason: Reason }) {
     onSuccess: reason.clear,
     onSettled: refresh,
   })
-  const failure = setTenantStatus.error ?? setTenantPlan.error
-  const busy = setTenantStatus.isPending || setTenantPlan.isPending || !reason.ready
+  // Deleting (design §3.4): the same job as the owner's; 202 when its retries will finish it.
+  const deleteTenant = useMutation({
+    mutationFn: async (id: string) => {
+      const { error, response } = await api.POST('/api/v1/admin/tenants/{tenantId}/deletion', { params: { path: { tenantId: id } }, body: { reason: reason.text } })
+      if (!response.ok) throw new Error(problemTitle(error) ?? 'Could not delete the workspace.')
+    },
+    onSuccess: reason.clear,
+    onSettled: refresh,
+  })
+  const failure = setTenantStatus.error ?? setTenantPlan.error ?? deleteTenant.error
+  const busy = setTenantStatus.isPending || setTenantPlan.isPending || deleteTenant.isPending || !reason.ready
 
   const total = Number(workspaces.data?.totalCount ?? 0)
   const pages = Math.max(1, Math.ceil(total / PageSize))
@@ -515,6 +524,9 @@ function Workspaces({ reason }: { reason: Reason }) {
                     busy={busy}
                     onStatus={(next) => setTenantStatus.mutate({ id: w.id, next })}
                     onPlan={(plan) => setTenantPlan.mutate({ id: w.id, plan })}
+                    onDelete={() => {
+                      if (window.confirm(`Delete ${w.displayName} for good? Its programs and team go; buyers keep a read-only copy.`)) deleteTenant.mutate(w.id)
+                    }}
                   />
                 ))}
               </TableBody>
@@ -551,6 +563,7 @@ const actionLabels: Record<Action['action'], string> = {
   ProgramUnpublished: 'Program taken down',
   ProgramAllowed: 'Program allowed back',
   ReportsKept: 'Reports kept',
+  WorkspaceDeleted: 'Workspace deleted',
 }
 
 // The audit trail (design §3.4): each service keeps the admin actions it carried out (tenancy:
@@ -593,8 +606,22 @@ function RecentActions() {
   )
 }
 
-function WorkspaceRow({ workspace: w, busy, onStatus, onPlan }: { workspace: Workspace; busy: boolean; onStatus: (next: Status) => void; onPlan: (plan: Plan) => void }) {
+function WorkspaceRow({
+  workspace: w,
+  busy,
+  onStatus,
+  onPlan,
+  onDelete,
+}: {
+  workspace: Workspace
+  busy: boolean
+  onStatus: (next: Status) => void
+  onPlan: (plan: Plan) => void
+  onDelete: () => void
+}) {
   const deleted = w.status === 'Deleted'
+  // A deletion that started and has not finished: its retries continue, so nothing else applies.
+  const deleting = Boolean(w.deletionPending)
   return (
     <TableRow>
       <TableCell className="max-w-56">
@@ -610,13 +637,18 @@ function WorkspaceRow({ workspace: w, busy, onStatus, onPlan }: { workspace: Wor
       <TableCell className="hidden sm:table-cell">
         <Badge variant={w.status === 'Suspended' ? 'destructive' : w.status === 'Deleted' ? 'secondary' : 'outline'}>{w.status}</Badge>
         {w.status === 'Active' && !w.readyToSell && <span className="ml-2 text-xs text-muted-foreground">payouts pending</span>}
+        {deleting && (
+          <span className="ml-2 text-xs text-muted-foreground" title={w.lastDeletionError ?? undefined}>
+            being deleted
+          </span>
+        )}
       </TableCell>
       <TableCell>
         <select
           aria-label={`Plan of ${w.displayName}`}
           className={`${selectClassName} h-9 w-24`}
           value={w.plan}
-          disabled={busy || deleted}
+          disabled={busy || deleted || deleting}
           onChange={(e) => onPlan(e.target.value as Plan)}
         >
           <option value="Free">Free</option>
@@ -625,15 +657,20 @@ function WorkspaceRow({ workspace: w, busy, onStatus, onPlan }: { workspace: Wor
       </TableCell>
       <TableCell className="hidden text-muted-foreground md:table-cell">{new Date(w.createdAt).toLocaleDateString()}</TableCell>
       <TableCell className="text-right">
-        {!deleted && (
-          <Button
-            size="sm"
-            variant={w.status === 'Active' ? 'destructive' : 'outline'}
-            disabled={busy}
-            onClick={() => onStatus(w.status === 'Active' ? 'Suspended' : 'Active')}
-          >
-            {w.status === 'Active' ? 'Suspend' : 'Reactivate'}
-          </Button>
+        {!deleted && !deleting && (
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant={w.status === 'Active' ? 'destructive' : 'outline'}
+              disabled={busy}
+              onClick={() => onStatus(w.status === 'Active' ? 'Suspended' : 'Active')}
+            >
+              {w.status === 'Active' ? 'Suspend' : 'Reactivate'}
+            </Button>
+            <Button size="sm" variant="ghost" className="text-destructive" disabled={busy} onClick={onDelete} aria-label={`Delete ${w.displayName}`}>
+              Delete
+            </Button>
+          </div>
         )}
       </TableCell>
     </TableRow>

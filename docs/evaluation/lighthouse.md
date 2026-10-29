@@ -63,11 +63,29 @@ The first item below, measured the same way on dev at `sha-fa004cb` (PR #176), t
 
 The phone's first paint is now about 3.6 s on every page (1 s sooner), and the largest paint 4.0 to 4.4 s where it is the first heading. The home and coaches pages stay slower because Lighthouse's model counts their images before the heading (largest paint 6.8 to 7.3 s). Each page transfers about 245 kB less, MSAL's chunk included.
 
+## Round 3: a static shell (backlog item 56, v17.11)
+
+`index.html` now holds the site header as the app draws it (logo, search pill, category bar, the same Tailwind classes), so a phone paints it as soon as the HTML and the stylesheet are in, instead of after the JavaScript has loaded, read `/config.json` and rendered. React replaces it on its first render. The header boxes match the app's (phone 390×117, desktop 1280×110), so nothing shifts.
+
+Measured on 29 October 2026, phone profile, three runs per page; the home page and the program page `/c/demo-forge/programs/minimalist`.
+
+**Lighthouse's default (simulated) throttling does not see the shell.** It loads the page at full speed and models the slow phone from that trace; at full speed the JavaScript has run before the first frame, so the model's first paint waits for it either way. On dev before and after the shell: first paint 3.48 to 3.59 s both times, largest paint unchanged, layout shift 0.
+
+**Real throttling does** (`--throttling-method=devtools`: the network and CPU are slowed while the page loads). Staging still ran v1.21.0 without the shell, dev ran it with:
+
+| Page | First paint, without → with | Largest paint, without → with | Layout shift |
+|---|---|---|---|
+| Home | 5.46–5.50 s → 3.73–3.74 s | 5.46–5.50 s → 5.45–5.47 s | 0.008 both |
+| Program page | 5.34–5.56 s → 3.72–3.75 s | 6.31–6.45 s → 6.22–6.26 s | 0 both |
+
+First paint is about 1.7 s sooner, a third, on both pages; the largest paint does not move, because the heading and the cards still wait for the JavaScript and the data. 3.7 s is still above Lighthouse's 1.8 s for a good first paint: what is left is the HTML, the stylesheet and the fonts over the slow connection. The CI budget keeps using the default mode, so its numbers stay comparable with the rounds above.
+
 ## What would improve the phone numbers
 
 - ~~**Load MSAL only when it is needed.**~~ Done in v1.15.0 (round 2 above).
-- **Server-side rendering or a static shell** for the public pages, so the heading paints before the JavaScript runs. This is a larger change to how the gateway serves the SPA (§8.1).
-- **Resize existing covers once**, or serve sized variants, so cards do not load a 1,600 px image (`srcset`).
+- ~~**A static shell**~~ Done in v17.11 (round 3 above): first paint about 1.7 s sooner under real throttling.
+- **Server-side rendering** for the public pages, so the heading and cards paint before the JavaScript runs and the largest paint moves too. This is a larger change to how the gateway serves the SPA (§8.1).
+- **Resize existing covers once**, or serve sized variants (`srcset`). Not done (decided 29 October 2026): only the three test programs per stage have covers from before card sizes (v1.16.0), and prod has none; a coach who uploads the cover again gets the card size.
 
 ## In CI: a budget after every staging deploy (backlog item 40)
 

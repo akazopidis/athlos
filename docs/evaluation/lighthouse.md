@@ -80,6 +80,21 @@ Measured on 29 October 2026, phone profile, three runs per page; the home page a
 
 First paint is about 1.7 s sooner, a third, on both pages; the largest paint does not move, because the heading and the cards still wait for the JavaScript and the data. 3.7 s is still above Lighthouse's 1.8 s for a good first paint: what is left is the HTML, the stylesheet and the fonts over the slow connection. The CI budget keeps using the default mode, so its numbers stay comparable with the rounds above.
 
+## Round 4: the first data requests preloaded (backlog item 56, v17.11)
+
+The public pages ask for their data only once the JavaScript has run. The gateway now names each page's first requests in the shell (`<link rel="preload" as="fetch" crossorigin>`, `DataPreloads`), so the browser fetches them while the JavaScript downloads. A preload is used only if its URL is exactly the page's request; the URLs are the ones the pages made on dev, pinned by `DataPreloadTests`, and Chrome on dev made one request per preloaded URL (the page's fetch was served from it) with no "unused preload" warning.
+
+Real throttling, phone, three runs per page on dev, 29 October 2026:
+
+| Page | Largest paint, shell only → shell and preloads | First paint |
+|---|---|---|
+| Program page | 6.22–6.26 s → 5.72–5.75 s | 3.72–3.75 s → 3.75–3.82 s |
+| Home | 5.45–5.47 s → 5.55–5.61 s | 3.73–3.74 s → 3.77–3.80 s |
+
+The program page's largest paint is the program itself, which waits for its data: 0.5 s sooner. The home page's is the hero heading, which needs no data, so its two preloads only took bandwidth from the JavaScript (0.1 s later). The shop therefore preloads nothing; storefronts, program pages and the coaches page keep theirs. Home after that change: largest paint 5.48–5.49 s, back to the shell's.
+
+Together with round 3, on a really throttled phone: first paint 5.3–5.6 s → 3.7–3.8 s on every page, largest paint on a program page 6.3–6.5 s → 5.7 s. Server-side rendering would move the largest paint further (the heading and cards in the HTML), at the cost of a Node renderer next to the gateway; it stays future work.
+
 ## What would improve the phone numbers
 
 - ~~**Load MSAL only when it is needed.**~~ Done in v1.15.0 (round 2 above).

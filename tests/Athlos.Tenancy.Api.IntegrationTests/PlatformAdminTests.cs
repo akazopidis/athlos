@@ -26,6 +26,7 @@ public sealed class PlatformAdminTests(AthlosDatabases databases) : IAsyncLifeti
         { "GET", "/api/v1/admin/tenants" },
         { "PUT", "/api/v1/admin/tenants/{id}/status" },
         { "PUT", "/api/v1/admin/tenants/{id}/plan" },
+        { "POST", "/api/v1/admin/tenants/{id}/deletion" },
         { "GET", "/api/v1/admin/metrics" },
         { "GET", "/api/v1/admin/actions" },
     };
@@ -35,7 +36,7 @@ public sealed class PlatformAdminTests(AthlosDatabases databases) : IAsyncLifeti
     public async Task Coaches_and_customers_are_forbidden_and_anonymous_callers_unauthorized(string method, string path)
     {
         var workspace = await _api.CreateWorkspace();
-        var body = method == "PUT" ? JsonContent.Create(new { status = "Suspended", plan = "Pro", reason = "Test" }) : null;
+        var body = method is "PUT" or "POST" ? JsonContent.Create(new { status = "Suspended", plan = "Pro", reason = "Test" }) : null;
         var url = path.Replace("{id}", workspace.TenantId.ToString(), StringComparison.Ordinal);
 
         var owner = await _api.SendAsGateway(new HttpRequestMessage(new HttpMethod(method), url) { Content = body }, workspace.OwnerId);

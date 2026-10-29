@@ -56,6 +56,8 @@ builder.Services.AddHttpClient<IEntraUsers, GraphEntraUsers>();
 // The staff invite email leaves through the outbox to the notifications queue (design §5.2, §5.3).
 builder.AddOutbox<TenancyDbContext>();
 builder.Services.AddHostedService<Athlos.Tenancy.Api.Features.Payouts.PayoutReminders>();
+// Retries workspace deletions that did not finish at once (design §3.4)
+builder.Services.AddHostedService<Athlos.Tenancy.Api.Features.Workspace.WorkspaceDeletionRetries>();
 // Catalog-api's copy of each workspace's name, for the shop's search (design §8)
 builder.Services.AddHostedService<Athlos.Tenancy.Api.Features.Storefront.CoachNameCopies>();
 builder.Services.AddScoped<Athlos.Tenancy.Api.Features.Storefront.ICatalogCoachNames, Athlos.Tenancy.Api.Features.Storefront.ServiceCatalogCoachNames>();

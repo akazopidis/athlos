@@ -10,16 +10,17 @@ namespace Athlos.Tenancy.Api.Features.Workspace;
 // owns goes, by tenant id, in every service. Orders stay in ordering-api for accounting, with the
 // workspace marked Deleted here.
 //
-// 1. Only the owner, who confirms by typing the workspace address.
-// 2. ordering-api checks that nothing is still owed or being paid: sales still inside the refund
-//    window refuse the deletion (409, with the date), and open Stripe payment pages for the
-//    workspace's programs are closed, so no customer pays for a program about to be erased.
-// 3. enrollment-api first copies each bought program for its buyers, who keep it read-only with their
-//    progress (and drops the workspace's reviews); then catalog-api erases the programs and media. If
-//    one fails, the workspace is still Active and the owner can try again: every step is idempotent.
-// 4. Then, in one transaction, tenancy removes the team and invites and marks the tenant Deleted,
-//    with its name, branding and Stripe link cleared. The slug stays taken, so no new workspace
-//    inherits the old links. The coach's Stripe account is theirs and stays at Stripe.
+// Only the owner, who confirms by typing the workspace address; then WorkspaceDeletions runs the
+// deletion as one durable job (the platform admin starts the same job, AdminDeleteTenant):
+// - ordering-api may still refuse (sales inside the refund window, 409, with the date) and closes
+//   open Stripe payment pages, so no customer pays for a program about to be erased;
+// - catalog-api hides the programs and the workspace is Suspended, which closes the studio;
+// - enrollment-api copies each bought program for its buyers, who keep it read-only with their
+//   progress (and drops the workspace's reviews); catalog-api erases the programs and media;
+// - tenancy removes the team and invites and marks the tenant Deleted, with its name, branding and
+//   Stripe link cleared. The slug stays taken, so no new workspace inherits the old links. The
+//   coach's Stripe account is theirs and stays at Stripe.
+// 204 when it finished in the request; 202 when a step failed and the retries will finish it.
 //
 // Not in the studio group's transaction: the calls to other services may wait for a cold start,
 // and must not hold one of the service's three database connections meanwhile.
@@ -32,8 +33,8 @@ public static class DeleteWorkspace
             .WithName("DeleteWorkspace")
             .WithTags("Workspace");
 
-    private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> Handle(
-        string tenantSlug, [FromBody] Request request, ITenantContext tenant, TenancyDbContext db, ITenantErasure erasure,
+    private static async Task<Results<NoContent, Accepted, NotFound, ProblemHttpResult>> Handle(
+        string tenantSlug, [FromBody] Request request, ITenantContext tenant, TenancyDbContext db, IServiceScopeFactory scopes,
         CancellationToken cancellationToken)
     {
         // Tenants are readable by every session (RLS tenants_read), so no transaction is needed yet.
@@ -54,35 +55,13 @@ public static class DeleteWorkspace
             return TypedResults.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Type the workspace address to confirm.");
         }
 
-        try
+        var (outcome, status, problem) = await WorkspaceDeletions.StartAsync(scopes, workspace.Id, tenant.UserId!.Value, audit: null, cancellationToken);
+        return outcome switch
         {
-            if (await erasure.PrepareAsync(workspace.Id, cancellationToken) is { } refusal)
-            {
-                return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: refusal);
-            }
-
-            await erasure.EraseAsync(workspace.Id, cancellationToken);
-        }
-        catch (HttpRequestException)
-        {
-            return TypedResults.Problem(
-                statusCode: StatusCodes.Status502BadGateway,
-                title: "Some of the workspace could not be deleted yet. Nothing is lost by trying again.");
-        }
-
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.StaffInvites.ExecuteDeleteAsync(cancellationToken);
-        await db.Memberships.ExecuteDeleteAsync(cancellationToken);
-        var deleted = await db.Tenants.SingleAsync(t => t.Id == workspace.Id, cancellationToken);
-        deleted.Status = TenantStatus.Deleted;
-        deleted.DisplayName = "Deleted workspace";
-        deleted.Branding = new Branding();
-        deleted.StripeAccountId = null;
-        deleted.StripeOnboardingComplete = false;
-        await db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
-        return TypedResults.NoContent();
+            WorkspaceDeletions.Outcome.Deleted => TypedResults.NoContent(),
+            WorkspaceDeletions.Outcome.Pending => TypedResults.Accepted((string?)null),
+            _ => TypedResults.Problem(statusCode: status, title: problem),
+        };
     }
 }
 

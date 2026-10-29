@@ -46,19 +46,11 @@ public static class ExportWorkspace
             return TypedResults.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Only the owner can download the workspace's data.");
         }
 
-        // Members' profiles are readable inside the tenant (user_profiles tenant_members_read).
-        var team = await db.Memberships.AsNoTracking()
-            .GroupJoin(db.UserProfiles, m => m.UserId, p => p.UserId, (m, profiles) => new { m, profiles })
-            .SelectMany(x => x.profiles.DefaultIfEmpty(), (x, p) => new { x.m.Role, x.m.CreatedAt, p!.DisplayName, p.Email })
-            .OrderBy(x => x.Role)
-            .ThenBy(x => x.CreatedAt)
-            .Select(x => new Member(x.DisplayName, x.Email, x.Role, x.CreatedAt))
-            .ToListAsync(cancellationToken);
-
-        TenantData data;
+        var team = await TeamAsync(db, cancellationToken);
+        Response response;
         try
         {
-            data = await export.GetAsync(workspace.Id, cancellationToken);
+            response = await AssembleAsync(workspace, team, export, time.GetUtcNow(), cancellationToken);
         }
         catch (HttpRequestException)
         {
@@ -68,11 +60,29 @@ public static class ExportWorkspace
         // Saved as a file by the browser, never cached on the way.
         http.Response.Headers.CacheControl = "no-store";
         http.Response.Headers.ContentDisposition = $"attachment; filename=\"athlos-{workspace.Slug}-{time.GetUtcNow():yyyy-MM-dd}.json\"";
-        return TypedResults.Ok(new Response(
-            time.GetUtcNow(),
+        return TypedResults.Ok(response);
+    }
+
+    // The team with their addresses. Call inside the workspace's tenant: members' profiles are readable
+    // there (user_profiles tenant_members_read).
+    public static Task<List<Member>> TeamAsync(TenancyDbContext db, CancellationToken cancellationToken) =>
+        db.Memberships.AsNoTracking()
+            .GroupJoin(db.UserProfiles, m => m.UserId, p => p.UserId, (m, profiles) => new { m, profiles })
+            .SelectMany(x => x.profiles.DefaultIfEmpty(), (x, p) => new { x.m.Role, x.m.CreatedAt, p!.DisplayName, p.Email })
+            .OrderBy(x => x.Role)
+            .ThenBy(x => x.CreatedAt)
+            .Select(x => new Member(x.DisplayName, x.Email, x.Role, x.CreatedAt))
+            .ToListAsync(cancellationToken);
+
+    // The whole export, with the other services' parts. Throws HttpRequestException if one cannot answer.
+    public static async Task<Response> AssembleAsync(Tenant workspace, List<Member> team, ITenantExport export, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var data = await export.GetAsync(workspace.Id, cancellationToken);
+        return new Response(
+            now,
             new Workspace(workspace.Slug, workspace.DisplayName, workspace.Status, workspace.Plan, workspace.Branding, workspace.CreatedAt,
                 workspace.CoachTermsVersion, workspace.CoachTermsAcceptedAt),
-            team, data.Programs, data.Sales, data.Customers));
+            team, data.Programs, data.Sales, data.Customers);
     }
 }
 

@@ -56,6 +56,9 @@ public sealed class FakeCustomerExport : ICustomerExport
 
     public void FailFor(Guid customerId) => _failing[customerId] = true;
 
+    // The services answer again.
+    public void Recover(Guid customerId) => _failing.TryRemove(customerId, out _);
+
     public Task<CustomerData> GetAsync(Guid customerId, CancellationToken cancellationToken)
     {
         if (_failing.ContainsKey(customerId))

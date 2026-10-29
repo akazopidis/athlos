@@ -68,6 +68,8 @@ public sealed partial class LinkPreviews(IHttpClientFactory clients, GatewaySign
 
         context.Response.Headers.CacheControl = "no-cache";
         var url = $"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}";
+        // With the page's first data requests preloaded, whether or not the preview was found (DataPreloads).
+        html = DataPreloads.Insert(html, DataPreloads.For(context.Request.Path, context.Request.QueryString));
         return Results.Content(preview is null ? html : Fill(html, preview, url), "text/html; charset=utf-8");
     }
 

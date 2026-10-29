@@ -71,9 +71,13 @@ test('a coach opens a workspace, creates a program, and deletes the workspace', 
     await invite.getByRole('button', { name: 'Revoke' }).click()
     await expect(invite).toBeHidden()
 
-    // The owner's export (design §5.4): one JSON file with the workspace and its program.
+    // The owner's export (design §5.4): asked for, prepared after the request, then one JSON file with
+    // the workspace and its program.
+    await page.getByRole('button', { name: 'Prepare workspace data' }).click()
+    const ready = page.getByRole('listitem').filter({ hasText: `Workspace data (${slug})` }).first()
+    await expect(ready.getByRole('button', { name: 'Download' })).toBeVisible({ timeout: 90_000 })
     const download = page.waitForEvent('download')
-    await page.getByRole('button', { name: 'Download workspace data' }).click()
+    await ready.getByRole('button', { name: 'Download' }).click()
     const file = await download
     expect(file.suggestedFilename()).toMatch(new RegExp(`^athlos-${slug}-\\d{4}-\\d{2}-\\d{2}\\.json$`))
     const exported = JSON.parse(await readFile((await file.path())!, 'utf8'))

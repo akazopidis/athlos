@@ -12,8 +12,10 @@ public static class ListTenants
 {
     public const int MaxPageSize = 50;
 
+    // DeletionPending: a deletion started and has not finished (WorkspaceDeletions); LastDeletionError says why.
     public sealed record Item(
-        Guid Id, string Slug, string DisplayName, TenantStatus Status, PlanName Plan, bool ReadyToSell, DateTimeOffset CreatedAt);
+        Guid Id, string Slug, string DisplayName, TenantStatus Status, PlanName Plan, bool ReadyToSell, DateTimeOffset CreatedAt,
+        bool DeletionPending = false, string? LastDeletionError = null);
 
     // API convention for paged lists (design §7.1).
     public sealed record TenantPage(List<Item> Items, int Page, int PageSize, int TotalCount);
@@ -48,10 +50,16 @@ public static class ListTenants
             .OrderByDescending(t => t.CreatedAt).ThenBy(t => t.Id)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(t => ToItem(t))
+            .Select(t => new
+            {
+                Tenant = t,
+                Deletion = db.WorkspaceDeletions.Where(d => d.TenantId == t.Id).Select(d => new { d.LastError }).FirstOrDefault(),
+            })
             .ToListAsync(cancellationToken);
 
-        return TypedResults.Ok(new TenantPage(items, query.Page, query.PageSize, total));
+        return TypedResults.Ok(new TenantPage(
+            [.. items.Select(i => ToItem(i.Tenant) with { DeletionPending = i.Deletion is not null, LastDeletionError = i.Deletion?.LastError })],
+            query.Page, query.PageSize, total));
     }
 
     public static Item ToItem(Tenant t) =>

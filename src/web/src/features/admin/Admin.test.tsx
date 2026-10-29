@@ -8,7 +8,10 @@ import { appRolesOf } from '@/lib/usePlatformAdmin'
 import { signedInAs } from '@/test-auth'
 import { Admin } from './Admin.tsx'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
 
 // An unsigned token with the given claims; the page only reads them to decide what to show.
 const tokenWith = (claims: object) => `e30.${btoa(JSON.stringify(claims)).replace(/=+$/, '')}.sig`
@@ -22,7 +25,7 @@ const logs: Record<string, object[]> = {
   '/api/v1/admin/payouts/actions': [],
 }
 
-function renderAs(claims: object) {
+function renderAs(claims: object, items: object[] = [workspace]) {
   const auth = signedInAs('admin', tokenWith(claims))
   const requests: Request[] = []
   vi.stubGlobal(
@@ -31,7 +34,7 @@ function renderAs(claims: object) {
       requests.push(request)
       const path = new URL(request.url).pathname
       if (path === '/api/v1/admin/metrics') return Response.json(metrics)
-      if (path === '/api/v1/admin/tenants') return Response.json({ items: [workspace], page: 1, pageSize: 20, totalCount: 1 })
+      if (path === '/api/v1/admin/tenants') return Response.json({ items, page: 1, pageSize: 20, totalCount: items.length })
       if (path in logs) return Response.json(logs[path])
       if (path === '/api/v1/admin/payouts' || path === '/api/v1/admin/reviews/reports') return Response.json([])
       return Response.json({ ...workspace, status: 'Suspended' })
@@ -77,6 +80,31 @@ test('the admin sees the counts and suspends a workspace, giving a reason', asyn
   expect(new URL(put.url).pathname).toBe('/api/v1/admin/tenants/w1/status')
   expect(await put.json()).toEqual({ status: 'Suspended', reason: 'Sells copied programs' })
   await waitFor(() => expect(screen.getByLabelText('Reason for your next action')).toHaveValue(''))
+})
+
+// Deleting (design §3.4): after a confirmation, the same job as the owner's, with the reason.
+test('the admin deletes a workspace after confirming, giving a reason', async () => {
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+  const requests = renderAs({ roles: ['Platform.Admin'] })
+
+  fireEvent.change(await screen.findByLabelText('Reason for your next action'), { target: { value: 'The owner asked by email' } })
+  fireEvent.click(await screen.findByRole('button', { name: 'Delete Anna Coaching' }))
+
+  await waitFor(() => expect(requests.some((r) => r.method === 'POST')).toBe(true))
+  const post = requests.find((r) => r.method === 'POST')!
+  expect(confirm).toHaveBeenCalled()
+  expect(new URL(post.url).pathname).toBe('/api/v1/admin/tenants/w1/deletion')
+  expect(await post.json()).toEqual({ reason: 'The owner asked by email' })
+})
+
+// A deletion its retries are still finishing: marked, with no other action offered.
+test('a workspace being deleted offers no actions', async () => {
+  renderAs({ roles: ['Platform.Admin'] }, [{ ...workspace, status: 'Suspended', deletionPending: true, lastDeletionError: 'No answer' }])
+
+  expect(await screen.findByText('being deleted')).toHaveAttribute('title', 'No answer')
+  expect(screen.queryByRole('button', { name: 'Reactivate' })).toBeNull()
+  expect(screen.queryByRole('button', { name: /Delete/ })).toBeNull()
+  expect(screen.getByLabelText('Plan of Anna Coaching')).toBeDisabled()
 })
 
 test('the log shows the admin actions of every service together, newest first', async () => {

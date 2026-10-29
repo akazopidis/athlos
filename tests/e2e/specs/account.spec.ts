@@ -72,14 +72,18 @@ test('a customer saves a program for later and removes it', async ({ page }, tes
   await expect(saved).toHaveCount(0)
 })
 
-// "Download my data" (design §5.4): one JSON file with the account and every service's part.
+// "Download my data" (design §5.4): asked for, prepared after the request, then one JSON file with
+// the account and every service's part. The newest export is listed first.
 test('a customer downloads their data', async ({ page }, testInfo) => {
   desktopOnly(testInfo.project.name)
   await signIn(page)
 
   await page.goto('/me/account')
+  await page.getByRole('button', { name: 'Prepare my data' }).click()
+  const newest = page.getByRole('listitem').filter({ hasText: 'Your data' }).first()
+  await expect(newest.getByRole('button', { name: 'Download' })).toBeVisible({ timeout: 90_000 })
   const download = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Download my data' }).click()
+  await newest.getByRole('button', { name: 'Download' }).click()
   const file = await download
   expect(file.suggestedFilename()).toMatch(/^athlos-data-\d{4}-\d{2}-\d{2}\.json$/)
   const data = JSON.parse(await (await import('node:fs/promises')).readFile((await file.path())!, 'utf-8'))

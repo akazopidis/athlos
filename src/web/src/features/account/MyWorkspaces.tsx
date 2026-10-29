@@ -40,9 +40,11 @@ export function MyWorkspaces() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold">{m.displayName}</span>
-                    <span className="text-sm text-muted-foreground">Suspended by Athlos. Your customers keep their programs.</span>
+                    <span className="text-sm text-muted-foreground">
+                      {m.deletionPending ? 'Being deleted. Your customers keep their programs.' : 'Suspended by Athlos. Your customers keep their programs.'}
+                    </span>
                   </span>
-                  <Badge variant="destructive">Suspended</Badge>
+                  <Badge variant="destructive">{m.deletionPending ? 'Deleting' : 'Suspended'}</Badge>
                 </div>
               ) : (
                 <Link

@@ -25,7 +25,11 @@ public sealed class MediaStore(BlobServiceClient blobs, TimeProvider time) : IDi
     private UserDelegationKey? _delegationKey;
     private bool _containerChecked;
 
-    public async Task UploadAsync(string path, BinaryData content, ImageType type, CancellationToken cancellationToken)
+    public Task UploadAsync(string path, BinaryData content, ImageType type, CancellationToken cancellationToken) =>
+        UploadAsync(path, content, type.ContentType, "private, max-age=900", cancellationToken);
+
+    // Any private file, such as a data export (design §5.4); read back with DownloadAsync, never linked.
+    public async Task UploadAsync(string path, BinaryData content, string contentType, string cacheControl, CancellationToken cancellationToken)
     {
         if (!_containerChecked)
         {
@@ -35,12 +39,25 @@ public sealed class MediaStore(BlobServiceClient blobs, TimeProvider time) : IDi
 
         await _container.GetBlobClient(path).UploadAsync(content, new BlobUploadOptions
         {
-            HttpHeaders = new BlobHttpHeaders { ContentType = type.ContentType, CacheControl = "private, max-age=900" },
+            HttpHeaders = new BlobHttpHeaders { ContentType = contentType, CacheControl = cacheControl },
         }, cancellationToken);
     }
 
     public Task DeleteAsync(string path, CancellationToken cancellationToken) =>
         _container.GetBlobClient(path).DeleteIfExistsAsync(cancellationToken: cancellationToken);
+
+    // The file's content, or null if it is not there.
+    public async Task<BinaryData?> DownloadAsync(string path, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return (await _container.GetBlobClient(path).DownloadContentAsync(cancellationToken)).Value.Content;
+        }
+        catch (Azure.RequestFailedException e) when (e.Status == 404)
+        {
+            return null;
+        }
+    }
 
     // Everything under tenants/{tenantId}/: a tenant's media goes with one prefix (design §3.4).
     public async Task<int> DeleteTenantAsync(Guid tenantId, CancellationToken cancellationToken)

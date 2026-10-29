@@ -38,27 +38,16 @@ public static class ExportMyData
             return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized);
         }
 
-        Profile profile;
-        List<Workspace> workspaces;
+        (Profile, List<Workspace>) own;
         await using (var transaction = await db.Database.BeginTransactionAsync(cancellationToken))
         {
-            var stored = await db.UserProfiles.AsNoTracking().Where(p => p.UserId == userId).SingleOrDefaultAsync(cancellationToken);
-            profile = new Profile(userId, stored?.Email, stored?.DisplayName);
-            workspaces = await (
-                    from m in db.Memberships.AsNoTracking().IgnoreQueryFilters([TenantDbContext.TenantFilter])
-                    where m.UserId == userId
-                    from t in db.Tenants
-                    where t.Id == m.TenantId && t.Status != TenantStatus.Deleted
-                    orderby m.CreatedAt
-                    select new Workspace(t.Slug, t.DisplayName, m.Role, m.CreatedAt,
-                        t.CoachTermsAcceptedBy == userId ? t.CoachTermsVersion : null, t.CoachTermsAcceptedBy == userId ? t.CoachTermsAcceptedAt : null))
-                .ToListAsync(cancellationToken);
+            own = await ReadOwnAsync(db, userId, cancellationToken);
         }
 
-        CustomerData data;
+        Response response;
         try
         {
-            data = await export.GetAsync(userId, cancellationToken);
+            response = await AssembleAsync(own, userId, export, time.GetUtcNow(), cancellationToken);
         }
         catch (HttpRequestException)
         {
@@ -68,7 +57,33 @@ public static class ExportMyData
         // Saved as a file by the browser, never cached on the way.
         http.Response.Headers.CacheControl = "no-store";
         http.Response.Headers.ContentDisposition = $"attachment; filename=\"athlos-data-{time.GetUtcNow():yyyy-MM-dd}.json\"";
-        return TypedResults.Ok(new Response(time.GetUtcNow(), profile, workspaces, data.Orders, data.Programs, data.Saved));
+        return TypedResults.Ok(response);
+    }
+
+    // tenancy-api's part: the profile and the workspaces. Call inside a transaction acting for the user
+    // (the request's, or DataExports' through AsUserAsync).
+    public static async Task<(Profile, List<Workspace>)> ReadOwnAsync(TenancyDbContext db, Guid userId, CancellationToken cancellationToken)
+    {
+        var stored = await db.UserProfiles.AsNoTracking().Where(p => p.UserId == userId).SingleOrDefaultAsync(cancellationToken);
+        var workspaces = await (
+                from m in db.Memberships.AsNoTracking().IgnoreQueryFilters([TenantDbContext.TenantFilter])
+                where m.UserId == userId
+                from t in db.Tenants
+                where t.Id == m.TenantId && t.Status != TenantStatus.Deleted
+                orderby m.CreatedAt
+                select new Workspace(t.Slug, t.DisplayName, m.Role, m.CreatedAt,
+                    t.CoachTermsAcceptedBy == userId ? t.CoachTermsVersion : null, t.CoachTermsAcceptedBy == userId ? t.CoachTermsAcceptedAt : null))
+            .ToListAsync(cancellationToken);
+        return (new Profile(userId, stored?.Email, stored?.DisplayName), workspaces);
+    }
+
+    // The whole export, with the other services' parts (outside any transaction: they may wait for a
+    // cold start). Throws HttpRequestException if one cannot answer.
+    public static async Task<Response> AssembleAsync(
+        (Profile Profile, List<Workspace> Workspaces) own, Guid userId, ICustomerExport export, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var data = await export.GetAsync(userId, cancellationToken);
+        return new Response(now, own.Profile, own.Workspaces, data.Orders, data.Programs, data.Saved);
     }
 }
 

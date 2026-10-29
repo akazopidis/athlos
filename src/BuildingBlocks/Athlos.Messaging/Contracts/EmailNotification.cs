@@ -82,6 +82,10 @@ public static class EmailTemplates
     // most once a week per customer (design §2.4); addressed ToUser.
     public const string PriceDrop = "price-drop";
 
+    // To whoever asked for a data export, queued by tenancy-api when the file is ready (design §5.4);
+    // addressed ToUser. The file waits in their account settings for seven days.
+    public const string DataExportReady = "data-export-ready";
+
     // To the invitee, queued by tenancy-api with the invite (design §5.2).
     public const string StaffInvite = "staff-invite";
 }

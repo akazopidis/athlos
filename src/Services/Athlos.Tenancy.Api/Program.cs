@@ -56,6 +56,9 @@ builder.Services.AddHttpClient<IEntraUsers, GraphEntraUsers>();
 // The staff invite email leaves through the outbox to the notifications queue (design §5.2, §5.3).
 builder.AddOutbox<TenancyDbContext>();
 builder.Services.AddHostedService<Athlos.Tenancy.Api.Features.Payouts.PayoutReminders>();
+// Retries workspace deletions that did not finish at once (design §3.4)
+builder.Services.AddHostedService<Athlos.Tenancy.Api.Features.Account.DataExportJobs>();
+builder.Services.AddHostedService<Athlos.Tenancy.Api.Features.Workspace.WorkspaceDeletionRetries>();
 // Catalog-api's copy of each workspace's name, for the shop's search (design §8)
 builder.Services.AddHostedService<Athlos.Tenancy.Api.Features.Storefront.CoachNameCopies>();
 builder.Services.AddScoped<Athlos.Tenancy.Api.Features.Storefront.ICatalogCoachNames, Athlos.Tenancy.Api.Features.Storefront.ServiceCatalogCoachNames>();
@@ -110,6 +113,10 @@ me.MapUpsertMyProfile();
 app.MapGroup("/api/v1/me")
     .RequireAuthorization()
     .MapExportMyData();
+// Data exports as a queued job (design §5.4): the service's work queue, no tenant data, no transaction.
+app.MapGroup("/api/v1/me")
+    .RequireAuthorization()
+    .MapMyDataExports();
 // Reporting a program or a coach (design §2.4): looks the program up at catalog-api, then its own transaction.
 app.MapGroup("/api/v1/me")
     .RequireAuthorization()
@@ -126,6 +133,7 @@ studio.MapGetWorkspace();
 studio.MapUpdateWorkspace();
 studio.MapAcceptCoachTerms();
 studio.MapExportWorkspace();
+studio.MapWorkspaceDataExport();
 studio.MapWorkspaceLogo();
 studio.MapPayouts();
 studio.MapStaffInvites();

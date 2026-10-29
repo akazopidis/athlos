@@ -20,6 +20,16 @@ public static class TenantScopes
         await transaction.CommitAsync(cancellationToken);
     }
 
+    // The same, returning what the work found.
+    public static async Task<T> InTenantAsync<TDbContext, T>(
+        this IServiceScopeFactory scopes, Guid tenantId, Func<TDbContext, Task<T>> work, CancellationToken cancellationToken)
+        where TDbContext : DbContext
+    {
+        T result = default!;
+        await scopes.InTenantAsync<TDbContext>(tenantId, async db => result = await work(db), cancellationToken);
+        return result;
+    }
+
     // The same for one user's own rows, for a slice that knows the user from something other than the
     // caller's sign-in (an email's signed unsubscribe link, design §5.3): RLS shows that user's rows only.
     public static async Task<T> AsUserAsync<TDbContext, T>(

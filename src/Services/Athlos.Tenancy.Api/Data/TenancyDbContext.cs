@@ -23,6 +23,8 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
 
     public DbSet<WorkspaceDeletion> WorkspaceDeletions => Set<WorkspaceDeletion>();
 
+    public DbSet<DataExport> DataExports => Set<DataExport>();
+
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public DbSet<AdminAction> AdminActions => Set<AdminAction>();
@@ -77,6 +79,17 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
             report.Property(r => r.Subject).HasMaxLength(120);
             report.Property(r => r.CoachSlug).HasMaxLength(40);
             report.Property(r => r.Note).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<DataExport>(export =>
+        {
+            export.ToTable("data_exports");
+            export.HasIndex(e => new { e.RequestedBy, e.RequestedAt });
+            export.HasIndex(e => e.NextAttemptAt);
+            export.HasIndex(e => e.ExpiresAt);
+            export.Property(e => e.Kind).HasConversion<string>().HasMaxLength(20);
+            export.Property(e => e.LastError).HasMaxLength(300);
+            export.Ignore(e => e.BlobPath);
         });
 
         modelBuilder.Entity<WorkspaceDeletion>(deletion =>

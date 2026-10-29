@@ -121,6 +121,8 @@ public static partial class WorkspaceDeletions
             deleted.StripeOnboardingComplete = false;
             await workspaces.SaveChangesAsync(cancellationToken);
             await workspaces.WorkspaceDeletions.Where(d => d.TenantId == tenantId).ExecuteDeleteAsync(cancellationToken);
+            // Its exports' files went with the workspace's media (catalog-api's erase, tenants/{id}/).
+            await workspaces.DataExports.Where(e => e.TenantId == tenantId).ExecuteDeleteAsync(cancellationToken);
         }, cancellationToken);
         return true;
     }

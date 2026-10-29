@@ -245,6 +245,71 @@
         }
       }
     },
+    "/api/v1/me/exports": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "RequestMyDataExport",
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExportsItem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "ListMyDataExports",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DataExportsItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/exports/{exportId}/file": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "DownloadMyDataExport",
+        "parameters": [
+          {
+            "name": "exportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/v1/me/reports": {
       "post": {
         "tags": [
@@ -434,6 +499,39 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExportWorkspaceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/studio/{tenantSlug}/workspace/exports": {
+      "post": {
+        "tags": [
+          "Workspace"
+        ],
+        "operationId": "RequestWorkspaceDataExport",
+        "parameters": [
+          {
+            "name": "tenantSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExportsItem"
                 }
               }
             }
@@ -1714,6 +1812,60 @@
           },
           "displayName": {
             "type": "string"
+          }
+        }
+      },
+      "DataExportKind": {
+        "enum": [
+          "Account",
+          "Workspace"
+        ]
+      },
+      "DataExportsItem": {
+        "required": [
+          "id",
+          "kind",
+          "workspace",
+          "requestedAt",
+          "status",
+          "readyAt",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DataExportKind"
+          },
+          "workspace": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "readyAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },

@@ -11,20 +11,35 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function renderButton(answer: Response) {
-  const requests: Request[] = []
+const ready = {
+  id: 'e-1',
+  kind: 'Workspace',
+  workspace: 'anna',
+  requestedAt: '2026-10-29T10:00:00Z',
+  status: 'Ready',
+  readyAt: '2026-10-29T10:00:05Z',
+  expiresAt: '2026-11-05T10:00:05Z',
+}
+
+// The owner's workspace export (design §5.4) against a fake tenancy-api: asking queues it, and a ready
+// one of this workspace is downloaded as a file. `exports` is what the list answers.
+function renderCard(exports: object[], post: Response = Response.json({ ...ready, status: 'Preparing' }, { status: 202 })) {
+  const requests: { method: string; path: string }[] = []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (request: Request) => {
-      requests.push(request.clone())
-      return answer.clone()
+      const path = new URL(request.url).pathname
+      requests.push({ method: request.method, path })
+      if (request.method === 'POST') return post.clone()
+      if (path === '/api/v1/me/exports') return Response.json(exports)
+      return new Response('{"workspace":{}}', { headers: { 'Content-Type': 'application/json' } })
     }),
   )
   const auth = signedInAs('owner')
   const config = { entraClientId: 'client', entraAuthority: 'https://login.example', apiScope: 'api://athlos/access', version: 'test' }
   render(
     <AppContext.Provider value={{ config, auth, api: createApi(auth) }}>
-      <QueryClientProvider client={new QueryClient()}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <DownloadWorkspaceData slug="anna" />
       </QueryClientProvider>
     </AppContext.Provider>,
@@ -32,26 +47,38 @@ function renderButton(answer: Response) {
   return requests
 }
 
-// The owner's workspace export (design §5.4) is saved by the browser as one JSON file.
-test('the workspace data is saved as a file named after the workspace', async () => {
+test('asking queues the export, which is listed while it is prepared', async () => {
+  const requests = renderCard([])
+
+  fireEvent.click(screen.getByRole('button', { name: /Prepare workspace data/ }))
+
+  await waitFor(() => expect(requests.some((r) => r.method === 'POST')).toBe(true))
+  expect(requests.find((r) => r.method === 'POST')!.path).toBe('/api/v1/studio/anna/workspace/exports')
+  // The list is read again after asking.
+  await waitFor(() => expect(requests.filter((r) => r.path === '/api/v1/me/exports')).toHaveLength(2))
+})
+
+// Only this workspace's exports, and a ready one downloads as a file named after it.
+test('a ready export of this workspace downloads as a file', async () => {
   vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:export'), revokeObjectURL: vi.fn() }))
   const saved: string[] = []
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
     saved.push(this.download)
   })
-  const requests = renderButton(Response.json({ workspace: { slug: 'anna' }, team: [], programs: {}, sales: {}, customers: {} }))
+  const requests = renderCard([ready, { ...ready, id: 'e-2', workspace: 'ben' }, { ...ready, id: 'e-3', kind: 'Account', workspace: null }])
 
-  fireEvent.click(screen.getByRole('button', { name: /Download workspace data/ }))
+  const download = await screen.findByRole('button', { name: /Download/ })
+  expect(screen.getAllByRole('listitem')).toHaveLength(1)
+  fireEvent.click(download)
 
-  await waitFor(() => expect(saved).toHaveLength(1))
-  expect(new URL(requests[0]!.url).pathname).toBe('/api/v1/studio/anna/workspace/export')
-  expect(saved[0]).toMatch(/^athlos-anna-\d{4}-\d{2}-\d{2}\.json$/)
+  await waitFor(() => expect(saved).toEqual(['athlos-anna-2026-10-29.json']))
+  expect(requests.some((r) => r.path === '/api/v1/me/exports/e-1/file')).toBe(true)
 })
 
-test('a service that cannot answer is explained', async () => {
-  renderButton(Response.json({ title: "The workspace's data could not be gathered just now. Try again in a moment." }, { status: 502 }))
+test('a refused request is explained', async () => {
+  renderCard([], Response.json({ title: "Only the owner can download the workspace's data." }, { status: 403, headers: { 'Content-Type': 'application/problem+json' } }))
 
-  fireEvent.click(screen.getByRole('button', { name: /Download workspace data/ }))
+  fireEvent.click(screen.getByRole('button', { name: /Prepare workspace data/ }))
 
-  expect(await screen.findByRole('alert')).toHaveTextContent('could not be gathered')
+  expect(await screen.findByRole('alert')).toHaveTextContent('Only the owner')
 })

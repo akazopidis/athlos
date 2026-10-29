@@ -1,3 +1,4 @@
+using Azure.Storage.Blobs;
 using Testcontainers.Azurite;
 using Xunit;
 
@@ -16,4 +17,11 @@ public sealed class AthlosStorage : IAsyncLifetime
     public async ValueTask InitializeAsync() => await _container.StartAsync(TestContext.Current.CancellationToken);
 
     public ValueTask DisposeAsync() => _container.DisposeAsync();
+
+    // A file in the media container, or null if it is not there.
+    public async Task<BinaryData?> ReadAsync(string path)
+    {
+        var blob = new BlobServiceClient(ConnectionString).GetBlobContainerClient(Athlos.Media.MediaStore.ContainerName).GetBlobClient(path);
+        return await blob.ExistsAsync(TestContext.Current.CancellationToken) ? (await blob.DownloadContentAsync(TestContext.Current.CancellationToken)).Value.Content : null;
+    }
 }

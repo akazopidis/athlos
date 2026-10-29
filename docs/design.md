@@ -2,9 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v17.10, built; v1.21.0 in production (2026-10-29)
+**Status:** v17.11, built; v1.22.0 in production (2026-10-30)
 
-**Changes in v17.11 (next release):** a static shell in `index.html`, the site header painted before the JavaScript runs (§8.1; first paint 5.5 → 3.7 s on a really throttled phone, `docs/evaluation/lighthouse.md` round 3); the gateway preloads the first data requests of storefronts, program pages and the coaches page (`DataPreloads`, §8.1; a program page's largest paint 6.2 → 5.7 s, round 4).
+**Changes in v17.11 (v1.22.0):** a static shell in `index.html`, the site header painted before the JavaScript runs (§8.1; first paint 5.5 → 3.7 s on a really throttled phone, `docs/evaluation/lighthouse.md` round 3); the gateway preloads the first data requests of storefronts, program pages and the coaches page (`DataPreloads`, §8.1; a program page's largest paint 6.2 → 5.7 s, round 4).
 
 **Changes in v17.10 (v1.21.0):** data exports are a queued job: asked for (`202`), prepared after the request, emailed when ready and kept seven days (tenancy `data_exports`, the `DataExportJobs` pass, §5.4); workspace deletion is one durable job, and the platform admin can start it with a reason (tenancy `workspace_deletions`, the `WorkspaceDeletionRetries` pass, `POST /api/v1/admin/tenants/{id}/deletion`, §3.4).
 

@@ -73,6 +73,8 @@ app.MapReverseProxy(proxy =>
     proxy.Use(RateLimits.Apply);
 });
 app.MapLinkPreviews();
+// The shop and the coaches page: the shell with their first data requests preloaded (design §8.1)
+app.MapDataPreloads();
 app.MapSitemap();
 app.MapClientErrors();
 app.MapSpa();

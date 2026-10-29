@@ -8,6 +8,9 @@ namespace Athlos.Gateway;
 // A preload is used only if its URL is exactly the SPA's (path, parameter names and order), so these
 // follow the requests the pages make; the gateway test pins them. Later requests depend on these
 // answers (the coaches of the programs found, the program's reviews) and are not preloaded.
+// Only pages whose largest paint waits for data: the shop's is its hero heading, which needs none, and
+// preloading there only took bandwidth from the JavaScript (largest paint 0.1 s later on a throttled
+// phone, docs/evaluation/lighthouse.md round 4), so the shop gets none.
 public static class DataPreloads
 {
     // The first page of a catalog: Catalog.tsx's search with no filters, 12 per page.
@@ -18,11 +21,7 @@ public static class DataPreloads
         var segments = path.Value?.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries) ?? [];
         return segments switch
         {
-            // The shop: the coach facet (useMarketplaceCoaches) always, the first page when nothing is
-            // searched or filtered (a query changes the SPA's URL).
-            [] => query.HasValue
-                ? ["/api/v1/marketplace/programs?PageSize=1"]
-                : [$"/api/v1/marketplace/programs?{FirstPage}", "/api/v1/marketplace/programs?PageSize=1"],
+            // The coaches page: its list waits for the coach facet (useMarketplaceCoaches).
             ["coaches"] => ["/api/v1/marketplace/programs?PageSize=1"],
             ["c", var slug] when !query.HasValue =>
                 [$"/api/v1/marketplace/coaches/{Escape(slug)}", $"/api/v1/marketplace/programs?Coach={Escape(slug)}&{FirstPage}"],
@@ -51,13 +50,10 @@ public static class DataPreloads
         return head >= 0 ? html.Insert(head, tags) : html;
     }
 
-    // The shop and the coaches page: the shell with their preloads (other client-side routes get the
-    // plain shell from the SPA fallback; storefronts and program pages from LinkPreviews).
-    public static void MapDataPreloads(this WebApplication app)
-    {
-        app.MapGet("/", (HttpContext context, IWebHostEnvironment environment) => ShellAsync(context, environment));
+    // The coaches page: the shell with its preload (other client-side routes get the plain shell from
+    // the SPA fallback; storefronts and program pages from LinkPreviews).
+    public static void MapDataPreloads(this WebApplication app) =>
         app.MapGet("/coaches", (HttpContext context, IWebHostEnvironment environment) => ShellAsync(context, environment));
-    }
 
     private static async Task<IResult> ShellAsync(HttpContext context, IWebHostEnvironment environment)
     {

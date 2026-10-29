@@ -8,8 +8,8 @@ namespace Athlos.Gateway.Tests;
 public sealed class DataPreloadTests
 {
     [Theory]
-    [InlineData("/", "", new[] { "/api/v1/marketplace/programs?Page=1&PageSize=12", "/api/v1/marketplace/programs?PageSize=1" })]
-    [InlineData("/", "?q=yoga", new[] { "/api/v1/marketplace/programs?PageSize=1" })]
+    // The shop's largest paint is its hero heading, which needs no data: no preloads there.
+    [InlineData("/", "", new string[0])]
     [InlineData("/coaches", "", new[] { "/api/v1/marketplace/programs?PageSize=1" })]
     [InlineData("/c/demo-forge", "", new[] { "/api/v1/marketplace/coaches/demo-forge", "/api/v1/marketplace/programs?Coach=demo-forge&Page=1&PageSize=12" })]
     [InlineData("/c/demo-forge", "?category=Running", new[] { "/api/v1/marketplace/coaches/demo-forge" })]

@@ -5,15 +5,18 @@ updates:
     target-branch: dev
     schedule:
       interval: weekly
-    # These packages' major version is the .NET version (10 here): a major is the move to the next .NET,
-    # done deliberately with the SDK in global.json, not by Dependabot. ApiDescription.Server 11.0.0 runs a
-    # build-time tool that needs the .NET 11 runtime and broke every build (#285).
+    # These packages' major version follows .NET (10 here) or Aspire (13): a major is the move to the next
+    # .NET or Aspire, done deliberately with the SDK in global.json and the AppHost's Aspire SDK, not by
+    # Dependabot. ApiDescription.Server 11.0.0 needs the .NET 11 runtime (#285), Microsoft.Extensions 11
+    # brings .NET 11's source generators (#294), and Aspire 17 renames AddProject (#293).
     ignore:
+      - dependency-name: "Aspire.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "Microsoft.AspNetCore.*"
         update-types: ["version-update:semver-major"]
       - dependency-name: "Microsoft.EntityFrameworkCore*"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "Microsoft.Extensions.ApiDescription.Server"
         update-types: ["version-update:semver-major"]
       - dependency-name: "Npgsql.EntityFrameworkCore.PostgreSQL"
         update-types: ["version-update:semver-major"]

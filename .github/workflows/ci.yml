@@ -93,7 +93,10 @@ jobs:
         working-directory: ${{ runner.temp }}/previous
         env:
           ATHLOS_TEST_NEWER_MIGRATOR: ${{ runner.temp }}/migrator/Athlos.DbMigrator.dll
-        run: dotnet test Athlos.slnx --configuration Release
+        # Without NuGet audit: this job asks whether the released code still works on the new schema, not
+        # whether its packages are still clean (the backend job audits the code being released). An
+        # advisory published after a release (Aspire, November 2026) failed its restore otherwise.
+        run: dotnet test Athlos.slnx --configuration Release -p:NuGetAudit=false
 
   frontend:
     runs-on: ubuntu-latest

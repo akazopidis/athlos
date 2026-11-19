@@ -2,9 +2,9 @@
 
 **Thesis:** Design and Implementation of a Multi-Tenant B2B2C Cloud-Native SaaS Platform
 **Case study:** Athlos, a fitness marketplace. Coaches are tenants who open a workspace and sell programs. Customers browse and buy programs from any coach, like a big e-shop.
-**Status:** v17.11, built; v1.22.0 in production (2026-10-30)
+**Status:** v17.12, built; v1.22.1 in production (2026-11-19)
 
-**Changes in v17.12 (next release):** Stripe Checkout charges in euros only (`AdaptivePricing` off: Stripe had started offering buyers outside the euro area their own currency plus a 4% conversion fee, §2.2), and the purchase e2e finds Stripe's redesigned card fields inside their iframe; a gateway signature is accepted for 3 minutes instead of 60 s, so a request that waits while a service starts from zero is no longer refused (§3.2); Aspire 13.6.5 for CVE-2026-120006.
+**Changes in v17.12 (v1.22.1):** Stripe Checkout charges in euros only (`AdaptivePricing` off: Stripe had started offering buyers outside the euro area their own currency plus a 4% conversion fee, §2.2), and the purchase e2e finds Stripe's redesigned card fields inside their iframe; a gateway signature is accepted for 3 minutes instead of 60 s, so a request that waits while a service starts from zero is no longer refused (§3.2); Aspire 13.6.5 for CVE-2026-120006; minimatch 11.0.1 in the SPA's dev tooling; Dependabot skips the majors that belong to a .NET 11 / Aspire 17 move; loading skeletons are `role="status"` (axe `aria-prohibited-attr`, §8).
 
 **Changes in v17.11 (v1.22.0):** a static shell in `index.html`, the site header painted before the JavaScript runs (§8.1; first paint 5.5 → 3.7 s on a really throttled phone, `docs/evaluation/lighthouse.md` round 3); the gateway preloads the first data requests of storefronts, program pages and the coaches page (`DataPreloads`, §8.1; a program page's largest paint 6.2 → 5.7 s, round 4).
 

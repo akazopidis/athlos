@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Frame, type Locator, type Page } from '@playwright/test'
 import { desktopOnly, email, signIn, skipWithoutTestUser } from '../signIn'
 import { canRefund, refundTestPurchases } from '../stripe'
 
@@ -65,21 +65,36 @@ test('a customer buys a program with a test card, then reviews it', async ({ pag
   }).toPass({ timeout: 180_000, intervals: [5_000] })
 })
 
+// A control on Stripe's hosted page, in whichever frame holds it (the page or one of its iframes),
+// waiting up to `timeout` for the frames to load.
+async function stripe(page: Page, locate: (frame: Frame) => Locator, timeout = 60_000): Promise<Locator> {
+  const until = Date.now() + timeout
+  for (;;) {
+    for (const frame of page.frames()) {
+      const control = locate(frame).first()
+      if (await control.isVisible().catch(() => false)) return control
+    }
+    if (Date.now() > until) throw new Error(`Stripe's page has no such control after ${timeout} ms`)
+    await page.waitForTimeout(500)
+  }
+}
+
 // Buy now, then Stripe's hosted page in test mode, then back to Athlos until access exists.
 async function pay(page: Page) {
   await page.getByRole('button', { name: 'Buy now' }).click()
   await page.waitForURL(/checkout\.stripe\.com/, { timeout: 150_000 })
 
-  await page.locator('#cardNumber').fill('4242 4242 4242 4242')
-  await page.locator('#cardExpiry').fill('12 / 34')
-  await page.locator('#cardCvc').fill('123')
-  await page.locator('#billingName').fill('Athlos E2E')
-  const postalCode = page.locator('#billingPostalCode')
-  if (await postalCode.isVisible()) await postalCode.fill('10001')
+  // Since November 2026 Stripe's page keeps the card fields in an iframe, found here by their names.
+  await (await stripe(page, (f) => f.getByRole('textbox', { name: 'Card number' }))).fill('4242 4242 4242 4242')
+  await (await stripe(page, (f) => f.getByRole('textbox', { name: /Expiration/ }))).fill('12 / 34')
+  await (await stripe(page, (f) => f.getByRole('textbox', { name: /Security code|CVC/ }))).fill('123')
+  await (await stripe(page, (f) => f.getByRole('textbox', { name: /Name on card|Cardholder/ }))).fill('Athlos E2E')
+  const postalCode = await stripe(page, (f) => f.getByRole('textbox', { name: /ZIP|Postal/ }), 2_000).catch(() => null)
+  if (postalCode && (await postalCode.isVisible())) await postalCode.fill('10001')
   // Stripe offers to save the details with Link, ticked, and then requires a phone number: untick it.
-  const link = page.getByRole('checkbox', { name: /Save my information with Link/ })
-  if ((await link.isVisible()) && (await link.isChecked())) await link.uncheck()
-  await page.locator('button[type="submit"]').click()
+  const link = await stripe(page, (f) => f.getByRole('checkbox', { name: /Save my information/ }), 2_000).catch(() => null)
+  if (link && (await link.isVisible()) && (await link.isChecked())) await link.uncheck()
+  await (await stripe(page, (f) => f.getByRole('button', { name: 'Pay', exact: true }))).click()
 
   await page.waitForURL(/\/me\?checkout=success/, { timeout: 120_000 })
   // The program appears once Stripe's webhook is handled and enrollment-api enrolled the customer.

@@ -4,10 +4,10 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup Label="Aspire hosting">
-    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.6.5" />
-    <PackageVersion Include="Aspire.Hosting.Azure.ServiceBus" Version="13.6.5" />
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.6.5" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.5" />
+    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="17.0.0" />
+    <PackageVersion Include="Aspire.Hosting.Azure.ServiceBus" Version="17.0.0" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="17.0.0" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="17.0.0" />
   </ItemGroup>
   <ItemGroup Label="Transitive security pins">
     <!-- Pulled in by Aspire's AppHost; 2.5.302 has GHSA-qhrr-8q5h-9q3h (fixed in 2.5.303). Remove once
@@ -23,7 +23,7 @@
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
   </ItemGroup>
   <ItemGroup Label="Data">
-    <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="13.6.5" />
+    <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="17.0.0" />
     <PackageVersion Include="Azure.Communication.Email" Version="1.1.0" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="EFCore.NamingConventions" Version="10.0.1" />
@@ -33,7 +33,7 @@
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
   </ItemGroup>
   <ItemGroup Label="Messaging">
-    <PackageVersion Include="Aspire.Azure.Messaging.ServiceBus" Version="13.6.5" />
+    <PackageVersion Include="Aspire.Azure.Messaging.ServiceBus" Version="17.0.0" />
   </ItemGroup>
   <ItemGroup Label="Payments">
     <PackageVersion Include="Stripe.net" Version="53.1.0" />

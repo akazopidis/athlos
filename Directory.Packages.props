@@ -19,7 +19,7 @@
     <PackageVersion Include="Microsoft.Extensions.ApiDescription.Server" Version="10.0.15" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery.Yarp" Version="10.11.0" />
-    <PackageVersion Include="Scalar.AspNetCore" Version="2.18.3" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="3.0.2" />
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
   </ItemGroup>
   <ItemGroup Label="Data">
@@ -36,7 +36,7 @@
     <PackageVersion Include="Aspire.Azure.Messaging.ServiceBus" Version="13.6.5" />
   </ItemGroup>
   <ItemGroup Label="Payments">
-    <PackageVersion Include="Stripe.net" Version="53.1.0" />
+    <PackageVersion Include="Stripe.net" Version="53.2.0" />
   </ItemGroup>
   <ItemGroup Label="Identity">
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.15" />

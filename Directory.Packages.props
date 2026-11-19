@@ -36,7 +36,7 @@
     <PackageVersion Include="Aspire.Azure.Messaging.ServiceBus" Version="13.6.5" />
   </ItemGroup>
   <ItemGroup Label="Payments">
-    <PackageVersion Include="Stripe.net" Version="53.1.0" />
+    <PackageVersion Include="Stripe.net" Version="53.2.0" />
   </ItemGroup>
   <ItemGroup Label="Identity">
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.15" />

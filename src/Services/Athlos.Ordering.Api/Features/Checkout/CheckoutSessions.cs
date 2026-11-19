@@ -109,6 +109,10 @@ public sealed class StripeCheckoutSessions(IStripeClient stripe) : ICheckoutSess
         var session = await new SessionService(stripe).CreateAsync(new SessionCreateOptions
         {
             Mode = "payment",
+            // Prices, receipts and refunds are in euros (design §2.2): no Adaptive Pricing, which offers a
+            // buyer outside the euro area their own currency plus Stripe's conversion fee (it appeared on
+            // the account in November 2026, quoting a €23.00 program as $26.30).
+            AdaptivePricing = new SessionAdaptivePricingOptions { Enabled = false },
             ClientReferenceId = request.CheckoutId.ToString(),
             CustomerEmail = request.CustomerEmail,
             SuccessUrl = request.SuccessUrl.ToString(),

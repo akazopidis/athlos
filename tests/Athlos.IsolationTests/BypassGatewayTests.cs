@@ -121,11 +121,23 @@ public sealed class BypassGatewayTests(AthlosDatabases database) : IAsyncLifetim
     [Fact]
     public async Task A_replayed_signature_older_than_the_window_is_rejected()
     {
-        var twoMinutesAgo = new FixedTimeProvider(DateTimeOffset.UtcNow - TimeSpan.FromMinutes(2));
+        var pastTheWindow = new FixedTimeProvider(DateTimeOffset.UtcNow - GatewaySignature.MaxAge - TimeSpan.FromMinutes(1));
 
-        var response = await Send(Signed(Signer(twoMinutesAgo), "GET", "/api/v1/plans", TenantA, "Owner"));
+        var response = await Send(Signed(Signer(pastTheWindow), "GET", "/api/v1/plans", TenantA, "Owner"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // A request that waited while the service started from zero arrives with an older signature; it is
+    // still inside the window (a 78 s start answered 401 when the window was 60 s).
+    [Fact]
+    public async Task A_signature_delayed_by_a_cold_start_is_accepted()
+    {
+        var ninetySecondsAgo = new FixedTimeProvider(DateTimeOffset.UtcNow - TimeSpan.FromSeconds(90));
+
+        var response = await Send(Signed(Signer(ninetySecondsAgo), "GET", "/api/v1/plans", TenantA, "Owner"));
+
+        Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

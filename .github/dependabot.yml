@@ -35,6 +35,11 @@ updates:
       # The xunit v3 packages pin each other's versions: they can only move together (see #87).
       xunit:
         patterns: ["xunit.v3.*"]
+      # EF Core's packages and Npgsql's provider move together (#299 moved only EF Core's Design package).
+      efcore:
+        patterns: ["Microsoft.EntityFrameworkCore*", "Npgsql.EntityFrameworkCore.*"]
+      testcontainers:
+        patterns: ["Testcontainers*"]
 
   - package-ecosystem: github-actions
     directory: /

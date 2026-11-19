@@ -221,7 +221,7 @@ export function ProgramPage() {
                 <p className="hidden text-sm text-muted-foreground lg:block">One payment for every workout. No subscription.</p>
               </div>
               {deciding ? (
-                <div className="h-10 flex-1 animate-pulse rounded-lg bg-muted lg:h-[5.5rem] lg:flex-none" aria-busy="true" aria-label="Loading" />
+                <div className="h-10 flex-1 animate-pulse rounded-lg bg-muted lg:h-[5.5rem] lg:flex-none" role="status" aria-busy="true" aria-label="Loading" />
               ) : mine ? (
                 <div className="flex-1 space-y-2 lg:flex-none">
                   <p className="hidden text-sm font-medium lg:block">This is your workspace's program.</p>

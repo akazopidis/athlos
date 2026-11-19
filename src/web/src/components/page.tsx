@@ -31,7 +31,7 @@ export function Section({ title, children, action, className }: { title: ReactNo
 
 export function Loading({ lines = 3 }: { lines?: number }) {
   return (
-    <div className="space-y-3" aria-busy="true" aria-label="Loading">
+    <div className="space-y-3" role="status" aria-busy="true" aria-label="Loading">
       {Array.from({ length: lines }, (_, i) => (
         <Skeleton key={i} className="h-5 w-full max-w-md" />
       ))}
@@ -42,7 +42,7 @@ export function Loading({ lines = 3 }: { lines?: number }) {
 // Placeholder cards while a grid of programs loads, the same shape as the cards.
 export function CardGridSkeleton({ count = 6 }: { count?: number }) {
   return (
-    <div className="grid gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading">
+    <div className="grid gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3" role="status" aria-busy="true" aria-label="Loading">
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className="space-y-3">
           <Skeleton className="aspect-[4/3] w-full rounded-2xl" />

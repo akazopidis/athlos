@@ -84,7 +84,10 @@ async function pay(page: Page) {
   await page.getByRole('button', { name: 'Buy now' }).click()
   await page.waitForURL(/checkout\.stripe\.com/, { timeout: 150_000 })
 
-  // Since November 2026 Stripe's page keeps the card fields in an iframe, found here by their names.
+  // Since November 2026 Stripe's page keeps the card fields in an iframe, found here by their names. In
+  // euros it offers other methods too (iDEAL, Bancontact, EPS): the card fields appear once Card is chosen.
+  const card = await stripe(page, (f) => f.getByRole('button', { name: /^Card/ }), 15_000).catch(() => null)
+  if (card) await card.click()
   await (await stripe(page, (f) => f.getByRole('textbox', { name: 'Card number' }))).fill('4242 4242 4242 4242')
   await (await stripe(page, (f) => f.getByRole('textbox', { name: /Expiration/ }))).fill('12 / 34')
   await (await stripe(page, (f) => f.getByRole('textbox', { name: /Security code|CVC/ }))).fill('123')

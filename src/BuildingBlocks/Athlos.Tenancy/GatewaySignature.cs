@@ -25,7 +25,11 @@ public sealed class GatewaySignature
     public const string TimestampHeader = "X-Gateway-Timestamp";
     public const string SignatureHeader = "X-Gateway-Signature";
 
-    public static readonly TimeSpan MaxAge = TimeSpan.FromSeconds(60);
+    // Long enough for a service starting from zero: the request waits at the ingress while the replica
+    // starts, and only then is the signature checked. At 60 s, staging's first requests after a quiet
+    // spell answered 401 after 78 s (uptime.yml, 14 November 2026). It is also how long a captured
+    // signed request could be replayed (design §3.2).
+    public static readonly TimeSpan MaxAge = TimeSpan.FromMinutes(3);
 
     private readonly byte[] _key;
     private readonly byte[]? _alsoAccepted;

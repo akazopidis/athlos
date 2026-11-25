@@ -75,3 +75,7 @@ cd tests/e2e && npm ci && E2E_CHANNEL=chrome npx playwright test   # end-to-end,
 - **prod:** publishing a GitHub Release `vX.Y.Z` deploys the same images again.
 
 See design §12 and the [releases](https://github.com/akazopidis/athlos/releases).
+
+## License
+
+[MIT](LICENSE). Found a security problem? Please report it privately through the repository's Security tab rather than in a public issue.

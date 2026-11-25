@@ -988,7 +988,7 @@ Measurable targets make the evaluation honest. Suggested starting values, measur
 1. ~~**Compute:** Container Apps or AKS.~~ **Decided 2026-09-26: Container Apps.**
 2. ~~**Database.**~~ **Decided 2026-09-26: PostgreSQL Flexible Server.**
 3. ~~**Registry:** ACR or GHCR.~~ Resolved by the Students free service: ACR Standard, as long as the portal confirms it.
-4. ~~**Repo visibility.**~~ **Decided: private** (GitHub Pro). The cost: no free CodeQL or GitHub secret scanning, and no required reviewers on prod (§12). GitGuardian's check on every PR covers secret scanning, and Dependabot alerts and security updates are on (enabled 11 October 2026). Making it public later, for the "reference guide" goal, needs no code change.
+4. ~~**Repo visibility.**~~ **Public since 25 November 2026, MIT licensed** (backlog item 58). On going public: secret scanning with push protection, CodeQL (default setup: C#, TypeScript, Python, Actions), private vulnerability reporting, and approval of workflow runs for every outside contributor were turned on; before it, a scan of the files and all 288 commits found no secrets. Until then: **private** (GitHub Pro). The cost: no free CodeQL or GitHub secret scanning, and no required reviewers on prod (§12). GitGuardian's check on every PR covers secret scanning, and Dependabot alerts and security updates are on (enabled 11 October 2026). Making it public later, for the "reference guide" goal, needs no code change.
 
 ## References
 

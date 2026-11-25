@@ -17,6 +17,18 @@ export function BrandScope({ color, className, children }: { color?: string | nu
   )
 }
 
+// Only an http(s) address is used as the logo: the studio's preview shows what is typed into the form
+// before the server has checked it (it stores https links only), so nothing else reaches the image.
+function imageUrl(value?: string | null): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null
+  } catch {
+    return null
+  }
+}
+
 // The storefront's header: the coach's logo (or initial) and name on their color.
 export function StorefrontBanner({
   name,
@@ -37,6 +49,7 @@ export function StorefrontBanner({
   heading?: 'h1' | 'p'
 }) {
   const large = Heading === 'h1'
+  const logo = imageUrl(logoUrl)
   const background = color ?? 'var(--ink)'
   const text = color ? readableOn(color) : 'var(--ink-foreground)'
   return (
@@ -51,8 +64,8 @@ export function StorefrontBanner({
         style={{ background: 'radial-gradient(120% 90% at 100% 0%, rgb(255 255 255 / 0.22), transparent 55%), linear-gradient(to top, rgb(0 0 0 / 0.25), transparent 70%)' }}
       />
       <div className={cn('flex items-center gap-4 sm:gap-6', innerClassName)}>
-        {logoUrl ? (
-          <img src={logoUrl} alt="" className={cn('size-16 shrink-0 rounded-2xl bg-white object-cover shadow-lg ring-4 ring-white/20', large && 'sm:size-24')} />
+        {logo ? (
+          <img src={logo} alt="" className={cn('size-16 shrink-0 rounded-2xl bg-white object-cover shadow-lg ring-4 ring-white/20', large && 'sm:size-24')} />
         ) : (
           <div
             aria-hidden

@@ -23,7 +23,8 @@ export async function signIn(page: Page) {
   await page.getByLabel(/password/i).fill(password!)
   await page.getByRole('button', { name: /sign in/i }).click()
   // Entra then asks "Stay signed in?" (on the same /login address), or goes straight back to Athlos.
-  const leftEntra = (url: URL) => !url.hostname.includes('ciamlogin.com')
+  const onEntra = (url: URL) => url.hostname === 'ciamlogin.com' || url.hostname.endsWith('.ciamlogin.com')
+  const leftEntra = (url: URL) => !onEntra(url)
   const staySignedIn = page.getByRole('heading', { name: 'Stay signed in?' })
   await Promise.race([page.waitForURL(leftEntra), staySignedIn.waitFor()])
   if (await staySignedIn.isVisible()) await page.getByRole('button', { name: 'No', exact: true }).click()
